@@ -309,7 +309,7 @@ function PlatformSpark({ p }) {
   const xStep = w / (points.length - 1);
   const path = points.map((v, i) => {
     const x = i * xStep;
-    const y = h - (v - min) / range * h * 0.8 - h * 0.1;
+    const y = h - (v - min) / (max - min) * h * 0.8 - h * 0.1;
     return (i === 0 ? "M" : "L") + x.toFixed(1) + "," + y.toFixed(1);
   }).join(" ");
   return (
