@@ -328,7 +328,6 @@ function Platforms({ data }) {
           <div></div><div>Platform</div>
           <div className="col-num">Followers</div><div className="col-num">Engagement Rate</div>
           <div className="col-num">Page Reach</div><div className="col-num hide-apple">Page Clicks</div>
-          <div className="col-num">Trends</div>
         </div>
         {data.platforms.map((p, i) => (
           <div className="channel-row" key={p.key}>
@@ -338,7 +337,6 @@ function Platforms({ data }) {
             <div className="col-num"><span className="big serif num">{p.engagementRate != null ? p.engagementRate.toFixed(2) : "—"}%</span><span className="sub"><span className={"delta " + p.engagementRateDelta.dir}>{arrow(p.engagementRateDelta.dir)} {p.engagementRateDelta.pct != null ? p.engagementRateDelta.pct.toFixed(1) : "—"}%</span></span></div>
             <div className="col-num"><span className="big serif num">{fmt(p.pageReach)}</span><span className="sub"><span className={"delta " + p.pageReachDelta.dir}>{arrow(p.pageReachDelta.dir)} {p.pageReachDelta.pct != null ? p.pageReachDelta.pct.toFixed(1) : "—"}%</span></span></div>
             <div className="col-num hide-apple"><span className="big serif num">{fmtExact(p.pageClicks)}</span><span className="sub"><span className={"delta " + p.pageClicksDelta.dir}>{arrow(p.pageClicksDelta.dir)} {p.pageClicksDelta.pct != null ? p.pageClicksDelta.pct.toFixed(1) : "—"}%</span></span></div>
-            <div className="col-num"><PlatformSpark p={p} /></div>
           </div>
         ))}
       </div>

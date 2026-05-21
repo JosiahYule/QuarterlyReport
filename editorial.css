@@ -347,7 +347,7 @@ body[data-layout="apple"] .kpi-value { font-size: clamp(72px, 8vw, 110px); }
 .channels { display: grid; gap: 0; }
 .channel-row {
   display: grid;
-  grid-template-columns: 0.4fr 1.4fr repeat(5, 1fr);
+  grid-template-columns: 0.4fr 1.4fr repeat(4, 1fr);
   gap: 24px;
   align-items: baseline;
   padding: 32px 0;
@@ -454,9 +454,11 @@ body[data-layout="document"] .note li { font-size: 15px; line-height: 1.5; }
 
 /* ============= COLOPHON ============= */
 .colophon {
-  padding-top: 32px; padding-bottom: 56px;
+  border-top: 1px solid var(--rule);
+  padding-top: 24px; padding-bottom: 56px;
   color: var(--ink-3);
   font-size: 13px;
+  text-align: center;
 }
 
 /* ============= NAV CHOOSER MENU ============= */
@@ -522,11 +524,10 @@ body[data-layout="document"] .note li { font-size: 15px; line-height: 1.5; }
   .hero-lede-row, .section-head { grid-template-columns: 1fr; }
   .hero-meta-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-  /* Hide Page Reach, Page Clicks, Trends on tablet — keep Index, Name, Followers, ER */
+  /* Hide Page Reach, Page Clicks on tablet — keep Index, Name, Followers, ER */
   .channel-row { grid-template-columns: 0.4fr 1.6fr 1fr 1fr; }
   .channel-row > div:nth-child(5),
-  .channel-row > div:nth-child(6),
-  .channel-row > div:nth-child(7) { display: none; }
+  .channel-row > div:nth-child(6) { display: none; }
   .notes { grid-template-columns: 1fr; }
   /* Nav tabs: scrollable so they never wrap or overflow */
   .nav-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
