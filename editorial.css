@@ -454,10 +454,9 @@ body[data-layout="document"] .note li { font-size: 15px; line-height: 1.5; }
 
 /* ============= COLOPHON ============= */
 .colophon {
-  padding-top: 48px; padding-bottom: 80px;
+  padding-top: 32px; padding-bottom: 56px;
   color: var(--ink-3);
   font-size: 13px;
-  border-top: 4px solid var(--ink);
 }
 
 /* ============= NAV CHOOSER MENU ============= */
@@ -507,6 +506,7 @@ body[data-layout="document"] .note li { font-size: 15px; line-height: 1.5; }
   font-family: var(--serif); font-size: 20px; color: var(--ink-4);
   cursor: pointer; position: relative;
   transition: color .15s ease;
+  min-height: 44px; display: inline-flex; align-items: center;
 }
 .platform-tab:hover { color: var(--ink-2); }
 .platform-tab.is-active { color: var(--ink); }
@@ -514,13 +514,27 @@ body[data-layout="document"] .note li { font-size: 15px; line-height: 1.5; }
   content: ""; position: absolute; left: 0; right: 28px; bottom: -1px; height: 2px; background: var(--isl-blue);
 }
 
+/* ============= TABLE SCROLL WRAPPER ============= */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
 /* responsive collapse */
 @media (max-width: 880px) {
   .hero-lede-row, .section-head { grid-template-columns: 1fr; }
   .hero-meta-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-  .channel-row, .channel-row.cols-4 { grid-template-columns: 1fr 1fr; row-gap: 12px; }
+  /* Hide Page Reach, Page Clicks, Trends on tablet — keep Index, Name, Followers, ER */
+  .channel-row { grid-template-columns: 0.4fr 1.6fr 1fr 1fr; }
+  .channel-row > div:nth-child(5),
+  .channel-row > div:nth-child(6),
+  .channel-row > div:nth-child(7) { display: none; }
   .notes { grid-template-columns: 1fr; }
+  /* Nav tabs: scrollable so they never wrap or overflow */
+  .nav-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .nav-tabs::-webkit-scrollbar { display: none; }
+  .nav-tabs a { white-space: nowrap; min-height: 44px; display: inline-flex; align-items: center; }
+  /* Platform tabs: scrollable on tablet */
+  .platform-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .platform-tabs::-webkit-scrollbar { display: none; }
   .calendar-weekdays, .calendar-grid-month { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
   .calendar-day-cell { min-height: 104px; padding: 6px; }
   .calendar-day-number { font-size: 15px; }
@@ -528,5 +542,20 @@ body[data-layout="document"] .note li { font-size: 15px; line-height: 1.5; }
   .calendar-grid-unknown { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
+  /* Tighter vertical rhythm on phone */
+  :root { --pad-y: 56px; --gap: 20px; }
   .hero-meta-row { grid-template-columns: 1fr; }
+  /* Stack the hero header row vertically */
+  .hero-b-top { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .hero-b-note { font-size: 18px; }
+  /* Trend legend wraps instead of overflowing */
+  .trend-legend { flex-wrap: wrap; row-gap: 12px; }
+  /* Hide the date range label in the nav — keep only the quarter button */
+  .nav-meta > span:first-child { display: none; }
+  .colophon { padding-top: 24px; padding-bottom: 40px; }
+}
+@media (max-width: 480px) {
+  /* On small phones: drop the index column — show Name, Followers, ER */
+  .channel-row { grid-template-columns: 2fr 1fr 1fr; }
+  .channel-row > div:nth-child(1) { display: none; }
 }
