@@ -21,11 +21,7 @@
     .t-section-sub { font-size: 13px; color: var(--ink-3); font-family: var(--sans); }
     .t-badge { font-size: 11px; font-family: var(--sans); color: var(--ink-3); padding: 4px 12px; white-space: nowrap; align-self: flex-start; }
 
-    .trends-hero { margin-bottom: 56px; padding-top: 24px; }
-    .trends-hero h1 { font-family: var(--serif); font-size: clamp(36px, 5vw, 64px); line-height: 1; letter-spacing: -0.03em; color: var(--ink); margin-bottom: 16px; font-weight: 400; }
-    .trends-hero h1 em { font-style: italic; color: var(--isl-blue); }
-    .trends-hero-meta { font-size: 13px; color: var(--ink-3); font-family: var(--sans); display: flex; flex-wrap: wrap; gap: 24px; padding-top: 12px; }
-    .trends-hero-meta strong { color: var(--ink); }
+.trends-hero { margin-bottom: 56px; padding-top: 24px; border-top: 1px solid var(--rule); }
     .hero-progress-pill { display: inline-flex; align-items: center; gap: 8px; }
     .hero-progress-track { width: 80px; height: 3px; background: var(--rule); border-radius: 99px; overflow: hidden; }
     .hero-progress-fill { height: 100%; background: var(--isl-blue); border-radius: 99px; transition: width .6s ease; }
@@ -75,18 +71,23 @@
 
 <div class="trends-wrap">
 
-  <div class="trends-hero">
-    <h1>Quarterly <em>Trends.</em></h1>
-    <div class="trends-hero-meta">
-      <span><strong>Quarters:</strong> Q1 · Q2 · Q3</span>
-      <span><strong>Platforms:</strong> LinkedIn · Facebook · Instagram</span>
-      <span class="hero-progress-pill" id="progressPill">
-        <strong>Q3:</strong>&nbsp;<span id="progressLabel">calculating…</span>
-        <span class="hero-progress-track"><span class="hero-progress-fill" id="progressFill" style="width:0%"></span></span>
-      </span>
-      <span id="updatedAt" style="color:var(--ink-4)"></span>
+<div class="trends-hero">
+  <div class="hero-b-top">
+    <div class="hero-b-left">
+      <div class="hero-b-q serif">Trends</div>
+      <div class="hero-b-divider"></div>
+      <div class="hero-b-meta">
+        <div class="hero-b-meta-name">Integrated Staffing</div>
+        <div class="hero-b-meta-range">Q1 · Q2 · Q3 · 2026</div>
+      </div>
+    </div>
+    <div class="hero-b-type" style="display:flex;align-items:center;gap:16px;">
+      <span id="progressLabel" style="color:var(--ink-3);font-size:12px;font-family:var(--sans);">calculating…</span>
+      <span class="hero-progress-track" id="progressPill"><span class="hero-progress-fill" id="progressFill" style="width:0%"></span></span>
+      <span id="updatedAt" style="color:var(--ink-4);font-size:12px;font-family:var(--sans);"></span>
     </div>
   </div>
+</div>
 
   <section class="t-section">
     <div class="t-section-head">
