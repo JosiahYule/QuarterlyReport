@@ -156,6 +156,25 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .nav-tabs a:hover { color: var(--ink); }
 .nav-tabs a.is-active { color: var(--ink); border-bottom-color: var(--ink); }
 .nav-meta { display: flex; gap: 18px; align-items: center; color: var(--ink-3); }
+.nav-quarter-meta { display: flex; gap: 18px; align-items: center; color: var(--ink-3); }
+.org-switch {
+  display: inline-flex;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--paper-2);
+}
+.org-switch-item {
+  padding: 5px 10px;
+  font-size: 11px;
+  color: var(--ink-3);
+  transition: background-color .15s ease, color .15s ease;
+}
+.org-switch-item.is-active {
+  background: var(--paper);
+  color: var(--ink);
+}
+.org-switch-item:hover { color: var(--ink); }
 .qchooser {
   display: inline-flex; align-items: center; gap: 6px;
   color: var(--ink); cursor: pointer;

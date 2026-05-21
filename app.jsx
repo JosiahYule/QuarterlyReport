@@ -139,6 +139,11 @@ function MastNav({ data }) {
   const params = new URLSearchParams(window.location.search);
   const reportKey = params.get("report") || "islq3";
   const [open, setOpen] = useState(false);
+  const org = (params.get("org") || "accountant").toLowerCase();
+  const orgOptions = [
+    { key: "accountant", label: "Accountant Staffing" },
+    { key: "admin", label: "Admin Staffing" },
+  ];
   const ref = useRef();
   useEffect(() => {
     const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -157,10 +162,17 @@ function MastNav({ data }) {
         <div className="masthead-nav-row">
           <nav className="nav-tabs">
             <a href="/" className="is-active">Social Media</a>
-            <a href="/web/">Website</a>
-            <a href="/trends/">Trends</a>
+            <a href={`/web/?org=${org}`}>Website</a>
+            <a href={`/trends/?org=${org}`}>Trends</a>
           </nav>
           <div className="nav-meta">
+            <div className="org-switch" role="tablist" aria-label="Staffing group">
+              {orgOptions.map((o) => (
+                <a key={o.key} role="tab" aria-selected={org === o.key} className={"org-switch-item" + (org === o.key ? " is-active" : "")} href={`/?report=${reportKey}&org=${o.key}`}>
+                  {o.label}
+                </a>
+              ))}
+            </div>
             <span>{data.meta.rangeLabel}</span>
             <div ref={ref} style={{ position: "relative" }}>
               <button className="qchooser" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -169,9 +181,9 @@ function MastNav({ data }) {
               </button>
               <div className={"menu" + (open ? " is-open" : "")} role="menu">
                 <div className="group">2026</div>
-                <a href="?report=islq3" role="menuitem" className={!window.location.search || window.location.search.includes("islq3") ? "active" : ""}>Q3 — Mar–May 2026</a>
-                <a href="?report=islq2" role="menuitem" className={window.location.search.includes("islq2") ? "active" : ""}>Q2 — Dec–Feb 2026</a>
-                <a href="?report=islq1" role="menuitem" className={window.location.search.includes("islq1") ? "active" : ""}>Q1 — Sep–Nov 2025</a>
+                <a href={`?report=islq3&org=${org}`} role="menuitem" className={!window.location.search || window.location.search.includes("islq3") ? "active" : ""}>Q3 — Mar–May 2026</a>
+                <a href={`?report=islq2&org=${org}`} role="menuitem" className={window.location.search.includes("islq2") ? "active" : ""}>Q2 — Dec–Feb 2026</a>
+                <a href={`?report=islq1&org=${org}`} role="menuitem" className={window.location.search.includes("islq1") ? "active" : ""}>Q1 — Sep–Nov 2025</a>
               </div>
             </div>
           </div>

@@ -49,6 +49,17 @@ function MastNav({ active, quarter, onQuarter }) {
     { id: "web",    label: "Website",      href: "/web/" },
     { id: "trends", label: "Trends",       href: "/trends/" },
   ];
+  const params = new URLSearchParams(window.location.search);
+  const org = (params.get("org") || "accountant").toLowerCase();
+  const orgOptions = [
+    { key: "accountant", label: "Accountant Staffing" },
+    { key: "admin", label: "Admin Staffing" },
+  ];
+  const withOrg = (href, key) => {
+    const url = new URL(href, window.location.origin);
+    url.searchParams.set("org", key);
+    return url.pathname + url.search;
+  };
 
   return (
     <div className="masthead-nav">
@@ -56,13 +67,21 @@ function MastNav({ active, quarter, onQuarter }) {
         <div className="masthead-nav-row">
           <nav className="nav-tabs">
             {tabs.map(t => (
-              <a key={t.id} href={t.href} className={active === t.id ? "is-active" : ""}>
+              <a key={t.id} href={withOrg(t.href, org)} className={active === t.id ? "is-active" : ""}>
                 {t.label}
               </a>
             ))}
           </nav>
+          <div className="nav-meta">
+            <div className="org-switch" role="tablist" aria-label="Staffing group">
+              {orgOptions.map((o) => (
+                <a key={o.key} role="tab" aria-selected={org === o.key} className={"org-switch-item" + (org === o.key ? " is-active" : "")} href={withOrg(window.location.pathname + window.location.search, o.key)}>
+                  {o.label}
+                </a>
+              ))}
+            </div>
           {onQuarter ? (
-            <div className="nav-meta">
+            <div className="nav-quarter-meta">
               <span>{quarter?.rangeLabel ?? ""}</span>
               <div ref={ref} style={{ position: "relative" }}>
                 <button className="qchooser" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -71,18 +90,17 @@ function MastNav({ active, quarter, onQuarter }) {
                 </button>
                 <div className={"menu" + (open ? " is-open" : "")} role="menu">
                   <div className="group">2026</div>
-                  <a href="?report=islq3" role="menuitem" className={quarter?.key === "islq3" ? "active" : ""} onClick={() => setOpen(false)}>Q3 — Mar – May 2026</a>
-                  <a href="?report=islq2" role="menuitem" className={quarter?.key === "islq2" ? "active" : ""} onClick={() => setOpen(false)}>Q2 — Dec – Feb 2026</a>
+                  <a href={`?report=islq3&org=${org}`} role="menuitem" className={quarter?.key === "islq3" ? "active" : ""} onClick={() => setOpen(false)}>Q3 — Mar – May 2026</a>
+                  <a href={`?report=islq2&org=${org}`} role="menuitem" className={quarter?.key === "islq2" ? "active" : ""} onClick={() => setOpen(false)}>Q2 — Dec – Feb 2026</a>
                   <div className="group">2025</div>
-                  <a href="?report=islq1" role="menuitem" className={quarter?.key === "islq1" ? "active" : ""} onClick={() => setOpen(false)}>Q1 — Sep – Nov 2025</a>
+                  <a href={`?report=islq1&org=${org}`} role="menuitem" className={quarter?.key === "islq1" ? "active" : ""} onClick={() => setOpen(false)}>Q1 — Sep – Nov 2025</a>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="nav-meta">
-              <span>Q1 · Q2 · Q3</span>
-            </div>
+            <span>Q1 · Q2 · Q3</span>
           )}
+          </div>
         </div>
       </div>
     </div>
