@@ -57,17 +57,21 @@ function normalizeReport(r) {
     if (Array.isArray(r.platforms)) {
       r.platforms = r.platforms.map((p) => ({
         ...p,
-        followersDelta: parseDelta(p.followersDelta),
+        followersDelta:      parseDelta(p.followersDelta),
         engagementRateDelta: parseDelta(p.engagementRateDelta),
-        pageReachDelta: parseDelta(p.pageReachDelta),
-        pageClicksDelta: parseDelta(p.pageClicksDelta),
+        pageReachDelta:      parseDelta(p.pageReachDelta),
+        pageClicksDelta:     parseDelta(p.pageClicksDelta),
       }));
     }
     return r;
   }
 
   const overall = {}, deltas = {};
-  const keyMap = { posts:"posts", impressions:"impressions", shares:"shares", reactions:"reactions", followers:"followers", linkClicks:"linkclicks", comments:"comments", avgEngagementRate:"avgengagementrate" };
+  const keyMap = {
+    posts: "posts", impressions: "impressions", shares: "shares",
+    reactions: "reactions", followers: "followers", linkClicks: "linkclicks",
+    comments: "comments", avgEngagementRate: "avgengagementrate"
+  };
   (r.quarterTotals || []).forEach((row) => {
     const mapped = keyMap[row.field] || row.field.toLowerCase();
     overall[mapped] = row.value;
@@ -87,7 +91,10 @@ function normalizeReport(r) {
   (r.topPosts || []).forEach((p) => {
     const key = (p.Platform || "").toLowerCase();
     if (topPostsByPlatform[key] && p.Title) {
-      topPostsByPlatform[key].push({ title: p.Title, impressions: p.Impressions || 0, likes: p.Likes || 0, shares: p.Shares || 0, flag: "" });
+      topPostsByPlatform[key].push({
+        title: p.Title, impressions: p.Impressions || 0,
+        likes: p.Likes || 0, shares: p.Shares || 0, flag: ""
+      });
     }
   });
 
@@ -103,71 +110,41 @@ function normalizeReport(r) {
   const weekly = Array.from({ length: 13 }, (_, i) => ({ wk: i + 1, imp: 0, leads: 0, spend: 0 }));
 
   const params = new URLSearchParams(window.location.search);
-  const reportKey = params.get("report") || "islq3";
+  const agency = params.get("agency") || "isl";
+  const reportKey = params.get("report") || (agency + "q3");
+
   const REPORT_META = {
-    islq1: { quarter: "Q1", quarterWord: "One",   year: "2026", rangeLabel: "Sep – Nov 2025", issue: "1" },
-    islq2: { quarter: "Q2", quarterWord: "Two",   year: "2026", rangeLabel: "Dec – Feb 2026", issue: "2" },
-    islq3: { quarter: "Q3", quarterWord: "Three", year: "2026", rangeLabel: "Mar – May 2026", issue: "3" },
+    islq1:  { quarter: "Q1", quarterWord: "One",   year: "2026", rangeLabel: "Sep – Nov 2025", issue: "1" },
+    islq2:  { quarter: "Q2", quarterWord: "Two",   year: "2026", rangeLabel: "Dec – Feb 2026", issue: "2" },
+    islq3:  { quarter: "Q3", quarterWord: "Three", year: "2026", rangeLabel: "Mar – May 2026", issue: "3" },
+    asq1:   { quarter: "Q1", quarterWord: "One",   year: "2026", rangeLabel: "Sep – Nov 2025", issue: "1" },
+    asq2:   { quarter: "Q2", quarterWord: "Two",   year: "2026", rangeLabel: "Dec – Feb 2026", issue: "2" },
+    asq3:   { quarter: "Q3", quarterWord: "Three", year: "2026", rangeLabel: "Mar – May 2026", issue: "3" },
+    adsq1:  { quarter: "Q1", quarterWord: "One",   year: "2026", rangeLabel: "Sep – Nov 2025", issue: "1" },
+    adsq2:  { quarter: "Q2", quarterWord: "Two",   year: "2026", rangeLabel: "Dec – Feb 2026", issue: "2" },
+    adsq3:  { quarter: "Q3", quarterWord: "Three", year: "2026", rangeLabel: "Mar – May 2026", issue: "3" },
   };
   const reportMeta = REPORT_META[reportKey] || REPORT_META["islq3"];
+
+  const AGENCY_NAMES = { isl: "Integrated Staffing", as: "Accountant Staffing", ads: "Administrative Staffing" };
+
   const meta = {
-    quarter: reportMeta.quarter, quarterWord: reportMeta.quarterWord,
-    year: reportMeta.year, rangeLabel: reportMeta.rangeLabel,
+    quarter:      reportMeta.quarter,
+    quarterWord:  reportMeta.quarterWord,
+    year:         reportMeta.year,
+    rangeLabel:   reportMeta.rangeLabel,
     generatedLabel: r.generatedAt ? new Date(r.generatedAt).toLocaleDateString() : "",
-    author: "Josiah Yule", issue: reportMeta.issue,
+    author:       "Josiah Yule",
+    issue:        reportMeta.issue,
+    agencyName:   AGENCY_NAMES[agency] || "Integrated Staffing",
   };
 
-  return { meta, editorsNote: insightMap.editorsNote || insightMap.working || "No editor's note yet.", overall, deltas, platforms, topPostsByPlatform, notes, weekly, allPosts: r.allPosts || [] };
-}
-
-// =================================================================
-// Masthead + Nav
-// =================================================================
-
-function MastNav({ data }) {
-  const params = new URLSearchParams(window.location.search);
-  const reportKey = params.get("report") || "islq3";
-  const [open, setOpen] = useState(false);
-  const ref = useRef();
-  useEffect(() => {
-    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("pointerdown", close);
-    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, []);
-
-  return (
-    <div className="masthead-nav">
-      <div className="wrap">
-        <div className="masthead-nav-row">
-          <nav className="nav-tabs">
-            <a href="/" className="is-active">Social Media</a>
-            <a href="/web/">Website</a>
-            <a href="/trends/">Trends</a>
-          </nav>
-          <div className="nav-meta">
-            <span>{data.meta.rangeLabel}</span>
-            <div ref={ref} style={{ position: "relative" }}>
-              <button className="qchooser" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
-                <span>2026 · {reportKey === "islq1" ? "Q1" : reportKey === "islq2" ? "Q2" : "Q3"}</span>
-                <span className="caret">▾</span>
-              </button>
-              <div className={"menu" + (open ? " is-open" : "")} role="menu">
-                <div className="group">2026</div>
-                <a href="?report=islq3" role="menuitem" className={!window.location.search || window.location.search.includes("islq3") ? "active" : ""}>Q3 — Mar–May 2026</a>
-                <a href="?report=islq2" role="menuitem" className={window.location.search.includes("islq2") ? "active" : ""}>Q2 — Dec–Feb 2026</a>
-                <a href="?report=islq1" role="menuitem" className={window.location.search.includes("islq1") ? "active" : ""}>Q1 — Sep–Nov 2025</a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return {
+    meta,
+    editorsNote: insightMap.editorsNote || insightMap.working || "No editor's note yet.",
+    overall, deltas, platforms, topPostsByPlatform, notes, weekly,
+    allPosts: r.allPosts || []
+  };
 }
 
 // =================================================================
@@ -202,14 +179,14 @@ function Hero({ data }) {
 // Numbers (KPIs)
 // =================================================================
 const KPI_DEFS = [
-  { key: "posts",            label: "Posts Published",    fmt: fmtExact,                       note: "across all platforms" },
-  { key: "impressions",      label: "Impressions",        fmt: fmt,                             note: "total reach served" },
-  { key: "shares",           label: "Shares",             fmt: fmtExact,                       note: "amplification by audience" },
-  { key: "reactions",        label: "Reactions",          fmt: fmtExact,                       note: "likes + reactions" },
-  { key: "followers",        label: "Followers",          fmt: fmtExact,                       note: "combined audience" },
-  { key: "linkclicks",       label: "Link Clicks",        fmt: fmtExact,                       note: "engagement with posts" },
-  { key: "comments",         label: "Comments",           fmt: fmtExact,                       note: "depth of conversation" },
-  { key: "avgengagementrate",label: "Avg Engagement Rate",fmt: (v) => v.toFixed(2) + "%",      note: "blended across posts" },
+  { key: "posts",             label: "Posts Published",     fmt: fmtExact,                  note: "across all platforms" },
+  { key: "impressions",       label: "Impressions",         fmt: fmt,                        note: "total reach served" },
+  { key: "shares",            label: "Shares",              fmt: fmtExact,                  note: "amplification by audience" },
+  { key: "reactions",         label: "Reactions",           fmt: fmtExact,                  note: "likes + reactions" },
+  { key: "followers",         label: "Followers",           fmt: fmtExact,                  note: "combined audience" },
+  { key: "linkclicks",        label: "Link Clicks",         fmt: fmtExact,                  note: "engagement with posts" },
+  { key: "comments",          label: "Comments",            fmt: fmtExact,                  note: "depth of conversation" },
+  { key: "avgengagementrate", label: "Avg Engagement Rate", fmt: (v) => v.toFixed(2) + "%", note: "blended across posts" },
 ];
 
 function Numbers({ data }) {
@@ -244,7 +221,7 @@ function TrendChart({ data, metric = "impressions" }) {
   const series = useMemo(() => ({
     labels: data.weekly.map((d) => d.wk),
     lines: {
-      impressions: { name: "Impressions (K)", values: data.weekly.map((d) => d.imp), color: "var(--isl-blue)", unit: "K" },
+      impressions: { name: "Impressions (K)", values: data.weekly.map((d) => d.imp),   color: "var(--isl-blue)", unit: "K" },
       engagements: { name: "Engagements",     values: data.weekly.map((d) => d.leads), color: "var(--ink)",     unit: "" },
       linkclicks:  { name: "Link Clicks",     values: data.weekly.map((d) => d.spend), color: "var(--ink-3)",   unit: "" },
     },
@@ -284,9 +261,9 @@ function Trend({ data, metric, setMetric }) {
   if (!data.weekly || data.weekly.every(w => w.imp === 0)) return null;
   const tab = (k, label) => {
     const lines = {
-      impressions: { vals: data.weekly.map((w) => w.imp), color: "var(--isl-blue)", unit: "K" },
-      engagements: { vals: data.weekly.map((w) => w.leads), color: "var(--ink)", unit: "" },
-      linkclicks:  { vals: data.weekly.map((w) => w.spend), color: "var(--ink-3)", unit: "" },
+      impressions: { vals: data.weekly.map((w) => w.imp),   color: "var(--isl-blue)", unit: "K" },
+      engagements: { vals: data.weekly.map((w) => w.leads), color: "var(--ink)",      unit: "" },
+      linkclicks:  { vals: data.weekly.map((w) => w.spend), color: "var(--ink-3)",    unit: "" },
     };
     const l = lines[k];
     const total = l.vals.reduce((a, b) => a + b, 0);
@@ -610,7 +587,7 @@ function Notes({ data }) {
 function Colophon({ data }) {
   return (
     <footer className="wrap colophon">
-      <div className="left serif">Integrated Staffing — Quarterly Marketing Report.<br />{data.meta.quarter} {data.meta.year}, {data.meta.rangeLabel}.</div>
+      <div className="left serif">{data.meta.agencyName} — Quarterly Marketing Report.<br />{data.meta.quarter} {data.meta.year}, {data.meta.rangeLabel}.</div>
       <div className="right"><div className="upper">Internal — Do Not Distribute</div><div style={{ marginTop: 8 }}>{data.meta.generatedLabel}</div></div>
     </footer>
   );
@@ -625,6 +602,7 @@ function App() {
   const [platform, setPlatform] = useState(t.topPlatform || "linkedin");
   const [data, setData] = useState(null);
 
+  // Apply layout/density/accent tweaks to body
   useEffect(() => {
     document.body.setAttribute("data-layout", t.layout);
     document.body.setAttribute("data-density", t.density);
@@ -633,10 +611,12 @@ function App() {
     document.documentElement.style.setProperty("--isl-blue", accentColor);
   }, [t.layout, t.density, t.accent]);
 
+  // Update page title once data is ready
   useEffect(() => {
-    if (data) document.title = `ISL ${data.meta.quarter} ${data.meta.year}`;
+    if (data) document.title = `${data.meta.agencyName} ${data.meta.quarter} ${data.meta.year}`;
   }, [data]);
 
+  // Poll for ISL_REPORT (set by the inline script in index.html)
   useEffect(() => {
     const poll = setInterval(() => {
       if (window.ISL_REPORT) {
@@ -647,25 +627,31 @@ function App() {
     return () => clearInterval(poll);
   }, []);
 
-  if (!data) return (
-    <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "32px", background: "var(--paper)" }}>
-      <div style={{ fontFamily: "var(--serif)", fontSize: "clamp(32px, 5vw, 56px)", letterSpacing: "-0.02em", color: "var(--ink)", animation: "pulse 2s ease-in-out infinite" }}>
-        Integrated <em style={{ fontStyle: "italic", color: "var(--isl-blue)" }}>Staffing</em>
-      </div>
-      <div style={{ width: "120px", height: "1px", background: "var(--rule)", position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", inset: 0, background: "var(--ink)", animation: "scan 1.4s ease-in-out infinite" }} />
-      </div>
-      <div style={{ fontFamily: "var(--sans)", fontSize: "11px", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--ink-4)", animation: "pulse 2s ease-in-out infinite" }}>
-        Loading report
-      </div>
-      <style>{`@keyframes scan{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
-    </div>
-  );
+  // Render nav (masthead + tabs + quarter chooser) once on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const agency = params.get("agency") || "isl";
+    const reportKey = params.get("report") || (agency + "q3");
+    const QUARTER_META = {
+      q1: { label: "Q1", rangeLabel: "Sep – Nov 2025" },
+      q2: { label: "Q2", rangeLabel: "Dec – Feb 2026" },
+      q3: { label: "Q3", rangeLabel: "Mar – May 2026" },
+    };
+    const suffix = (reportKey.match(/q\d+$/) || ["q3"])[0];
+    const quarter = { key: reportKey, ...(QUARTER_META[suffix] || QUARTER_META.q3) };
+    renderNav("social", quarter, true);
+  }, []);
+
+  // Hide loading screen once data has arrived
+  useEffect(() => {
+    if (data) hideLoadingScreen();
+  }, [data]);
+
+  // While data is loading, render nothing — nav.jsx loading screen is already visible
+  if (!data) return null;
 
   return (
     <React.Fragment>
-      <Masthead data={data} />
-      <MastNav data={data} />
       <main className="report-wrap">
         <Hero data={data} />
         <Numbers data={data} />
@@ -675,7 +661,7 @@ function App() {
         <AllPosts data={data} />
         <Notes data={data} />
       </main>
-
+      <Colophon data={data} />
       <TweaksPanel title="Tweaks">
         <TweakSection title="Layout">
           <TweakRadio label="Mode" value={t.layout} onChange={(v) => setTweak("layout", v)} options={[{value:"editorial",label:"Editorial"},{value:"apple",label:"Apple"},{value:"document",label:"Document"}]} />
