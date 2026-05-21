@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ISL Quarterly Report</title>
+<title>Quarterly Report</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -23,11 +23,14 @@
 <script>
   (async () => {
     const params = new URLSearchParams(window.location.search);
-    const report = params.get("report") || "islq3";
+    const agency = params.get("agency") || "isl";
+    const report = params.get("report") || (agency + "q3");
     const res = await fetch(
       `https://script.google.com/macros/s/AKfycbwB-RGI1lVHrUE03PkkSEYbLuiTLxE4phMBBOm81diNJtSPyUWGoB_bOlkgFIoVF4yzLQ/exec?report=${report}&t=${Date.now()}`
     );
     window.ISL_REPORT = await res.json();
+    window.ISL_REPORT.__agency = agency;
+    window.ISL_REPORT.__reportKey = report;
   })();
 </script>
 <script type="text/babel" src="tweaks-panel.jsx"></script>
