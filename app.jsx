@@ -361,7 +361,7 @@ function TopPosts({ data, platform, setPlatform }) {
           </button>
         ))}
       </div>
-      <table className="table">
+      <div className="table-wrap"><table className="table">
         <thead><tr><th>Post</th><th className="r">Impressions</th><th className="r">Reactions</th><th className="r">Shares</th><th className="r">Engagement</th></tr></thead>
         <tbody>
           {posts.map((c) => {
@@ -377,7 +377,7 @@ function TopPosts({ data, platform, setPlatform }) {
             );
           })}
         </tbody>
-      </table>
+      </table></div>
     </section>
   );
 }
@@ -438,7 +438,7 @@ function AllPosts({ data }) {
       <header className="section-head"><h2 className="section-title serif">All Posts</h2></header>
       <div style={{ display: "flex", gap: "16px", marginBottom: "24px", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-          <input type="search" placeholder="Search posts, notes, or post type..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, width: "320px" }} />
+          <input type="search" placeholder="Search posts, notes, or post type..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, width: "100%", maxWidth: "320px" }} />
           <select value={platform} onChange={(e) => setPlatform(e.target.value)} style={inputStyle}>
             <option value="all">All platforms</option>
             <option value="linkedin">LinkedIn</option>
