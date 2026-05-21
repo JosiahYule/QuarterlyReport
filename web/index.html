@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ISL Website Report</title>
+<title>Website Report</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -101,7 +101,8 @@ function calcAutoDelta(cur, prev) {
 
 function Hero({ reportKey, data }) {
   const meta = REPORT_META[reportKey] || REPORT_META.webq3;
-  const note = typeof data.insights?.working === "string" ? data.insights.working.split("\n\n")[0] : "Website performance report for Integrated Staffing.";
+  const agencyCfg = getActiveAgencyConfig();
+  const note = typeof data.insights?.working === "string" ? data.insights.working.split("\n\n")[0] : `Website performance report for ${agencyCfg.name}.`;
   return (
     <section className="hero wrap">
       <div className="hero-kicker">Volume 2026 · {meta.quarter} Report · Website Analytics</div>
@@ -109,7 +110,7 @@ function Hero({ reportKey, data }) {
       <div className="hero-meta-row" role="list" aria-label="Report metadata">
         <div className="meta-pair" role="listitem"><span className="label">Reporting period</span><span className="value serif">{meta.rangeLabel}</span></div>
         <div className="meta-pair" role="listitem"><span className="label">Source</span><span className="value serif">GA4 · Squarespace</span></div>
-        <div className="meta-pair" role="listitem"><span className="label">Property</span><span className="value serif">integratedstaffing.ca</span></div>
+        <div className="meta-pair" role="listitem"><span className="label">Property</span><span className="value serif">{agencyCfg.url.replace("https://", "")}</span></div>
         <div className="meta-pair" role="listitem"><span className="label">Generated</span><span className="value serif">{data.generatedAt ? new Date(data.generatedAt).toLocaleDateString() : "—"}</span></div>
       </div>
       <div className="hero-lede-row">
@@ -229,13 +230,10 @@ function Notes({ data }) {
 
 function Colophon({ reportKey }) {
   const meta = REPORT_META[reportKey] || REPORT_META.webq3;
+  const agencyCfg = getActiveAgencyConfig();
   return (
     <footer className="wrap colophon">
-      <div className="left serif">Integrated Staffing — Quarterly Website Report.<br />{meta.quarter} 2026, {meta.rangeLabel}.</div>
-      <div className="right"><div className="upper">Internal — Do Not Distribute</div><div style={{ marginTop: 8 }}>Generated {new Date().toLocaleDateString()}</div></div>
-    </footer>
-  );
-}
+      <div className="left serif">{agencyCfg.name} — Quarterly Website Report.<br />{meta.quarter} 2026, {meta.rangeLabel}.</div>
 
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
@@ -249,9 +247,9 @@ function App() {
     document.body.setAttribute("data-density", t.density);
   }, [t.layout, t.density]);
 
-  useEffect(() => {
-    renderNav("web", { key: reportKey, label: meta.quarter, rangeLabel: meta.rangeLabel });
-  }, [reportKey]);
+useEffect(() => {
+  renderNav("web", { key: reportKey, label: meta.quarter, rangeLabel: meta.rangeLabel }, true);
+}, [reportKey]);
 
   useEffect(() => {
     if (data) hideLoadingScreen();
