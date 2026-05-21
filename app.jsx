@@ -15,7 +15,8 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 // Helpers
 // =================================================================
 const fmt = (n) => {
-  if (typeof n !== "number") return n;
+  if (n === null || n === undefined) return "—";
+  if (typeof n !== "number") return String(n);
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
   if (n >= 10_000) return Math.round(n / 1000) + "K";
   if (n >= 1000) return (n / 1000).toFixed(1) + "K";
@@ -332,8 +333,8 @@ function Platforms({ data }) {
           <div className="channel-row" key={p.key}>
             <div className="channel-idx serif ital">{String(i + 1).padStart(2, "0")}.</div>
             <div><div className="channel-name serif">{p.name}</div><div className="channel-note">{p.note}</div></div>
-            <div className="col-num"><span className="big serif num">{fmtExact(p.followers)}</span><span className="sub"><span className={"delta " + p.followersDelta.dir}>{arrow(p.followersDelta.dir)} {p.followersDelta.pct.toFixed(1)}%</span></span></div>
-            <div className="col-num"><span className="big serif num">{p.engagementRate.toFixed(2)}%</span><span className="sub"><span className={"delta " + p.engagementRateDelta.dir}>{arrow(p.engagementRateDelta.dir)} {p.engagementRateDelta.pct.toFixed(1)}%</span></span></div>
+            <div className="col-num"><span className="big serif num">{fmtExact(p.followers)}</span><span className="sub"><span className={"delta " + p.followersDelta.dir}>{arrow(p.followersDelta.dir)} {p.followersDelta?.pct != null ? p.followersDelta.pct.toFixed(1) : "—"}%</span></span></div>
+            <div className="col-num"><span className="big serif num">{p.engagementRate != null ? p.engagementRate.toFixed(2) : "—"}%</span><span className="sub"><span className={"delta " + p.engagementRateDelta.dir}>{arrow(p.engagementRateDelta.dir)} {p.engagementRateDelta.pct.toFixed(1)}%</span></span></div>
             <div className="col-num"><span className="big serif num">{fmt(p.pageReach)}</span><span className="sub"><span className={"delta " + p.pageReachDelta.dir}>{arrow(p.pageReachDelta.dir)} {p.pageReachDelta.pct.toFixed(1)}%</span></span></div>
             <div className="col-num hide-apple"><span className="big serif num">{fmtExact(p.pageClicks)}</span><span className="sub"><span className={"delta " + p.pageClicksDelta.dir}>{arrow(p.pageClicksDelta.dir)} {p.pageClicksDelta.pct.toFixed(1)}%</span></span></div>
             <div className="col-num"><PlatformSpark p={p} /></div>
