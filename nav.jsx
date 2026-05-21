@@ -220,11 +220,11 @@ function MastNav({ active, agencyKey, quarter, onQuarter }) {
 
   const currentAgency = agencyKey || getParams().agency || "isl";
 
-  const tabs = [
-    { id: "social", label: "Social Media", href: buildUrl({ agency: currentAgency }) },
-    { id: "web",    label: "Website",      href: "/web/?" + new URLSearchParams({ agency: currentAgency }).toString() },
-    { id: "trends", label: "Trends",       href: "/trends/?" + new URLSearchParams({ agency: currentAgency }).toString() },
-  ];
+const tabs = [
+  { id: "social", label: "Social Media", href: "/?" + new URLSearchParams({ agency: currentAgency }).toString() },
+  { id: "web",    label: "Website",      href: "/web/?" + new URLSearchParams({ agency: currentAgency }).toString() },
+  { id: "trends", label: "Trends",       href: "/trends/?" + new URLSearchParams({ agency: currentAgency }).toString() },
+];
 
   // Group quarters by year for the dropdown header rows
   const years = [...new Set(QUARTERS.map(q => q.year))];
