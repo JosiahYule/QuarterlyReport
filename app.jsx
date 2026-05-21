@@ -23,8 +23,8 @@ const fmt = (n) => {
   if (Number.isInteger(n)) return n.toLocaleString();
   return n.toFixed(2);
 };
-const fmtExact = (n) => (typeof n === "number" ? n.toLocaleString() : "—");
-const fmtPct = (n) => n.toFixed(2) + "%";
+const fmtExact = (n) => (n === null || n === undefined ? "—" : typeof n === "number" ? n.toLocaleString() : "—");
+const fmtPct = (n) => (n === null || n === undefined ? "—" : n.toFixed(2) + "%");
 function arrow(dir) { return dir === "up" ? "↑" : dir === "down" ? "↓" : "—"; }
 
 // =================================================================
@@ -187,7 +187,7 @@ const KPI_DEFS = [
   { key: "followers",         label: "Followers",           fmt: fmtExact,                  note: "combined audience" },
   { key: "linkclicks",        label: "Link Clicks",         fmt: fmtExact,                  note: "engagement with posts" },
   { key: "comments",          label: "Comments",            fmt: fmtExact,                  note: "depth of conversation" },
-  { key: "avgengagementrate", label: "Avg Engagement Rate", fmt: (v) => v.toFixed(2) + "%", note: "blended across posts" },
+  { key: "avgengagementrate", label: "Avg Engagement Rate", fmt: (v) => v != null ? v.toFixed(2) + "%" : "—", note: "blended across posts" },
 ];
 
 function Numbers({ data }) {
@@ -333,10 +333,10 @@ function Platforms({ data }) {
           <div className="channel-row" key={p.key}>
             <div className="channel-idx serif ital">{String(i + 1).padStart(2, "0")}.</div>
             <div><div className="channel-name serif">{p.name}</div><div className="channel-note">{p.note}</div></div>
-            <div className="col-num"><span className="big serif num">{fmtExact(p.followers)}</span><span className="sub"><span className={"delta " + p.followersDelta.dir}>{arrow(p.followersDelta.dir)} {p.followersDelta?.pct != null ? p.followersDelta.pct.toFixed(1) : "—"}%</span></span></div>
-            <div className="col-num"><span className="big serif num">{p.engagementRate != null ? p.engagementRate.toFixed(2) : "—"}%</span><span className="sub"><span className={"delta " + p.engagementRateDelta.dir}>{arrow(p.engagementRateDelta.dir)} {p.engagementRateDelta.pct.toFixed(1)}%</span></span></div>
-            <div className="col-num"><span className="big serif num">{fmt(p.pageReach)}</span><span className="sub"><span className={"delta " + p.pageReachDelta.dir}>{arrow(p.pageReachDelta.dir)} {p.pageReachDelta.pct.toFixed(1)}%</span></span></div>
-            <div className="col-num hide-apple"><span className="big serif num">{fmtExact(p.pageClicks)}</span><span className="sub"><span className={"delta " + p.pageClicksDelta.dir}>{arrow(p.pageClicksDelta.dir)} {p.pageClicksDelta.pct.toFixed(1)}%</span></span></div>
+            <div className="col-num"><span className="big serif num">{fmtExact(p.followers)}</span><span className="sub"><span className={"delta " + p.followersDelta.dir}>{arrow(p.followersDelta.dir)} {p.followersDelta.pct != null ? p.followersDelta.pct.toFixed(1) : "—"}%</span></span></div>
+            <div className="col-num"><span className="big serif num">{p.engagementRate != null ? p.engagementRate.toFixed(2) : "—"}%</span><span className="sub"><span className={"delta " + p.engagementRateDelta.dir}>{arrow(p.engagementRateDelta.dir)} {p.engagementRateDelta.pct != null ? p.engagementRateDelta.pct.toFixed(1) : "—"}%</span></span></div>
+            <div className="col-num"><span className="big serif num">{fmt(p.pageReach)}</span><span className="sub"><span className={"delta " + p.pageReachDelta.dir}>{arrow(p.pageReachDelta.dir)} {p.pageReachDelta.pct != null ? p.pageReachDelta.pct.toFixed(1) : "—"}%</span></span></div>
+            <div className="col-num hide-apple"><span className="big serif num">{fmtExact(p.pageClicks)}</span><span className="sub"><span className={"delta " + p.pageClicksDelta.dir}>{arrow(p.pageClicksDelta.dir)} {p.pageClicksDelta.pct != null ? p.pageClicksDelta.pct.toFixed(1) : "—"}%</span></span></div>
             <div className="col-num"><PlatformSpark p={p} /></div>
           </div>
         ))}
