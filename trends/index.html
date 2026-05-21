@@ -119,8 +119,8 @@ renderNav("trends", null, null);
 const ENDPOINT="https://script.google.com/macros/s/AKfycbwB-RGI1lVHrUE03PkkSEYbLuiTLxE4phMBBOm81diNJtSPyUWGoB_bOlkgFIoVF4yzLQ/exec";
 const REFRESH_SEC=300;
 
-const QUARTERS = [
-  { key:"islq1", label:"Q1", rangeLabel:"Sep–Nov 2025", start:new Date("2025-09-01"), end:new Date("2025-12-01"), localFallback:"../2026q1/2026-q1.json" },
+const TREND_QUARTERS = [
+  { key:"islq1", label:"Q1", rangeLabel:"Sep–Nov 2025", start:new Date("2025-09-01"), end:new Date("2025-12-01"), localFallback:"./2026q1/2026-q1.json" },
   { key:"islq2", label:"Q2", rangeLabel:"Dec–Feb 2026", start:new Date("2025-12-01"), end:new Date("2026-03-01") },
   { key:"islq3", label:"Q3", rangeLabel:"Mar–May 2026", start:new Date("2026-03-01"), end:new Date("2026-06-01"), isCurrent:true },
 ];
@@ -227,7 +227,7 @@ async function fetchQ(q){
 
 function renderProjCards(qdata, q3comp, q3done){
   const grid=$("projGrid"); if(!grid) return;
-  const [d1,d2,d3]=qdata; const q3=QUARTERS[2]; const q2=QUARTERS[1]; const pct=(q3comp*100).toFixed(1);
+  const [d1,d2,d3]=qdata; const q3=TREND_QUARTERS[2]; const q2=TREND_QUARTERS[1]; const pct=(q3comp*100).toFixed(1);
   const postsM=METRICS.find(m=>m.id==="posts"); const postsQ3v=postsM?extractMetric(d3,postsM):null; const postsQ2v=postsM?extractMetric(d2,postsM):null;
   const postsQ2Rate=postsQ2v!==null?postsQ2v/((q2.end-q2.start)/86400000):null;
   const postsPace=postsM&&postsQ3v!==null&&!q3done?computeAdvancedPace(postsQ3v,q3.start,q3.end,postsQ2Rate,getMetricHistory("posts"),0):null;
@@ -255,7 +255,7 @@ const C={q1:"rgba(100,116,139,.7)",q2:"rgba(0,61,114,.8)",q3:"rgba(0,84,154,.85)
 
 function buildCharts(qdata, q3comp, q3done){
   const grid=$("chartsGrid"); if(!grid) return;
-  const [d1,d2,d3]=qdata; const q3=QUARTERS[2]; const q2=QUARTERS[1];
+  const [d1,d2,d3]=qdata; const q3=TREND_QUARTERS[2]; const q2=TREND_QUARTERS[1];
   const sub=q3done?"Quarter-over-quarter actuals":"Q1 & Q2 actuals · Q3 pace projection";
   grid.innerHTML=METRICS.map(m=>`<div class="chart-card"><div class="chart-card-title">${m.label}</div><div class="chart-card-sub">${sub}</div><div class="chart-wrap"><canvas id="chart-${m.id}"></canvas></div><div class="chart-legend" id="legend-${m.id}"></div></div>`).join("");
   const postsM=METRICS.find(m=>m.id==="posts"); const postsQ3v=postsM?extractMetric(d3,postsM):null; const postsQ2v=postsM?extractMetric(d2,postsM):null;
@@ -292,7 +292,7 @@ let isLoading=false;
 async function loadAndRender(){
   if(isLoading) return; isLoading=true;
   try{
-    const qdata=await Promise.all(QUARTERS.map(fetchQ)); const q3=QUARTERS[2], q3comp=completion(q3), q3done=quarterComplete(q3);
+    const qdata=await Promise.all(TREND_QUARTERS.map(fetchQ)); const q3=TREND_QUARTERS[2], q3comp=completion(q3), q3done=quarterComplete(q3);
     const pct=(q3comp*100).toFixed(1);
     const pl=$("progressLabel"), pf=$("progressFill");
     if(pl) pl.textContent=`${pct}% elapsed${q3done?" · complete":""}`;
