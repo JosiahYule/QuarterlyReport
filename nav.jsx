@@ -304,6 +304,17 @@ function injectAgencyStyles() {
   const style = document.createElement("style");
   style.id = "nav-agency-styles";
   style.textContent = `
+  /* ---- Masthead positioning fix ---- */
+.masthead {
+  overflow: visible !important;
+}
+.masthead-row {
+  overflow: visible !important;
+}
+.masthead-left {
+  position: relative;
+  overflow: visible !important;
+}
     /* ---- Masthead agency button ---- */
     .masthead-agency-btn {
       display: inline-flex;
