@@ -234,6 +234,10 @@ function Colophon({ reportKey }) {
   return (
     <footer className="wrap colophon">
       <div className="left serif">{agencyCfg.name} — Quarterly Website Report.<br />{meta.quarter} 2026, {meta.rangeLabel}.</div>
+      <div className="right"><div className="upper">Internal — Do Not Distribute</div><div style={{ marginTop: 8 }}>Generated {new Date().toLocaleDateString()}</div></div>
+    </footer>
+  );
+}
 
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
