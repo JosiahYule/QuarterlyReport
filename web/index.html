@@ -65,9 +65,9 @@ const WEB_ENDPOINT = "https://script.google.com/macros/s/AKfycbwWpZWB_eP48AX_B4T
 const TWEAK_DEFAULTS = { layout: "editorial", density: "balanced", accent: "isl" };
 
 const REPORT_META = {
-  webq1: { quarter: "Q1", quarterWord: "One",   rangeLabel: "Sep – Nov 2025", issue: "1" },
-  webq2: { quarter: "Q2", quarterWord: "Two",   rangeLabel: "Dec – Feb 2026", issue: "2" },
-  webq3: { quarter: "Q3", quarterWord: "Three", rangeLabel: "Mar – May 2026", issue: "3" },
+  webq1: { quarter: "Q1", quarterWord: "One",   rangeLabel: "Sep – Nov 2025", year: "2025", issue: "1" },
+  webq2: { quarter: "Q2", quarterWord: "Two",   rangeLabel: "Dec – Feb 2026", year: "2026", issue: "2" },
+  webq3: { quarter: "Q3", quarterWord: "Three", rangeLabel: "Mar – May 2026", year: "2026", issue: "3" },
 };
 
 const fmtInt  = n => (typeof n === "number" && Number.isFinite(n)) ? n.toLocaleString() : "—";
@@ -236,7 +236,7 @@ function Colophon({ reportKey }) {
   const agencyCfg = getActiveAgencyConfig();
   return (
     <footer className="wrap colophon">
-      <div className="left serif">{agencyCfg.name} — Quarterly Website Report.<br />{meta.quarter} 2026, {meta.rangeLabel}.</div>
+      <div className="left serif">{agencyCfg.name} — Quarterly Website Report.<br />{meta.quarter} {meta.year}, {meta.rangeLabel}.</div>
       <div className="right"><div className="upper">Internal — Do Not Distribute</div><div style={{ marginTop: 8 }}>Generated {new Date().toLocaleDateString()}</div></div>
     </footer>
   );
@@ -268,7 +268,7 @@ useEffect(() => {
         const current = await fetchReport(reportKey);
         setData(current);
         const prevKey = getPrevKey(reportKey);
-        if (prevKey) { try { setPrevData(await fetchReport(prevKey)); } catch {} }
+        if (prevKey) { try { setPrevData(await fetchReport(prevKey)); } catch (e) { console.warn("Failed to load previous quarter:", e); } }
       } catch (err) { console.error(err); }
     })();
   }, [reportKey]);
@@ -286,7 +286,7 @@ useEffect(() => {
       </main>
       <Colophon reportKey={reportKey} />
       <TweaksPanel title="Tweaks">
-        <TweakSection title="Layout">
+        <TweakSection label="Layout">
           <TweakRadio label="Mode" value={t.layout} onChange={v => setTweak("layout", v)} options={[{value:"editorial",label:"Editorial"},{value:"apple",label:"Apple"},{value:"document",label:"Document"}]} />
           <TweakRadio label="Density" value={t.density} onChange={v => setTweak("density", v)} options={[{value:"airy",label:"Airy"},{value:"balanced",label:"Balanced"},{value:"tight",label:"Tight"}]} />
         </TweakSection>

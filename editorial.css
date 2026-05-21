@@ -196,9 +196,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   margin-bottom: 16px;
 }
 .hero-lede-row {
-  display: grid; grid-template-columns: 1fr; gap: 0;
-  align-items: start;
-}
   display: grid; grid-template-columns: 1fr 2fr; gap: var(--gap);
   align-items: start;
   padding-top: 18px;
