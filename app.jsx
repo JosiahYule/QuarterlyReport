@@ -585,12 +585,9 @@ function Notes({ data }) {
 // =================================================================
 // Colophon
 // =================================================================
-function Colophon({ data }) {
+function Colophon() {
   return (
-    <footer className="wrap colophon">
-      <div className="left serif">{data.meta.agencyName} — Quarterly Marketing Report.<br />{data.meta.quarter} {data.meta.year}, {data.meta.rangeLabel}.</div>
-      <div className="right"><div className="upper">Internal — Do Not Distribute</div><div style={{ marginTop: 8 }}>{data.meta.generatedLabel}</div></div>
-    </footer>
+    <footer className="wrap colophon">Prepared by Josiah Yule</footer>
   );
 }
 
@@ -662,7 +659,7 @@ function App() {
         <AllPosts data={data} />
         <Notes data={data} />
       </main>
-      <Colophon data={data} />
+      <Colophon />
       <TweaksPanel title="Tweaks">
         <TweakSection label="Layout">
           <TweakRadio label="Mode" value={t.layout} onChange={(v) => setTweak("layout", v)} options={[{value:"editorial",label:"Editorial"},{value:"apple",label:"Apple"},{value:"document",label:"Document"}]} />

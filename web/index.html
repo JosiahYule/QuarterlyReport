@@ -231,14 +231,9 @@ function Notes({ data }) {
   );
 }
 
-function Colophon({ reportKey }) {
-  const meta = REPORT_META[reportKey] || REPORT_META.webq3;
-  const agencyCfg = getActiveAgencyConfig();
+function Colophon() {
   return (
-    <footer className="wrap colophon">
-      <div className="left serif">{agencyCfg.name} — Quarterly Website Report.<br />{meta.quarter} {meta.year}, {meta.rangeLabel}.</div>
-      <div className="right"><div className="upper">Internal — Do Not Distribute</div><div style={{ marginTop: 8 }}>Generated {new Date().toLocaleDateString()}</div></div>
-    </footer>
+    <footer className="wrap colophon">Prepared by Josiah Yule</footer>
   );
 }
 
@@ -284,7 +279,7 @@ useEffect(() => {
         <TopPages data={data} prevData={prevData} />
         <Notes data={data} />
       </main>
-      <Colophon reportKey={reportKey} />
+      <Colophon />
       <TweaksPanel title="Tweaks">
         <TweakSection label="Layout">
           <TweakRadio label="Mode" value={t.layout} onChange={v => setTweak("layout", v)} options={[{value:"editorial",label:"Editorial"},{value:"apple",label:"Apple"},{value:"document",label:"Document"}]} />

@@ -454,14 +454,11 @@ body[data-layout="document"] .note li { font-size: 15px; line-height: 1.5; }
 
 /* ============= COLOPHON ============= */
 .colophon {
-  padding-top: 80px; padding-bottom: 120px;
+  padding-top: 48px; padding-bottom: 80px;
   color: var(--ink-3);
   font-size: 13px;
-  display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: end;
   border-top: 4px solid var(--ink);
 }
-.colophon .left { font-family: var(--serif); font-size: 20px; line-height: 1.4; color: var(--ink); max-width: 50ch; }
-.colophon .right { text-align: right; }
 
 /* ============= NAV CHOOSER MENU ============= */
 .menu {
