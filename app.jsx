@@ -154,24 +154,24 @@ function normalizeReport(r) {
 function Hero({ data }) {
   return (
     <section className="hero wrap" data-screen-label="01 Hero">
-      <div className="hero-kicker">{data.meta.quarter} Report · Social Media</div>
-      <h1 className="hero-title serif" style={{ fontWeight: "100", fontFamily: '"Instrument Serif"' }}>
-        Quarter <em>{data.meta.quarterWord}</em>
-      </h1>
-      <div className="hero-meta-row" role="list" aria-label="Report metadata">
-        <div className="meta-pair" role="listitem"><span className="label">Reporting period</span><span className="value serif">{data.meta.rangeLabel}</span></div>
-        <div className="meta-pair" role="listitem"><span className="label">Generated</span><span className="value serif">{data.meta.generatedLabel}</span></div>
-        <div className="meta-pair" role="listitem"><span className="label">Prepared by</span><span className="value serif">{data.meta.author}</span></div>
+      <div className="hero-b-top">
+        <div className="hero-b-left">
+          <div className="hero-b-q serif">{data.meta.quarter}</div>
+          <div className="hero-b-divider"></div>
+          <div className="hero-b-meta">
+            <div className="hero-b-meta-name">{data.meta.agencyName}</div>
+            <div className="hero-b-meta-range">{data.meta.rangeLabel}</div>
+          </div>
+        </div>
+        <div className="hero-b-type">Social Media</div>
       </div>
-      <div className="hero-lede-row">
-        <p className="hero-lede serif">
-          {data.editorsNote.split(/(\bLinkedIn\b|\bFacebook\b|\bInstagram\b)/).map((part, i) =>
-            part === "LinkedIn" || part === "Facebook" || part === "Instagram"
-              ? <em key={i}>{part}</em>
-              : <React.Fragment key={i}>{part}</React.Fragment>
-          )}
-        </p>
-      </div>
+      <p className="hero-b-note serif">
+        {data.editorsNote.split(/(\bLinkedIn\b|\bFacebook\b|\bInstagram\b)/).map((part, i) =>
+          part === "LinkedIn" || part === "Facebook" || part === "Instagram"
+            ? <em key={i}>{part}</em>
+            : <React.Fragment key={i}>{part}</React.Fragment>
+        )}
+      </p>
     </section>
   );
 }
