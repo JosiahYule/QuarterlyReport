@@ -6,11 +6,22 @@
 // =============================================================================
 
 const { useState, useEffect, useRef } = React;
+const ORG_OPTIONS = [
+  { key: "integrated", name: "Integrated", suffix: "Staffing", label: "Integrated Staffing" },
+  { key: "accountant", name: "Accountant", suffix: "Staffing", label: "Accountant Staffing" },
+  { key: "administrative", name: "Administrative", suffix: "Staffing", label: "Administrative Staffing" },
+];
+function getOrgConfig() {
+  const params = new URLSearchParams(window.location.search);
+  const org = (params.get("org") || "integrated").toLowerCase();
+  return ORG_OPTIONS.find((o) => o.key === org) || ORG_OPTIONS[0];
+}
 
 function LoadingScreen() {
+  const org = getOrgConfig();
   return (
     <div className="loading-screen" id="loadingScreen">
-      <div className="loading-wordmark serif">Integrated <em>Staffing</em></div>
+      <div className="loading-wordmark serif">{org.name} <em>{org.suffix}</em></div>
       <div className="loading-track"><div className="loading-fill"></div></div>
       <div className="loading-label">Loading report</div>
     </div>
@@ -18,11 +29,12 @@ function LoadingScreen() {
 }
 
 function Masthead() {
+  const org = getOrgConfig();
   return (
     <header className="masthead">
       <div className="wrap masthead-row">
         <div className="masthead-left">
-          <div className="masthead-mark serif">Integrated <em>Staffing</em></div>
+          <div className="masthead-mark serif">{org.name} <em>{org.suffix}</em></div>
         </div>
       </div>
     </header>
@@ -49,12 +61,7 @@ function MastNav({ active, quarter, onQuarter }) {
     { id: "web",    label: "Website",      href: "/web/" },
     { id: "trends", label: "Trends",       href: "/trends/" },
   ];
-  const params = new URLSearchParams(window.location.search);
-  const org = (params.get("org") || "accountant").toLowerCase();
-  const orgOptions = [
-    { key: "accountant", label: "Accountant Staffing" },
-    { key: "admin", label: "Admin Staffing" },
-  ];
+  const org = getOrgConfig().key;
   const withOrg = (href, key) => {
     const url = new URL(href, window.location.origin);
     url.searchParams.set("org", key);
@@ -74,7 +81,7 @@ function MastNav({ active, quarter, onQuarter }) {
           </nav>
           <div className="nav-meta">
             <div className="org-switch" role="tablist" aria-label="Staffing group">
-              {orgOptions.map((o) => (
+              {ORG_OPTIONS.map((o) => (
                 <a key={o.key} role="tab" aria-selected={org === o.key} className={"org-switch-item" + (org === o.key ? " is-active" : "")} href={withOrg(window.location.pathname + window.location.search, o.key)}>
                   {o.label}
                 </a>
