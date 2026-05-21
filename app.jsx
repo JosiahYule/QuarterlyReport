@@ -24,7 +24,6 @@ const fmt = (n) => {
   return n.toFixed(2);
 };
 const fmtExact = (n) => (n === null || n === undefined ? "—" : typeof n === "number" ? n.toLocaleString() : "—");
-const fmtPct = (n) => (n === null || n === undefined ? "—" : n.toFixed(2) + "%");
 function arrow(dir) { return dir === "up" ? "↑" : dir === "down" ? "↓" : "—"; }
 
 // =================================================================
@@ -229,14 +228,16 @@ function TrendChart({ data, metric = "impressions" }) {
   }), [data]);
 
   const active = series.lines[metric] || series.lines.impressions;
-  const max = Math.max(...active.values) * 1.15, min = 0;
-  const xStep = (w - padL - padR) / (active.values.length - 1);
-  const points = active.values.map((v, i) => [padL + i * xStep, padT + (h - padT - padB) * (1 - (v - min) / (max - min))]);
+  const rawMax = Math.max(...active.values);
+  const max = rawMax > 0 ? rawMax * 1.15 : 1, min = 0;
+  const range = max - min;
+  const xStep = (w - padL - padR) / Math.max(active.values.length - 1, 1);
+  const points = active.values.map((v, i) => [padL + i * xStep, padT + (h - padT - padB) * (1 - (v - min) / range)]);
   const path = points.map((p, i) => (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
   const areaPath = path + ` L${points[points.length - 1][0]},${h - padB} L${points[0][0]},${h - padB} Z`;
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ v: min + (max - min) * t, y: padT + (h - padT - padB) * (1 - t) }));
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ v: min + range * t, y: padT + (h - padT - padB) * (1 - t) }));
   const avg = active.values.reduce((a, b) => a + b, 0) / active.values.length;
-  const peakIdx = active.values.indexOf(Math.max(...active.values));
+  const peakIdx = active.values.indexOf(rawMax);
 
   return (
     <svg className="trend-chart" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid meet">
@@ -252,8 +253,8 @@ function TrendChart({ data, metric = "impressions" }) {
         {i === peakIdx && <text x={p[0]} y={p[1] - 14} textAnchor="middle" fontFamily="var(--serif)" fontStyle="italic" fontSize="14" fill="var(--isl-blue)">peak — {active.values[i] < 10 ? active.values[i].toFixed(1) : active.values[i]}{active.unit}</text>}
       </g>)}
       {series.labels.map((l, i) => <text key={l} x={padL + i * xStep} y={h - padB + 18} textAnchor="middle" fontSize="11" fill="var(--ink-3)" fontFamily="var(--sans)">{l}</text>)}
-      <line x1={padL} x2={w - padR} y1={padT + (h - padT - padB) * (1 - (avg - min) / (max - min))} y2={padT + (h - padT - padB) * (1 - (avg - min) / (max - min))} stroke="var(--ink-4)" strokeWidth="1" strokeDasharray="2 4" />
-      <text x={w - padR} y={padT + (h - padT - padB) * (1 - (avg - min) / (max - min)) - 6} textAnchor="end" fontSize="11" fill="var(--ink-4)" fontFamily="var(--sans)">avg {avg < 10 ? avg.toFixed(1) : Math.round(avg)}{active.unit}</text>
+      <line x1={padL} x2={w - padR} y1={padT + (h - padT - padB) * (1 - (avg - min) / range)} y2={padT + (h - padT - padB) * (1 - (avg - min) / range)} stroke="var(--ink-4)" strokeWidth="1" strokeDasharray="2 4" />
+      <text x={w - padR} y={padT + (h - padT - padB) * (1 - (avg - min) / range) - 6} textAnchor="end" fontSize="11" fill="var(--ink-4)" fontFamily="var(--sans)">avg {avg < 10 ? avg.toFixed(1) : Math.round(avg)}{active.unit}</text>
     </svg>
   );
 }
@@ -297,18 +298,18 @@ function Trend({ data, metric, setMetric }) {
 // =================================================================
 function PlatformSpark({ p }) {
   const seed = p.engagementRate;
-  const points = Array.from({ length: 13 }, (_, i) => {
+  const points = useMemo(() => Array.from({ length: 13 }, (_, i) => {
     const t = i / 12;
     const base = Math.sin(t * Math.PI * 1.4) * 0.5 + 0.5;
     const noise = seed * (i + 1) % 7 / 14;
     return base * 0.7 + noise * 0.4;
-  });
+  }), [seed]);
   const w = 120, h = 38;
   const max = Math.max(...points), min = Math.min(...points);
   const xStep = w / (points.length - 1);
   const path = points.map((v, i) => {
     const x = i * xStep;
-    const y = h - (v - min) / (max - min) * h * 0.8 - h * 0.1;
+    const y = h - (v - min) / range * h * 0.8 - h * 0.1;
     return (i === 0 ? "M" : "L") + x.toFixed(1) + "," + y.toFixed(1);
   }).join(" ");
   return (
@@ -364,7 +365,7 @@ function TopPosts({ data, platform, setPlatform }) {
         <thead><tr><th>Post</th><th className="r">Impressions</th><th className="r">Reactions</th><th className="r">Shares</th><th className="r">Engagement</th></tr></thead>
         <tbody>
           {posts.map((c) => {
-            const engagement = (c.likes + c.shares) / c.impressions * 100;
+            const engagement = c.impressions > 0 ? (c.likes + c.shares) / c.impressions * 100 : 0;
             return (
               <tr key={c.title}>
                 <td><span className={"flag " + (c.flag || "")}></span><span className="campaign-name serif">{c.title}</span><div className="campaign-chan">{platform}</div></td>
@@ -468,8 +469,7 @@ function AllPosts({ data }) {
             {posts.map((p, i) => {
               const date = p.Date ? new Date(p.Date).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—";
               const er = p.Impressions > 0 ? (p.Engagements / p.Impressions) * 100 : 0;
-              const label = er > 10 ? "Very Strong" : er >= 6 ? "Strong" : er >= 4 ? "Moderate" : "Low";
-              const color = er > 10 ? "var(--isl-blue)" : er >= 6 ? "var(--up)" : er >= 4 ? "#b87000" : "var(--down)";
+              const { label, color } = healthForER(er);
               return (
                 <tr key={i}>
                   <td>
@@ -585,12 +585,9 @@ function Notes({ data }) {
 // =================================================================
 // Colophon
 // =================================================================
-function Colophon({ data }) {
+function Colophon() {
   return (
-    <footer className="wrap colophon">
-      <div className="left serif">{data.meta.agencyName} — Quarterly Marketing Report.<br />{data.meta.quarter} {data.meta.year}, {data.meta.rangeLabel}.</div>
-      <div className="right"><div className="upper">Internal — Do Not Distribute</div><div style={{ marginTop: 8 }}>{data.meta.generatedLabel}</div></div>
-    </footer>
+    <footer className="wrap colophon">Prepared by Josiah Yule</footer>
   );
 }
 
@@ -662,13 +659,13 @@ function App() {
         <AllPosts data={data} />
         <Notes data={data} />
       </main>
-      <Colophon data={data} />
+      <Colophon />
       <TweaksPanel title="Tweaks">
-        <TweakSection title="Layout">
+        <TweakSection label="Layout">
           <TweakRadio label="Mode" value={t.layout} onChange={(v) => setTweak("layout", v)} options={[{value:"editorial",label:"Editorial"},{value:"apple",label:"Apple"},{value:"document",label:"Document"}]} />
           <TweakRadio label="Density" value={t.density} onChange={(v) => setTweak("density", v)} options={[{value:"airy",label:"Airy"},{value:"balanced",label:"Balanced"},{value:"tight",label:"Tight"}]} />
         </TweakSection>
-        <TweakSection title="Accent">
+        <TweakSection label="Accent">
           <TweakColor label="Accent color" value={t.accent === "isl" ? "#0a4d8c" : t.accent === "graphite" ? "#2a2622" : "#14110d"} onChange={(v) => { const map={"#0a4d8c":"isl","#2a2622":"graphite","#14110d":"none"}; setTweak("accent", map[v]||"isl"); }} options={["#0a4d8c","#2a2622","#14110d"]} />
         </TweakSection>
       </TweaksPanel>
