@@ -18,12 +18,10 @@ function getOrgConfig() {
 }
 
 function LoadingScreen() {
-  const org = getOrgConfig();
   return (
     <div className="loading-screen" id="loadingScreen">
-      <div className="loading-wordmark serif">{org.name} <em>{org.suffix}</em></div>
+      <div className="loading-wordmark serif">Loading report</div>
       <div className="loading-track"><div className="loading-fill"></div></div>
-      <div className="loading-label">Loading report</div>
     </div>
   );
 }
