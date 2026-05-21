@@ -123,17 +123,6 @@ function normalizeReport(r) {
 // =================================================================
 // Masthead + Nav
 // =================================================================
-function Masthead({ data }) {
-  return (
-    <header className="masthead">
-      <div className="wrap masthead-row">
-        <div className="masthead-left">
-          <div className="masthead-mark serif">Integrated <em>Staffing</em></div>
-        </div>
-      </div>
-    </header>
-  );
-}
 
 function MastNav({ data }) {
   const params = new URLSearchParams(window.location.search);
