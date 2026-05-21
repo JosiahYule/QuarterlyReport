@@ -219,6 +219,69 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 }
 .hero-lede em { color: var(--isl-blue); font-style: italic; }
 
+/* ============= HERO B ============= */
+.hero-b-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+.hero-b-left {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.hero-b-q {
+  font-size: 48px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  font-weight: 400;
+}
+.hero-b-divider {
+  width: 1px;
+  height: 36px;
+  background: var(--rule);
+  flex-shrink: 0;
+}
+.hero-b-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hero-b-meta-name {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.hero-b-meta-range {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.hero-b-type {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.hero-b-note {
+  font-size: 22px;
+  line-height: 1.4;
+  color: var(--ink-2);
+  max-width: 64ch;
+  font-weight: 400;
+  border-top: 1px solid var(--rule);
+  padding-top: 24px;
+  text-wrap: pretty;
+}
+.hero-b-note em {
+  font-style: italic;
+  color: var(--isl-blue);
+}
+
 /* ============= SECTION CHROME ============= */
 .section { padding-top: var(--pad-y); padding-bottom: var(--pad-y); border-bottom: 1px solid var(--rule); }
 .section:last-child { border-bottom: 0; }
