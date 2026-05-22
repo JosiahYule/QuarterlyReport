@@ -1,480 +1,308 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Integrated Staffing — Performance Trends</title>
-<link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Performance Trends &amp; Projections</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../editorial.css" />
+  <link rel="icon" type="image/svg+xml" href="../favicon-gear.svg" />
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    .trends-wrap { max-width: var(--col); margin: 0 auto; padding: 48px 32px 96px; }
+    @media (max-width: 768px) { .trends-wrap { padding: 32px 20px 64px; } }
 
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="../editorial.css" />
+    .t-section { margin-bottom: 64px; }
+    .t-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-top: 1px solid var(--rule); padding-top: 14px; margin-bottom: 28px; }
+    .t-section-label { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); font-family: var(--sans); }
+    .t-section-title { font-family: var(--serif); font-size: 26px; letter-spacing: -0.02em; color: var(--ink); margin-bottom: 4px; }
+    .t-section-sub { font-size: 13px; color: var(--ink-3); font-family: var(--sans); }
+    .t-badge { font-size: 11px; font-family: var(--sans); color: var(--ink-3); padding: 4px 12px; white-space: nowrap; align-self: flex-start; }
 
-<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+.trends-hero { margin-bottom: 56px; padding-top: 24px; }
+    .hero-progress-pill { display: inline-flex; align-items: center; gap: 8px; }
+    .hero-progress-track { width: 80px; height: 3px; background: var(--rule); border-radius: 99px; overflow: hidden; }
+    .hero-progress-fill { height: 100%; background: var(--isl-blue); border-radius: 99px; transition: width .6s ease; }
 
-<style>
-  /* Match the social + web reports — flush hero, no dividers, document-mode tuning */
-  .report-wrap { padding-top: 0; }
-  .hero { padding-top: 28px; }
-  .nav-tabs a { white-space: nowrap; }
-  .hero-b-meta-name, .hero-b-meta-range { display: block; }
+    .proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1px; background: var(--rule); }
+    .proj-card { background: var(--paper); padding: 24px 20px; display: flex; flex-direction: column; gap: 0; }
+    .proj-card-label { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); font-family: var(--sans); margin-bottom: 14px; }
+    .proj-number { font-family: var(--serif); font-size: 40px; line-height: 1; letter-spacing: -0.03em; color: var(--ink); margin-bottom: 2px; }
+    .proj-number-sub { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); font-family: var(--sans); margin-bottom: 16px; }
+    .proj-range strong { color: var(--ink); }
+    .proj-progress-wrap { margin-bottom: 16px; }
+    .proj-progress-track { height: 3px; background: var(--rule); border-radius: 99px; overflow: hidden; margin-bottom: 6px; }
+    .proj-progress-fill { height: 100%; background: var(--isl-blue); border-radius: 99px; transition: width .6s ease; }
+    .proj-progress-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-3); font-family: var(--sans); }
+    .proj-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--rule); }
+    .proj-stat { background: var(--paper-2); padding: 10px 12px; }
+    .proj-stat-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); font-family: var(--sans); margin-bottom: 4px; }
+    .proj-stat-value { font-size: 14px; font-family: var(--sans); font-weight: 600; color: var(--ink); line-height: 1.2; }
+    .proj-stat-value.pos { color: #1a7f4b; }
+    .proj-stat-value.neg { color: #b91c1c; }
+    .proj-stat-value.na  { color: var(--ink-3); font-weight: 400; font-style: italic; font-size: 12px; }
+    .proj-stat-value.rate{ color: var(--isl-blue); }
 
-  /* ---- Section heads — no top rule, editorial spacing ---- */
-  .t-section { padding-top: var(--pad-y); padding-bottom: 0; }
-  .t-section:first-of-type { padding-top: clamp(40px, 6vw, 64px); }
-  .t-section-head {
-    display: flex; align-items: baseline; justify-content: space-between;
-    gap: 16px; flex-wrap: wrap;
-    margin-bottom: 32px;
-  }
-  .t-section-label {
-    font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
-    color: var(--ink-3); font-family: var(--sans); font-weight: 500;
-    margin-bottom: 6px;
-  }
-  .t-section-title {
-    font-family: var(--serif);
-    font-size: clamp(28px, 3.4vw, 42px);
-    line-height: 1.05;
-    letter-spacing: -0.02em;
-    color: var(--ink);
-  }
-  .t-section-title em { font-style: italic; color: var(--isl-blue); }
-  body[data-layout="document"] .t-section-title { font-size: clamp(22px, 2.6vw, 30px); }
-  .t-section-sub {
-    font-size: 14px; color: var(--ink-3); font-family: var(--sans);
-    margin-top: 6px; max-width: 56ch;
-  }
-  .t-section-meta {
-    font-family: var(--serif); font-style: italic;
-    font-size: 16px; color: var(--ink-3);
-    align-self: flex-start;
-    padding-top: 6px;
-  }
-  .t-section-meta strong { font-style: normal; color: var(--ink); font-weight: 500; }
+.charts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); gap: 1px; background: var(--rule); }
+    @media (max-width: 600px) { .charts-grid { grid-template-columns: 1fr; } }
+    .chart-card { background: var(--paper); padding: 24px; }
+    .chart-card-title { font-family: var(--serif); font-size: 18px; letter-spacing: -0.01em; color: var(--ink); margin-bottom: 2px; }
+    .chart-card-sub { font-size: 11px; color: var(--ink-3); font-family: var(--sans); margin-bottom: 16px; }
+    .chart-wrap { position: relative; height: 220px; }
+    .chart-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-3); font-family: var(--sans); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 1px; flex-shrink: 0; }
 
-  /* ---- Projection cards — grid of editorial cells, hairline borders ---- */
-  .proj-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 0;
-    border-top: 1px solid var(--ink);
-    border-left: 1px solid var(--rule);
-  }
-  .proj-card {
-    background: var(--paper);
-    padding: 28px 24px 24px;
-    display: flex; flex-direction: column;
-    border-right: 1px solid var(--rule);
-    border-bottom: 1px solid var(--rule);
-  }
-  .proj-card-label {
-    font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
-    color: var(--ink-3); font-family: var(--sans); font-weight: 500;
-    margin-bottom: 18px;
-  }
-  .proj-number {
-    font-family: var(--serif);
-    font-size: clamp(38px, 4vw, 52px);
-    line-height: 1;
-    letter-spacing: -0.025em;
-    color: var(--ink);
-    margin-bottom: 6px;
-    font-variant-numeric: tabular-nums lining-nums;
-  }
-  .proj-number-sub {
-    font-size: 12px; letter-spacing: 0.04em;
-    color: var(--ink-3); font-family: var(--sans);
-    margin-bottom: 24px;
-  }
-  .proj-track {
-    height: 1px; background: var(--rule);
-    margin-bottom: 8px; position: relative;
-  }
-  .proj-track-fill {
-    position: absolute; left: 0; top: 0; bottom: 0;
-    background: var(--isl-blue);
-    transition: width .6s ease;
-  }
-  .proj-track-labels {
-    display: flex; justify-content: space-between;
-    font-size: 11px; color: var(--ink-4); font-family: var(--sans);
-    margin-bottom: 20px;
-  }
-  .proj-stats {
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 14px 20px;
-    padding-top: 16px; border-top: 1px solid var(--rule);
-    margin-top: auto;
-  }
-  .proj-stat-label {
-    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
-    color: var(--ink-4); font-family: var(--sans); font-weight: 500;
-    margin-bottom: 4px;
-  }
-  .proj-stat-value {
-    font-family: var(--serif); font-size: 16px;
-    color: var(--ink); font-variant-numeric: tabular-nums lining-nums;
-  }
-  .proj-stat-value.pos { color: var(--up); }
-  .proj-stat-value.neg { color: var(--down); }
-  .proj-stat-value.pos::before, .proj-stat-value.neg::before {
-    font-family: var(--serif); font-style: italic;
-    margin-right: 4px;
-  }
-  .proj-stat-value.pos::before { content: "↑"; }
-  .proj-stat-value.neg::before { content: "↓"; }
-
-  /* ---- Charts grid — hairlines, no card chrome ---- */
-  .charts-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-    gap: 0;
-    border-top: 1px solid var(--ink);
-    border-left: 1px solid var(--rule);
-  }
-  .chart-card {
-    background: var(--paper);
-    padding: 28px 24px;
-    border-right: 1px solid var(--rule);
-    border-bottom: 1px solid var(--rule);
-  }
-  .chart-card-title {
-    font-family: var(--serif);
-    font-size: 22px;
-    letter-spacing: -0.01em;
-    color: var(--ink);
-    margin-bottom: 4px;
-  }
-  .chart-card-sub {
-    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
-    color: var(--ink-4); font-family: var(--sans);
-    margin-bottom: 22px;
-  }
-  .chart-wrap { position: relative; height: 220px; }
-  .chart-legend {
-    display: flex; flex-wrap: wrap; gap: 22px;
-    margin-top: 18px;
-    padding-top: 14px;
-    border-top: 1px solid var(--rule);
-  }
-  .legend-item {
-    display: flex; align-items: baseline; gap: 8px;
-    font-size: 12px; color: var(--ink-3); font-family: var(--sans);
-  }
-  .legend-bar {
-    width: 14px; height: 2px;
-    display: inline-block; transform: translateY(-3px);
-    flex-shrink: 0;
-  }
-
-  .colophon {
-    display: flex; align-items: baseline; justify-content: space-between;
-    text-align: left; gap: 24px; flex-wrap: wrap;
-  }
-  .colophon .right { display: flex; gap: 18px; color: var(--ink-4); font-size: 12px; }
-  .colophon .right em { font-family: var(--serif); font-style: italic; color: var(--ink-3); font-size: 13px; letter-spacing: 0; }
-</style>
+  </style>
 </head>
-<body data-layout="document" data-density="balanced">
+<body data-layout="editorial" data-density="balanced">
 
 <div id="nav-root"></div>
-<div id="root"></div>
 
-<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
-
-<script src="mock-trends.js"></script>
-<script type="text/babel" src="../tweaks-panel.jsx"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
 <script type="text/babel" src="../nav.jsx"></script>
-
 <script type="text/babel">
-const { useState, useEffect, useRef } = React;
+  renderNav("trends", null, null);
+</script>
 
-const TWEAK_DEFAULTS = { layout: "document", density: "balanced", accent: "isl" };
+<div class="trends-wrap">
 
-const D = window.TRENDS_MOCK;
-
-function fmtN(n) {
-  if (n === null || n === undefined || !Number.isFinite(n)) return "—";
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
-  if (n >= 10_000) return Math.round(n / 1000) + "K";
-  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
-  return Math.round(n).toLocaleString();
-}
-function fmtExact(n) {
-  if (n === null || n === undefined || !Number.isFinite(n)) return "—";
-  return Math.round(n).toLocaleString();
-}
-
-function Hero() {
-  const agencyCfg = getActiveAgencyConfig();
-  const compPct = (D.quarterCompletion * 100).toFixed(0);
-  return (
-    <section className="hero wrap" data-screen-label="01 Hero">
-      <div className="hero-b-top">
-        <div className="hero-b-left">
-          <div className="hero-b-q serif">Trends</div>
-          <div className="hero-b-divider"></div>
-          <div className="hero-b-meta">
-            <div className="hero-b-meta-name">{agencyCfg.name}</div>
-            <div className="hero-b-meta-range">Q1 — Q2 — Q3, 2026</div>
-          </div>
-        </div>
-        <div className="hero-b-type">{compPct}% of Q3 elapsed</div>
-      </div>
-      <p className="hero-b-note serif">
-        A three-quarter view of organic <em>social</em> performance, with end-of-quarter projections
-        calibrated against the observed daily rate through day {D.daysElapsed} of {D.daysTotal}.
-      </p>
-    </section>
-  );
-}
-
-function ProjCards() {
-  const compPct = D.quarterCompletion * 100;
-  return (
-    <section className="section wrap" style={{ paddingBottom: 0 }} data-screen-label="02 Projections">
-      <div className="t-section-head">
-        <div>
-          <div className="t-section-label">Projections</div>
-          <h2 className="t-section-title serif">Q3 <em>Projected</em> Finals</h2>
-          <div className="t-section-sub">
-            Estimated end-of-quarter totals based on observed daily rate × total quarter days.
-          </div>
-        </div>
-        <div className="t-section-meta">
-          <strong>Day {D.daysElapsed}</strong> of {D.daysTotal} · {compPct.toFixed(0)}% complete
-        </div>
-      </div>
-      <div className="proj-grid">
-        {D.metrics.map(m => {
-          const q3Done = D.quarterCompletion >= 1;
-          const headline = q3Done ? m.q3ToDate : m.q3Projected;
-
-          // For stock metrics (e.g. cumulative followers) treat the "rate" as
-          // net additions per day, not the running total — otherwise rate-vs-Q2
-          // is misleading. For flow metrics, the cumulative total IS the flow.
-          const q3Flow = m.isStock ? (m.q3ToDate - m.q2)        : m.q3ToDate;
-          const q2Flow = m.isStock ? (m.q2 - m.q1)              : m.q2;
-          const q2Days = 92;
-
-          const dailyRate   = q3Flow / D.daysElapsed;
-          const q2DailyRate = q2Flow / q2Days;
-          const rateVsQ2    = q2DailyRate > 0 ? ((dailyRate - q2DailyRate) / q2DailyRate) * 100 : 0;
-          const rateCls     = rateVsQ2 > 1 ? "pos" : rateVsQ2 < -1 ? "neg" : "";
-
-          const q3ToDateLabel = m.isStock ? "Q3 Net New"  : "Q3 to Date";
-          const q2ActualLabel = m.isStock ? "Q2 Net New"  : "Q2 Actual";
-
-          return (
-            <div className="proj-card" key={m.id}>
-              <div className="proj-card-label">{m.label}</div>
-              <div className="proj-number num">{fmtN(headline)}</div>
-              <div className="proj-number-sub">{q3Done ? "Q3 Final" : "Projected Final · Q3"}</div>
-
-              <div className="proj-track">
-                <div className="proj-track-fill" style={{ width: `${Math.min(100, compPct).toFixed(1)}%` }}></div>
-              </div>
-              <div className="proj-track-labels">
-                <span>Day {D.daysElapsed} of {D.daysTotal}</span>
-                <span>{compPct.toFixed(0)}%</span>
-              </div>
-
-              <div className="proj-stats">
-                <div>
-                  <div className="proj-stat-label">{q3ToDateLabel}</div>
-                  <div className="proj-stat-value num">{fmtExact(q3Flow)}</div>
-                </div>
-                <div>
-                  <div className="proj-stat-label">Daily Rate</div>
-                  <div className="proj-stat-value num">{dailyRate.toFixed(1)}/day</div>
-                </div>
-                <div>
-                  <div className="proj-stat-label">Rate vs Q2</div>
-                  <div className={"proj-stat-value num " + rateCls}>{Math.abs(rateVsQ2).toFixed(1)}%</div>
-                </div>
-                <div>
-                  <div className="proj-stat-label">{q2ActualLabel}</div>
-                  <div className="proj-stat-value num">{fmtExact(q2Flow)}</div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function ChartCard({ metric }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!ref.current || typeof Chart === "undefined") return;
-    const ctx = ref.current.getContext("2d");
-
-    // Editorial palette — ink for Q1/Q2 (with tonal split), isl-blue for the projection
-    const inkColor = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#14110d";
-    const inkLight = getComputedStyle(document.documentElement).getPropertyValue("--ink-3").trim() || "#6a655d";
-    const accent   = getComputedStyle(document.documentElement).getPropertyValue("--isl-blue").trim() || "#0a4d8c";
-
-    const chart = new Chart(ctx, {
-      type: "bar",
-      data: {
-        labels: ["Q1", "Q2", "Q3 · projected"],
-        datasets: [{
-          data: [metric.q1, metric.q2, metric.q3Projected],
-          backgroundColor: [inkLight, inkColor, accent],
-          borderWidth: 0,
-          borderRadius: 0,
-          borderSkipped: false,
-          barPercentage: 0.62,
-          categoryPercentage: 0.78,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: { duration: 480, easing: "easeOutQuart" },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label(c) {
-                const v = c.parsed.y;
-                return Math.round(v).toLocaleString() + (c.dataIndex === 2 ? " (projected)" : "");
-              },
-            },
-            displayColors: false,
-            backgroundColor: inkColor,
-            titleFont: { family: "Inter Tight, system-ui", size: 11, weight: "500" },
-            bodyFont:  { family: "Inter Tight, system-ui", size: 13 },
-            padding: 10,
-            cornerRadius: 0,
-          },
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            border: { display: false },
-            ticks: {
-              font: { size: 11, family: "Inter Tight, system-ui" },
-              color: inkLight,
-            },
-          },
-          y: {
-            beginAtZero: true,
-            grid: { color: "rgba(20,17,13,0.06)", drawTicks: false },
-            border: { display: false },
-            ticks: {
-              font: { size: 11, family: "Inter Tight, system-ui" },
-              color: inkLight,
-              padding: 8,
-              maxTicksLimit: 5,
-              callback: v => v >= 1000 ? (v / 1000) + "k" : v,
-            },
-          },
-        },
-      },
-    });
-    return () => chart.destroy();
-  }, [metric]);
-
-  return (
-    <div className="chart-card">
-      <div className="chart-card-title serif">{metric.label}</div>
-      <div className="chart-card-sub">Q1 &amp; Q2 actuals · Q3 pace projection</div>
-      <div className="chart-wrap"><canvas ref={ref}></canvas></div>
-      <div className="chart-legend">
-        <span className="legend-item"><span className="legend-bar" style={{ background: "var(--ink-3)" }}></span>Q1 actual</span>
-        <span className="legend-item"><span className="legend-bar" style={{ background: "var(--ink)" }}></span>Q2 actual</span>
-        <span className="legend-item"><span className="legend-bar" style={{ background: "var(--isl-blue)" }}></span>Q3 projected</span>
+<div class="trends-hero">
+  <div class="hero-b-top">
+    <div class="hero-b-left">
+      <div class="hero-b-q serif">Trends</div>
+      <div class="hero-b-divider"></div>
+      <div class="hero-b-meta">
+        <div class="hero-b-meta-name">Integrated Staffing</div>
+        <div class="hero-b-meta-range">Q1 · Q2 · Q3 · 2026</div>
       </div>
     </div>
-  );
-}
+    <div class="hero-b-type" style="display:flex;align-items:center;gap:16px;">
+      <span id="progressLabel" style="color:var(--ink-3);font-size:12px;font-family:var(--sans);">calculating…</span>
+      <span class="hero-progress-track" id="progressPill"><span class="hero-progress-fill" id="progressFill" style="width:0%"></span></span>
+      <span id="updatedAt" style="color:var(--ink-4);font-size:12px;font-family:var(--sans);"></span>
+    </div>
+  </div>
+</div>
 
-function Charts() {
-  const [chartReady, setChartReady] = useState(typeof Chart !== "undefined");
-  useEffect(() => {
-    if (chartReady) return;
-    const i = setInterval(() => {
-      if (typeof Chart !== "undefined") { setChartReady(true); clearInterval(i); }
-    }, 80);
-    return () => clearInterval(i);
-  }, [chartReady]);
-
-  return (
-    <section className="section wrap" data-screen-label="03 Trends">
-      <div className="t-section-head">
-        <div>
-          <div className="t-section-label">Charts</div>
-          <h2 className="t-section-title serif">Quarterly <em>trends</em></h2>
-          <div className="t-section-sub">
-            Quarter-over-quarter trajectory with Q3 pace projections.
-          </div>
-        </div>
-        <div className="t-section-meta">
-          Q1 · Q2 · <strong>Q3 projected</strong>
-        </div>
+  <section class="t-section">
+    <div class="t-section-head">
+      <div>
+        <div class="t-section-label">Projections</div>
+        <div class="t-section-title">Q3 Projected Finals</div>
+        <div class="t-section-sub">Estimated end-of-quarter totals based on observed daily rate × total quarter days.</div>
       </div>
-      {chartReady && (
-        <div className="charts-grid">
-          {D.metrics.map(m => <ChartCard key={m.id} metric={m} />)}
-        </div>
-      )}
-    </section>
-  );
+      <span class="t-badge">Q3 · Mar–May 2026</span>
+    </div>
+    <div class="proj-grid" id="projGrid"></div>
+  </section>
+
+  <section class="t-section">
+    <div class="t-section-head">
+      <div>
+        <div class="t-section-label">Charts</div>
+        <div class="t-section-title">Quarterly Trends</div>
+        <div class="t-section-sub">Quarter-over-quarter trajectory with Q3 pace projections.</div>
+      </div>
+      <span class="t-badge">Q1 · Q2 · Q3</span>
+    </div>
+    <div class="charts-grid" id="chartsGrid"></div>
+  </section>
+
+
+</div>
+
+<script>
+const ENDPOINT="https://script.google.com/macros/s/AKfycbwB-RGI1lVHrUE03PkkSEYbLuiTLxE4phMBBOm81diNJtSPyUWGoB_bOlkgFIoVF4yzLQ/exec";
+const REFRESH_SEC=300;
+
+const TREND_QUARTERS = [
+  { key:"islq1", label:"Q1", rangeLabel:"Sep–Nov 2025", start:new Date("2025-09-01"), end:new Date("2025-12-01"), localFallback:"./2026q1/2026-q1.json" },
+  { key:"islq2", label:"Q2", rangeLabel:"Dec–Feb 2026", start:new Date("2025-12-01"), end:new Date("2026-03-01") },
+  { key:"islq3", label:"Q3", rangeLabel:"Mar–May 2026", start:new Date("2026-03-01"), end:new Date("2026-06-01"), isCurrent:true },
+];
+
+const METRICS = [
+  { id:"impressions", label:"Impressions",    needles:["post impressions","impressions"],                                         isPercent:false, isPace:true,  postsMultiplier:true  },
+  { id:"reactions",   label:"Reactions",      needles:["reactions and likes","reactions & likes","reactions","likes"],            isPercent:false, isPace:true,  postsMultiplier:true  },
+  { id:"linkclicks",  label:"Link Clicks",    needles:["post link clicks","link clicks","clicks"],                                isPercent:false, isPace:true,  postsMultiplier:true  },
+  { id:"shares",      label:"Shares",         needles:["post shares","shares"],                                                   isPercent:false, isPace:true,  postsMultiplier:true  },
+  { id:"comments",    label:"Comments",       needles:["comments and replies","comments & replies","comments","replies"],         isPercent:false, isPace:true,  postsMultiplier:true  },
+  { id:"posts",       label:"Posts Published",needles:["posts"],                                                                  isPercent:false, isPace:true                         },
+  { id:"followers",   label:"Followers",      needles:["followers total","followers (total)","followers"],                        isPercent:false, isPace:true,  baselineFromQ2:true   },
+];
+
+const $ = id => document.getElementById(id);
+function nfk(s){ return String(s??"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim(); }
+function toNumber(v){
+  if(v===null||v===undefined) return null;
+  if(typeof v==="number") return Number.isFinite(v)?v:null;
+  const s=String(v).trim().replace(/,/g,"").replace(/\s+/g,"").replace(/%/g,"").replace(/[▲▼]/g,"").replace(/^\+/,"");
+  if(!s||s==="—"||s==="-") return null;
+  if(!/^-?\d+(\.\d+)?$/.test(s)) return null;
+  const n=Number(s); return Number.isFinite(n)?n:null;
+}
+function fmt(v, isPercent){ const n=toNumber(v); if(n===null) return "—"; if(isPercent) return `${n.toFixed(2)}%`; return n>=1000?n.toLocaleString():String(Math.round(n)); }
+function fmtApprox(n, isPercent){ if(n===null||!Number.isFinite(n)) return "—"; if(isPercent) return `${n.toFixed(2)}%`; return Math.round(n).toLocaleString(); }
+function completion(q){ const now=new Date(); if(now>=q.end) return 1; if(now<q.start) return 0; return (now-q.start)/(q.end-q.start); }
+function quarterComplete(q){ return new Date()>=q.end; }
+
+function extractFromRows(rows, metric){
+  if(!Array.isArray(rows)||!rows.length) return null;
+  const map={};
+  for(const r of rows){ const raw=r.field??r.Field??r.name??r.Name??""; const k=nfk(raw); if(k) map[k]=r.value??r.Value??null; }
+  for(const n of metric.needles){ const k=nfk(n); if(map[k]!==undefined) return toNumber(map[k]); }
+  const keys=Object.keys(map);
+  for(const n of metric.needles){ const nl=nfk(n); const hit=keys.find(k=>k.includes(nl)); if(hit!==undefined) return toNumber(map[hit]); }
+  return null;
+}
+function extractFromOverall(overall, metric){
+  if(!overall||typeof overall!=="object"||Array.isArray(overall)) return null;
+  const direct={impressions:"impressions",reactions:"reactions",linkclicks:"linkclicks",shares:"shares",comments:"comments",posts:"posts",followers:"followers"};
+  const k=direct[metric.id]; if(k&&overall[k]!==undefined) return toNumber(overall[k]); return null;
+}
+function extractMetric(data, metric){
+  if(!data) return null;
+  if(data.quarterTotals){ const v=extractFromRows(data.quarterTotals,metric); if(v!==null) return v; }
+  if(data.overall){ const v=extractFromOverall(data.overall,metric); if(v!==null) return v; }
+  return null;
 }
 
-function Colophon() {
-  return (
-    <footer className="wrap colophon">
-      <span>Prepared by Josiah Yule</span>
-      <span className="right">
-        <em>Updated</em> {D.generatedLabel}
-        <span>·</span>
-        <span>Edmonton, AB</span>
-      </span>
-    </footer>
-  );
+function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory, histBaseline=0){
+  if(current===null||!Number.isFinite(current)) return null;
+  const now=new Date(); const dElapsed=(now-qStart)/86400000; if(dElapsed<7) return null;
+  const dTotal=(qEnd-qStart)/86400000; const dRemaining=dTotal-dElapsed;
+  const simpleRate=current/dElapsed; const simpleProj=simpleRate*dTotal;
+  let rollingRate=null, rollingProj=null;
+  if(metricHistory.length>=2){
+    const cutoff=now.getTime()-7*86400000; const windowStart=metricHistory.find(s=>s.t>=cutoff)||metricHistory[0]; const latest=metricHistory[metricHistory.length-1];
+    const dt=(latest.t-windowStart.t)/86400000;
+    if(dt>=1){ const vS=windowStart.val-histBaseline, vE=latest.val-histBaseline; if(Number.isFinite(vS)&&Number.isFinite(vE)&&vE>=vS){ rollingRate=(vE-vS)/dt; rollingProj=Math.max(current,current+rollingRate*dRemaining); } }
+  }
+  let regProj=null;
+  if(metricHistory.length>=3){
+    const pts=metricHistory.map(s=>({x:(s.t-qStart.getTime())/86400000,y:s.val-histBaseline})).filter(p=>p.x>=0&&Number.isFinite(p.y)&&p.y>=0);
+    if(pts.length>=3){ const n=pts.length,sx=pts.reduce((a,p)=>a+p.x,0),sy=pts.reduce((a,p)=>a+p.y,0),sxy=pts.reduce((a,p)=>a+p.x*p.y,0),sx2=pts.reduce((a,p)=>a+p.x*p.x,0),den=n*sx2-sx*sx; if(den!==0){ const slope=(n*sxy-sx*sy)/den,intercept=(sy-slope*sx)/n,r=intercept+slope*dTotal; if(r>0) regProj=r; } }
+  }
+  let blended;
+  if(regProj!==null&&rollingProj!==null) blended=0.20*simpleProj+0.40*rollingProj+0.40*regProj;
+  else if(regProj!==null)                blended=0.40*simpleProj+0.60*regProj;
+  else if(rollingProj!==null)            blended=0.35*simpleProj+0.65*rollingProj;
+  else                                   blended=simpleProj;
+  const confidence=Math.min(1,dElapsed/14);
+  const projected=(q2Rate!==null&&Number.isFinite(q2Rate)&&q2Rate>0)?confidence*blended+(1-confidence)*(q2Rate*dTotal):blended;
+  return {projected, dailyRate:rollingRate??simpleRate, dElapsed, dTotal};
 }
 
-function App() {
-  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
-
-  useEffect(() => {
-    document.body.setAttribute("data-layout", t.layout);
-    document.body.setAttribute("data-density", t.density);
-  }, [t.layout, t.density]);
-
-  useEffect(() => {
-    renderNav("trends", null, null);
-    // Defer the hide so React has time to mount the loading screen first.
-    setTimeout(hideLoadingScreen, 60);
-  }, []);
-
-  return (
-    <React.Fragment>
-      <main className="report-wrap">
-        <Hero />
-        <ProjCards />
-        <Charts />
-      </main>
-      <Colophon />
-      <TweaksPanel title="Tweaks">
-        <TweakSection label="Layout">
-          <TweakRadio label="Mode" value={t.layout} onChange={v => setTweak("layout", v)} options={[{value:"editorial",label:"Editorial"},{value:"apple",label:"Apple"},{value:"document",label:"Document"}]} />
-          <TweakRadio label="Density" value={t.density} onChange={v => setTweak("density", v)} options={[{value:"airy",label:"Airy"},{value:"balanced",label:"Balanced"},{value:"tight",label:"Tight"}]} />
-        </TweakSection>
-      </TweaksPanel>
-    </React.Fragment>
-  );
+function getMetricHistory(metricId){ return loadHistory().filter(s=>s.vals&&s.vals[metricId]!==undefined).map(s=>({t:s.t,val:s.vals[metricId]})); }
+function applyPostsMultiplier(pace, m, q3v, postsQ3v, projectedPosts){
+  if(!pace||!m.postsMultiplier||projectedPosts===null||!postsQ3v||postsQ3v<=0||q3v===null) return pace;
+  const engPerPost=q3v/postsQ3v, postsMulProj=engPerPost*projectedPosts, blendedProj=0.70*pace.projected+0.30*postsMulProj;
+  return{...pace,projected:blendedProj};
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+const HIST_KEY="islq3_proj_history";
+function storeSnapshot(d3){
+  if(!d3) return; const snap={t:Date.now(),vals:{}};
+  for(const m of METRICS){ if(!m.isPace) continue; const v=extractMetric(d3,m); if(v!==null) snap.vals[m.id]=v; }
+  if(!Object.keys(snap.vals).length) return;
+  try{ const raw=localStorage.getItem(HIST_KEY); const hist=raw?JSON.parse(raw):[]; hist.push(snap); localStorage.setItem(HIST_KEY,JSON.stringify(hist.slice(-500))); }catch(e){}
+}
+function loadHistory(){
+  let hist=[]; try{ hist=JSON.parse(localStorage.getItem(HIST_KEY)||"[]"); }catch(e){ return []; }
+  const byDay={}; for(const snap of hist){ byDay[new Date(snap.t).toDateString()]=snap; }
+  return Object.values(byDay).sort((a,b)=>a.t-b.t);
+}
+
+async function fetchQ(q){
+  try{
+    const url=`${ENDPOINT}?report=${encodeURIComponent(q.key)}&nocache=1&t=${Date.now()}`;
+    const res=await fetch(url,{cache:"no-store"}); if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json=await res.json(); if(json&&json.error) throw new Error(json.message||"Endpoint error"); return json;
+  }catch(err){ if(q.localFallback){ try{ const r=await fetch(q.localFallback); if(r.ok) return await r.json(); }catch{} } return null; }
+}
+
+function renderProjCards(qdata, q3comp, q3done){
+  const grid=$("projGrid"); if(!grid) return;
+  const [d1,d2,d3]=qdata; const q3=TREND_QUARTERS[2]; const q2=TREND_QUARTERS[1]; const pct=(q3comp*100).toFixed(1);
+  const postsM=METRICS.find(m=>m.id==="posts"); const postsQ3v=postsM?extractMetric(d3,postsM):null; const postsQ2v=postsM?extractMetric(d2,postsM):null;
+  const postsQ2Rate=postsQ2v!==null?postsQ2v/((q2.end-q2.start)/86400000):null;
+  const postsPace=postsM&&postsQ3v!==null&&!q3done?computeAdvancedPace(postsQ3v,q3.start,q3.end,postsQ2Rate,getMetricHistory("posts"),0):null;
+  const projectedPosts=postsPace?postsPace.projected:null;
+  grid.innerHTML=METRICS.map(m=>{
+    const q1v=extractMetric(d1,m), q2v=extractMetric(d2,m), q3v=extractMetric(d3,m);
+    const histBaseline=m.baselineFromQ2&&q2v!==null?q2v:0; const q3input=m.baselineFromQ2&&q2v!==null&&q3v!==null?q3v-q2v:q3v;
+    const q2Rate=m.isPace?(m.baselineFromQ2&&q1v!==null&&q2v!==null?(q2v-q1v)/((q2.end-q2.start)/86400000):q2v!==null?q2v/((q2.end-q2.start)/86400000):null):null;
+    let pace=m.isPace&&!q3done?computeAdvancedPace(q3input,q3.start,q3.end,q2Rate,getMetricHistory(m.id),histBaseline):null;
+    pace=applyPostsMultiplier(pace,m,q3v,postsQ3v,projectedPosts);
+    const projected=pace?pace.projected:null; const rateVsQ2=pace&&q2Rate?((pace.dailyRate-q2Rate)/q2Rate*100):null;
+    const headlineVal=projected!==null&&m.baselineFromQ2&&q2v!==null?q2v+projected:projected;
+    const headline=headlineVal!==null?fmtApprox(headlineVal,m.isPercent):fmt(q3v,m.isPercent);
+    const headlineSub=headlineVal!==null?(q3done?(m.baselineFromQ2?"Q3 Projected Total":"Q3 Final"):(m.baselineFromQ2?"Projected Total · Q3":"Projected Final · Q3")):(m.baselineFromQ2?"Q3 Current Total":"Q3 Current");
+    const dE=pace?Math.round(pace.dElapsed):0; const dT=pace?Math.round(pace.dTotal):92;
+    const stat1Label=m.baselineFromQ2?"Q3 Net New":"Q3 to Date"; const stat1Val=m.baselineFromQ2&&q3v!==null&&q2v!==null?fmt(q3v-q2v,m.isPercent):fmt(q3v,m.isPercent);
+    let stat2Val="—", stat2Cls=""; if(pace){ stat2Val=m.isPercent?`${pace.dailyRate.toFixed(3)}%/day`:`${pace.dailyRate.toFixed(1)}/day`; stat2Cls="rate"; }
+    let stat3Val="—", stat3Cls="na"; if(rateVsQ2!==null){ const sign=rateVsQ2>=0?"▲ +":"▼ "; stat3Val=`${sign}${Math.abs(rateVsQ2).toFixed(1)}%`; stat3Cls=rateVsQ2>=0?"pos":"neg"; } else if(!m.isPace){ stat3Val="n/a"; }
+    return `<div class="proj-card"><div class="proj-card-label">${m.label}</div><div class="proj-number">${headline}</div><div class="proj-number-sub">${headlineSub}</div><div class="proj-progress-wrap"><div class="proj-progress-track"><div class="proj-progress-fill" style="width:${Math.min(100,q3comp*100).toFixed(1)}%"></div></div><div class="proj-progress-labels"><span>Day ${dE} of ${dT}${q3done?" · complete":""}</span><span>${pct}%</span></div></div><div class="proj-stats-grid"><div class="proj-stat"><div class="proj-stat-label">${stat1Label}</div><div class="proj-stat-value">${stat1Val}</div></div><div class="proj-stat"><div class="proj-stat-label">Daily Rate</div><div class="proj-stat-value ${stat2Cls}">${stat2Val}</div></div><div class="proj-stat"><div class="proj-stat-label">Rate vs Q2</div><div class="proj-stat-value ${stat3Cls}">${stat3Val}</div></div><div class="proj-stat"><div class="proj-stat-label">Q2 Actual</div><div class="proj-stat-value">${fmt(q2v,m.isPercent)}</div></div></div></div>`;
+  }).join("");
+}
+
+const charts={};
+const C={q1:"rgba(100,116,139,.7)",q2:"rgba(0,61,114,.8)",q3:"rgba(0,84,154,.85)",proj:"rgba(180,130,0,.85)",area:"rgba(0,84,154,.07)"};
+
+function buildCharts(qdata, q3comp, q3done){
+  const grid=$("chartsGrid"); if(!grid) return;
+  const [d1,d2,d3]=qdata; const q3=TREND_QUARTERS[2]; const q2=TREND_QUARTERS[1];
+  const sub=q3done?"Quarter-over-quarter actuals":"Q1 & Q2 actuals · Q3 pace projection";
+  grid.innerHTML=METRICS.map(m=>`<div class="chart-card"><div class="chart-card-title">${m.label}</div><div class="chart-card-sub">${sub}</div><div class="chart-wrap"><canvas id="chart-${m.id}"></canvas></div><div class="chart-legend" id="legend-${m.id}"></div></div>`).join("");
+  const postsM=METRICS.find(m=>m.id==="posts"); const postsQ3v=postsM?extractMetric(d3,postsM):null; const postsQ2v=postsM?extractMetric(d2,postsM):null;
+  const postsQ2Rate=postsQ2v!==null?postsQ2v/((q2.end-q2.start)/86400000):null;
+  const postsPace=postsM&&postsQ3v!==null&&!q3done?computeAdvancedPace(postsQ3v,q3.start,q3.end,postsQ2Rate,getMetricHistory("posts"),0):null;
+  const projectedPosts=postsPace?postsPace.projected:null;
+  function go(){
+    for(const m of METRICS){
+      const q1v=extractMetric(d1,m), q2v=extractMetric(d2,m), q3v=extractMetric(d3,m);
+      const chartQ3input=m.baselineFromQ2&&q2v!==null&&q3v!==null?q3v-q2v:q3v;
+      const chartQ2Rate=q2v!==null?(m.baselineFromQ2&&q1v!==null?(q2v-q1v)/((q2.end-q2.start)/86400000):q2v/((q2.end-q2.start)/86400000)):null;
+      let pace=m.isPace&&!q3done?computeAdvancedPace(chartQ3input,q3.start,q3.end,chartQ2Rate,getMetricHistory(m.id),m.baselineFromQ2&&q2v!==null?q2v:0):null;
+      pace=applyPostsMultiplier(pace,m,q3v,postsQ3v,projectedPosts);
+      const projected=pace?pace.projected:null; const chartQ3val=projected!==null?(m.baselineFromQ2&&q2v!==null?q2v+projected:projected):(q3v??0);
+      const canvas=document.getElementById(`chart-${m.id}`); if(!canvas) continue;
+      if(charts[m.id]) charts[m.id].destroy();
+      const ctx=canvas.getContext("2d");
+      const labels=["Q1 · Sep–Nov","Q2 · Dec–Feb",projected!==null?"Q3 · Projected":"Q3 · Mar–May"];
+      const colors=[C.q1,C.q2,projected!==null?C.proj:C.q3];
+      charts[m.id]=new Chart(ctx,{type:"bar",data:{labels,datasets:[{data:[q1v??0,q2v??0,chartQ3val],backgroundColor:colors,borderWidth:0,borderRadius:2,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:600,easing:"easeOutQuart"},plugins:{legend:{display:false},tooltip:{callbacks:{label(c){const v=c.parsed.y;return v===null?"":fmt(v,m.isPercent)+(c.label.includes("Projected")?" (projected)":"");}}}},scales:{x:{grid:{display:false},ticks:{font:{size:11,family:"Inter Tight, system-ui"},color:"#64748b"},border:{display:false}},y:{beginAtZero:true,grid:{color:"rgba(0,0,0,.04)"},border:{display:false,dash:[3,3]},ticks:{font:{size:11,family:"Inter Tight, system-ui"},color:"#64748b",padding:6,callback:v=>m.isPercent?`${v.toFixed(1)}%`:v>=1000?v.toLocaleString():v}}}}});
+      const legendEl=document.getElementById(`legend-${m.id}`);
+      if(legendEl) legendEl.innerHTML=[`<div class="legend-item"><div class="legend-dot" style="background:${C.q1}"></div>Q1 Actual</div>`,`<div class="legend-item"><div class="legend-dot" style="background:${C.q2}"></div>Q2 Actual</div>`,projected!==null?`<div class="legend-item"><div class="legend-dot" style="background:${C.proj}"></div>Q3 Projected</div>`:`<div class="legend-item"><div class="legend-dot" style="background:${C.q3}"></div>Q3 ${q3done?"Actual":"To Date"}</div>`].join("");
+    }
+  }
+  if(typeof Chart!=="undefined") go(); else document.querySelector("script[src*='chart']").addEventListener("load",go);
+}
+
+function setLastUpdated(){
+  const el=$("updatedAt");
+  if(el) el.textContent="Updated "+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+}
+
+let isLoading=false;
+async function loadAndRender(){
+  if(isLoading) return; isLoading=true;
+  try{
+    const qdata=await Promise.all(TREND_QUARTERS.map(fetchQ)); const q3=TREND_QUARTERS[2], q3comp=completion(q3), q3done=quarterComplete(q3);
+    const pct=(q3comp*100).toFixed(1);
+    const pl=$("progressLabel"), pf=$("progressFill");
+    if(pl) pl.textContent=`${pct}% elapsed${q3done?" · complete":""}`;
+    if(pf) pf.style.width=`${Math.min(100,q3comp*100).toFixed(1)}%`;
+    renderProjCards(qdata,q3comp,q3done); buildCharts(qdata,q3comp,q3done); storeSnapshot(qdata[2]); setLastUpdated(); if(typeof hideLoadingScreen==="function") hideLoadingScreen();
+  }catch(err){ console.error("Trends load error:",err); }
+  finally{ isLoading=false; }
+}
+window.addEventListener("DOMContentLoaded",()=>{ loadAndRender(); setInterval(loadAndRender,REFRESH_SEC*1000); });
 </script>
 </body>
 </html>
