@@ -61,9 +61,9 @@
 
 <div id="nav-root"></div>
 
-<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
-<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
-<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <script type="text/babel" src="../nav.jsx"></script>
 <script type="text/babel">
   renderNav("trends", null, null);
@@ -77,7 +77,7 @@
       <div class="hero-b-q serif">Trends</div>
       <div class="hero-b-divider"></div>
       <div class="hero-b-meta">
-        <div class="hero-b-meta-name">Integrated Staffing</div>
+        <div class="hero-b-meta-name" id="trendsAgencyName">Loading…</div>
         <div class="hero-b-meta-range">Q1 · Q2 · Q3 · 2026</div>
       </div>
     </div>
@@ -120,10 +120,22 @@
 const ENDPOINT="https://script.google.com/macros/s/AKfycbwB-RGI1lVHrUE03PkkSEYbLuiTLxE4phMBBOm81diNJtSPyUWGoB_bOlkgFIoVF4yzLQ/exec";
 const REFRESH_SEC=300;
 
+// Read active agency from URL params — mirrors nav.jsx logic
+const _trendAgency = (new URLSearchParams(window.location.search).get("agency") || "isl").toLowerCase();
+const _trendAgencyNames = { isl: "Integrated Staffing", as: "Accountant Staffing", ads: "Administrative Staffing" };
+const _trendAgencyName = _trendAgencyNames[_trendAgency] || "Integrated Staffing";
+
+// Set agency name in the hero and page title
+document.addEventListener("DOMContentLoaded", () => {
+  const el = document.getElementById("trendsAgencyName");
+  if (el) el.textContent = _trendAgencyName;
+  document.title = `${_trendAgencyName} Trends`;
+});
+
 const TREND_QUARTERS = [
-  { key:"islq1", label:"Q1", rangeLabel:"Sep–Nov 2025", start:new Date("2025-09-01"), end:new Date("2025-12-01"), localFallback:"./2026q1/2026-q1.json" },
-  { key:"islq2", label:"Q2", rangeLabel:"Dec–Feb 2026", start:new Date("2025-12-01"), end:new Date("2026-03-01") },
-  { key:"islq3", label:"Q3", rangeLabel:"Mar–May 2026", start:new Date("2026-03-01"), end:new Date("2026-06-01"), isCurrent:true },
+  { key: _trendAgency + "q1", label:"Q1", rangeLabel:"Sep–Nov 2025", start:new Date("2025-09-01"), end:new Date("2025-12-01"), localFallback:"./2026q1/2026-q1.json" },
+  { key: _trendAgency + "q2", label:"Q2", rangeLabel:"Dec–Feb 2026", start:new Date("2025-12-01"), end:new Date("2026-03-01") },
+  { key: _trendAgency + "q3", label:"Q3", rangeLabel:"Mar–May 2026", start:new Date("2026-03-01"), end:new Date("2026-06-01"), isCurrent:true },
 ];
 
 const METRICS = [
@@ -205,7 +217,7 @@ function applyPostsMultiplier(pace, m, q3v, postsQ3v, projectedPosts){
   return{...pace,projected:blendedProj};
 }
 
-const HIST_KEY="islq3_proj_history";
+const HIST_KEY = _trendAgency + "q3_proj_history";
 function storeSnapshot(d3){
   if(!d3) return; const snap={t:Date.now(),vals:{}};
   for(const m of METRICS){ if(!m.isPace) continue; const v=extractMetric(d3,m); if(v!==null) snap.vals[m.id]=v; }
