@@ -196,7 +196,7 @@ function Numbers({ data }) {
       <div className="kpi-grid">
         {KPI_DEFS.map((k) => {
           const v = data.overall[k.key];
-          const d = data.deltas[k.key];
+          const d = data.deltas?.[k.key] || SAFE_DELTA;
           return (
             <div className="kpi" key={k.key}>
               <div className="kpi-label">{k.label}</div>
@@ -593,10 +593,12 @@ function Colophon() {
 // App
 // =================================================================
 function App() {
+  const SAFE_DELTA = { dir: "flat", pct: 0 };
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [metric, setMetric] = useState(t.trendMetric || "impressions");
   const [platform, setPlatform] = useState(t.topPlatform || "linkedin");
   const [data, setData] = useState(null);
+  const [loadError, setLoadError] = useState("");
 
   // Apply layout/density/accent tweaks to body
   useEffect(() => {
@@ -614,9 +616,21 @@ function App() {
 
   // Poll for ISL_REPORT (set by the inline script in index.html)
   useEffect(() => {
+    const started = Date.now();
     const poll = setInterval(() => {
       if (window.ISL_REPORT) {
         setData(normalizeReport(window.ISL_REPORT));
+        clearInterval(poll);
+        return;
+      }
+      const status = window.ISL_REPORT_STATUS;
+      if (status?.state === "error") {
+        setLoadError(status.error || "Unable to load report data.");
+        clearInterval(poll);
+        return;
+      }
+      if (Date.now() - started > 15000) {
+        setLoadError("Loading timed out. Please refresh and try again.");
         clearInterval(poll);
       }
     }, 50);
@@ -642,6 +656,18 @@ function App() {
   useEffect(() => {
     if (data) hideLoadingScreen();
   }, [data]);
+
+  if (loadError) {
+    hideLoadingScreen();
+    return (
+      <main className="report-wrap">
+        <section className="section wrap">
+          <header className="section-head"><h2 className="section-title serif">Unable to load report</h2></header>
+          <p>{loadError}</p>
+        </section>
+      </main>
+    );
+  }
 
   // While data is loading, render nothing — nav.jsx loading screen is already visible
   if (!data) return null;
