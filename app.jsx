@@ -196,7 +196,7 @@ function Numbers({ data }) {
       <div className="kpi-grid">
         {KPI_DEFS.map((k) => {
           const v = data.overall[k.key];
-          const d = data.deltas[k.key];
+          const d = data.deltas?.[k.key] || SAFE_DELTA;
           return (
             <div className="kpi" key={k.key}>
               <div className="kpi-label">{k.label}</div>
@@ -593,10 +593,12 @@ function Colophon() {
 // App
 // =================================================================
 function App() {
+  const SAFE_DELTA = { dir: "flat", pct: 0 };
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [metric, setMetric] = useState(t.trendMetric || "impressions");
   const [platform, setPlatform] = useState(t.topPlatform || "linkedin");
   const [data, setData] = useState(null);
+  const [loadError, setLoadError] = useState("");
 
   // Apply layout/density/accent tweaks to body
   useEffect(() => {
@@ -612,15 +614,29 @@ function App() {
     if (data) document.title = `${data.meta.agencyName} ${data.meta.quarter} ${data.meta.year}`;
   }, [data]);
 
-  // Poll for ISL_REPORT (set by the inline script in index.html)
+  // Consume bootstrap events from index.html and fall back to status checks
   useEffect(() => {
-    const poll = setInterval(() => {
-      if (window.ISL_REPORT) {
-        setData(normalizeReport(window.ISL_REPORT));
-        clearInterval(poll);
+    const onReady = (e) => setData(normalizeReport(e.detail || window.ISL_REPORT));
+    const onError = (e) => setLoadError(e?.detail || "Unable to load report data.");
+
+    window.addEventListener("isl-report-ready", onReady);
+    window.addEventListener("isl-report-error", onError);
+
+    // Handle already-resolved state (e.g., fast network before React mount)
+    if (window.ISL_REPORT) onReady({ detail: window.ISL_REPORT });
+    else if (window.ISL_REPORT_STATUS?.state === "error") onError({ detail: window.ISL_REPORT_STATUS.error });
+
+    const timeout = setTimeout(() => {
+      if (!window.ISL_REPORT && window.ISL_REPORT_STATUS?.state !== "error") {
+        setLoadError("Loading timed out. Please refresh and try again.");
       }
-    }, 50);
-    return () => clearInterval(poll);
+    }, 15000);
+
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener("isl-report-ready", onReady);
+      window.removeEventListener("isl-report-error", onError);
+    };
   }, []);
 
   // Render nav (masthead + tabs + quarter chooser) once on mount
@@ -642,6 +658,18 @@ function App() {
   useEffect(() => {
     if (data) hideLoadingScreen();
   }, [data]);
+
+  if (loadError) {
+    hideLoadingScreen();
+    return (
+      <main className="report-wrap">
+        <section className="section wrap">
+          <header className="section-head"><h2 className="section-title serif">Unable to load report</h2></header>
+          <p>{loadError}</p>
+        </section>
+      </main>
+    );
+  }
 
   // While data is loading, render nothing — nav.jsx loading screen is already visible
   if (!data) return null;

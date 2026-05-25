@@ -1,0 +1,9 @@
+{
+  "name": "quarterly-report",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Quarterly report dashboard",
+  "scripts": {
+    "build:check": "node scripts/build-check.mjs"
+  }
+}

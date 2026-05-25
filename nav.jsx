@@ -132,6 +132,27 @@ function Masthead({ agencyKey, onAgencyChange }) {
     window.location.href = newUrl;
   };
 
+
+  const onAgencyMenuKeyDown = (e) => {
+    if (!open) return;
+    const items = Array.from(wrapRef.current?.querySelectorAll('.agency-option') || []);
+    if (!items.length) return;
+    const currentIndex = items.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      items[(currentIndex + 1 + items.length) % items.length].focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      items[(currentIndex - 1 + items.length) % items.length].focus();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      items[0].focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      items[items.length - 1].focus();
+    }
+  };
+
   // Split name into first word and rest so we can italicise the last word
   // in the same style as the existing "Integrated Staffing" treatment.
   const words = agency.name.split(" ");
@@ -147,6 +168,7 @@ function Masthead({ agencyKey, onAgencyChange }) {
           <button
             className="masthead-mark serif masthead-agency-btn"
             onClick={() => setOpen(!open)}
+            onKeyDown={onAgencyMenuKeyDown}
             aria-haspopup="true"
             aria-expanded={open}
             aria-label={`Current agency: ${agency.name}. Click to switch.`}
@@ -165,6 +187,7 @@ function Masthead({ agencyKey, onAgencyChange }) {
                   role="menuitem"
                   className={"agency-option" + (key === agencyKey ? " is-current" : "")}
                   onClick={() => handleSelect(key)}
+                  tabIndex={open ? 0 : -1}
                 >
                   <span className={"agency-option-badge agency-badge-" + key} aria-hidden="true">
                     {cfg.label}
@@ -220,11 +243,24 @@ function MastNav({ active, agencyKey, quarter, onQuarter }) {
 
   const currentAgency = agencyKey || getParams().agency || "isl";
 
+const currentSuffix = reportSuffix(quarter?.key || getParams().report || "q3");
 const tabs = [
-  { id: "social", label: "Social Media", href: "/?" + new URLSearchParams({ agency: currentAgency }).toString() },
-  { id: "web",    label: "Website",      href: "/web/?" + new URLSearchParams({ agency: currentAgency }).toString() },
-  { id: "trends", label: "Trends",       href: "/trends/?" + new URLSearchParams({ agency: currentAgency }).toString() },
+  { id: "social", label: "Social Media", href: "/?" + new URLSearchParams({ agency: currentAgency, report: agencyReportKey(currentAgency, currentSuffix) }).toString() },
+  { id: "web",    label: "Website",      href: "/web/?" + new URLSearchParams({ agency: currentAgency, report: "web" + currentSuffix }).toString() },
+  { id: "trends", label: "Trends",       href: "/trends/?" + new URLSearchParams({ agency: currentAgency, report: agencyReportKey(currentAgency, currentSuffix) }).toString() },
 ];
+
+  const onQuarterMenuKeyDown = (e) => {
+    if (!open) return;
+    const items = Array.from(ref.current?.querySelectorAll('.menu a[role="menuitem"]') || []);
+    if (!items.length) return;
+    const currentIndex = items.indexOf(document.activeElement);
+    if (e.key === "ArrowDown") { e.preventDefault(); items[(currentIndex + 1 + items.length) % items.length].focus(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); items[(currentIndex - 1 + items.length) % items.length].focus(); }
+    else if (e.key === "Home") { e.preventDefault(); items[0].focus(); }
+    else if (e.key === "End") { e.preventDefault(); items[items.length - 1].focus(); }
+    else if (e.key === "Escape") { e.preventDefault(); setOpen(false); }
+  };
 
   // Group quarters by year for the dropdown header rows
   const years = [...new Set(QUARTERS.map(q => q.year))];
@@ -251,6 +287,7 @@ const tabs = [
                   aria-haspopup="menu"
                   aria-expanded={open}
                   onClick={() => setOpen(!open)}
+                  onKeyDown={onQuarterMenuKeyDown}
                 >
                   <span>{quarter?.label ?? "Quarter"}</span>
                   <span className="caret">▾</span>
