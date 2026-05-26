@@ -11,6 +11,10 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "topPlatform": "linkedin"
 } /*EDITMODE-END*/;
 
+// parseDelta and arrow are defined in nav.jsx (loaded first) as shared globals.
+
+const SAFE_DELTA = { dir: "flat", pct: 0 };
+
 // =================================================================
 // Helpers
 // =================================================================
@@ -24,46 +28,29 @@ const fmt = (n) => {
   return n.toFixed(2);
 };
 const fmtExact = (n) => (n === null || n === undefined ? "—" : typeof n === "number" ? n.toLocaleString() : "—");
-function arrow(dir) { return dir === "up" ? "↑" : dir === "down" ? "↓" : "—"; }
 
 // =================================================================
-// Delta parser
+// normalizeReport — pure function, does not mutate its input.
+// agency and reportKey come from the caller (URL params read once in App).
 // =================================================================
-function parseDelta(d) {
-  if (d == null) return { dir: "flat", pct: 0 };
-  if (typeof d === "object" && "dir" in d) return d;
-  if (typeof d === "object" && "direction" in d) return { dir: d.direction === "up" ? "up" : d.direction === "down" ? "down" : "flat", pct: d.percent || 0 };
-  if (typeof d !== "string") return { dir: "flat", pct: 0 };
-  const s = d.trim();
-  let dir = "flat";
-  if (/^[▲↑]/.test(s) || /\bup\b/i.test(s)) dir = "up";
-  else if (/^[▼↓]/.test(s) || /\bdown\b/i.test(s)) dir = "down";
-  const m = s.match(/-?\d+(\.\d+)?/);
-  return { dir, pct: m ? Math.abs(parseFloat(m[0])) : 0 };
-}
-
-// =================================================================
-// normalizeReport
-// =================================================================
-function normalizeReport(r) {
+function normalizeReport(r, agency, reportKey) {
   if (!r) return r;
 
+  // Already-normalized shape (has overall + platforms with parsed deltas)
   if (r.overall && r.platforms) {
-    if (r.deltas) {
-      const out = {};
-      for (const k in r.deltas) out[k] = parseDelta(r.deltas[k]);
-      r.deltas = out;
-    }
-    if (Array.isArray(r.platforms)) {
-      r.platforms = r.platforms.map((p) => ({
-        ...p,
-        followersDelta:      parseDelta(p.followersDelta),
-        engagementRateDelta: parseDelta(p.engagementRateDelta),
-        pageReachDelta:      parseDelta(p.pageReachDelta),
-        pageClicksDelta:     parseDelta(p.pageClicksDelta),
-      }));
-    }
-    return r;
+    const parsedDeltas = r.deltas
+      ? Object.fromEntries(Object.entries(r.deltas).map(([k, v]) => [k, parseDelta(v)]))
+      : {};
+    const parsedPlatforms = Array.isArray(r.platforms)
+      ? r.platforms.map((p) => ({
+          ...p,
+          followersDelta:      parseDelta(p.followersDelta),
+          engagementRateDelta: parseDelta(p.engagementRateDelta),
+          pageReachDelta:      parseDelta(p.pageReachDelta),
+          pageClicksDelta:     parseDelta(p.pageClicksDelta),
+        }))
+      : r.platforms;
+    return { ...r, deltas: parsedDeltas, platforms: parsedPlatforms };
   }
 
   const overall = {}, deltas = {};
@@ -101,42 +88,29 @@ function normalizeReport(r) {
   const insightMap = {};
   (r.insights || []).forEach((i) => { insightMap[i.Section] = i.Text; });
   const notes = {
-    working:    insightMap.working    ? [insightMap.working]    : ["No notes yet."],
-    notWorking: insightMap.notWorking ? [insightMap.notWorking] : ["No notes yet."],
-    actions:    insightMap.actions    ? [insightMap.actions]    : ["No notes yet."],
-    next:       insightMap.next       ? [insightMap.next]       : ["No notes yet."],
+    working:    insightMap.working    ? [insightMap.working]    : [],
+    notWorking: insightMap.notWorking ? [insightMap.notWorking] : [],
+    actions:    insightMap.actions    ? [insightMap.actions]    : [],
+    next:       insightMap.next       ? [insightMap.next]       : [],
   };
 
   const weekly = Array.from({ length: 13 }, (_, i) => ({ wk: i + 1, imp: 0, leads: 0, spend: 0 }));
 
-  const params = new URLSearchParams(window.location.search);
-  const agency = params.get("agency") || "isl";
-  const reportKey = params.get("report") || (agency + "q3");
-
-  const REPORT_META = {
-    islq1:  { quarter: "Q1", quarterWord: "One",   year: "2026", rangeLabel: "Sep – Nov 2025", issue: "1" },
-    islq2:  { quarter: "Q2", quarterWord: "Two",   year: "2026", rangeLabel: "Dec – Feb 2026", issue: "2" },
-    islq3:  { quarter: "Q3", quarterWord: "Three", year: "2026", rangeLabel: "Mar – May 2026", issue: "3" },
-    asq1:   { quarter: "Q1", quarterWord: "One",   year: "2026", rangeLabel: "Sep – Nov 2025", issue: "1" },
-    asq2:   { quarter: "Q2", quarterWord: "Two",   year: "2026", rangeLabel: "Dec – Feb 2026", issue: "2" },
-    asq3:   { quarter: "Q3", quarterWord: "Three", year: "2026", rangeLabel: "Mar – May 2026", issue: "3" },
-    adsq1:  { quarter: "Q1", quarterWord: "One",   year: "2026", rangeLabel: "Sep – Nov 2025", issue: "1" },
-    adsq2:  { quarter: "Q2", quarterWord: "Two",   year: "2026", rangeLabel: "Dec – Feb 2026", issue: "2" },
-    adsq3:  { quarter: "Q3", quarterWord: "Three", year: "2026", rangeLabel: "Mar – May 2026", issue: "3" },
-  };
-  const reportMeta = REPORT_META[reportKey] || REPORT_META["islq3"];
+  // Quarter meta comes from nav.jsx's QUARTERS (single source of truth)
+  const suffix = (reportKey.match(/q\d+$/) || ["q3"])[0];
+  const qMeta = getQuarterBySuffix(suffix);
 
   const AGENCY_NAMES = { isl: "Integrated Staffing", as: "Accountant Staffing", ads: "Administrative Staffing" };
 
   const meta = {
-    quarter:      reportMeta.quarter,
-    quarterWord:  reportMeta.quarterWord,
-    year:         reportMeta.year,
-    rangeLabel:   reportMeta.rangeLabel,
+    quarter:        qMeta.label,
+    quarterWord:    qMeta.quarterWord,
+    year:           qMeta.year,
+    rangeLabel:     qMeta.rangeLabel,
     generatedLabel: r.generatedAt ? new Date(r.generatedAt).toLocaleDateString() : "",
-    author:       "Josiah Yule",
-    issue:        reportMeta.issue,
-    agencyName:   AGENCY_NAMES[agency] || "Integrated Staffing",
+    author:         "Josiah Yule",
+    issue:          qMeta.issue,
+    agencyName:     AGENCY_NAMES[agency] || "Integrated Staffing",
   };
 
   return {
@@ -296,29 +270,6 @@ function Trend({ data, metric, setMetric }) {
 // =================================================================
 // Platforms
 // =================================================================
-function PlatformSpark({ p }) {
-  const seed = p.engagementRate;
-  const points = useMemo(() => Array.from({ length: 13 }, (_, i) => {
-    const t = i / 12;
-    const base = Math.sin(t * Math.PI * 1.4) * 0.5 + 0.5;
-    const noise = seed * (i + 1) % 7 / 14;
-    return base * 0.7 + noise * 0.4;
-  }), [seed]);
-  const w = 120, h = 38;
-  const max = Math.max(...points), min = Math.min(...points);
-  const xStep = w / (points.length - 1);
-  const path = points.map((v, i) => {
-    const x = i * xStep;
-    const y = h - (v - min) / (max - min) * h * 0.8 - h * 0.1;
-    return (i === 0 ? "M" : "L") + x.toFixed(1) + "," + y.toFixed(1);
-  }).join(" ");
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: "inline-block", marginLeft: "auto" }}>
-      <path d={path} fill="none" stroke="var(--isl-blue)" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
 function Platforms({ data }) {
   return (
     <section className="section wrap" data-screen-label="04 Platforms">
@@ -414,7 +365,6 @@ function AllPosts({ data }) {
     });
 
   const thStyle = { cursor: "pointer", userSelect: "none" };
-  const inputStyle = { border: "1px solid var(--rule)", padding: "8px 12px", fontFamily: "var(--sans)", fontSize: "14px", borderRadius: "2px", background: "var(--paper)", color: "var(--ink)" };
   const calendarMonths = posts.reduce((acc, p) => {
     const d = p.Date ? new Date(p.Date) : null;
     const key = d && !Number.isNaN(d.getTime())
@@ -432,27 +382,27 @@ function AllPosts({ data }) {
   };
 
   return (
-    <section className="section wrap" data-screen-label="07 All Posts">
+    <section className="section wrap" data-screen-label="06 All Posts">
       <header className="section-head"><h2 className="section-title serif">All Posts</h2></header>
-      <div style={{ display: "flex", gap: "16px", marginBottom: "24px", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-          <input type="search" placeholder="Search posts, notes, or post type..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, width: "100%", maxWidth: "320px" }} />
-          <select value={platform} onChange={(e) => setPlatform(e.target.value)} style={inputStyle}>
+      <div className="all-posts-controls">
+        <div className="all-posts-controls-left">
+          <input type="search" className="all-posts-input" placeholder="Search posts, notes, or post type..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <select className="all-posts-select" value={platform} onChange={(e) => setPlatform(e.target.value)}>
             <option value="all">All platforms</option>
             <option value="linkedin">LinkedIn</option>
             <option value="facebook">Facebook</option>
             <option value="instagram">Instagram</option>
           </select>
-          <span style={{ fontSize: "13px", color: "var(--ink-3)", alignSelf: "center" }}>{posts.length} posts</span>
+          <span className="all-posts-count">{posts.length} posts</span>
         </div>
         <div className="view-toggle">
           <button className={"toggle-btn" + (view === "list" ? " is-active" : "")} onClick={() => setView("list")}>List</button>
           <button className={"toggle-btn" + (view === "calendar" ? " is-active" : "")} onClick={() => setView("calendar")}>Calendar</button>
         </div>
       </div>
-      {view === "list" ? <div style={{ maxHeight: "560px", overflowY: "auto" }}>
+      {view === "list" ? <div className="all-posts-list-wrap">
         <table className="table" style={{ marginBottom: 0 }}>
-          <thead style={{ position: "sticky", top: 0, background: "var(--paper)", zIndex: 2 }}>
+          <thead>
             <tr>
               <th>Post</th>
               <th style={thStyle} onClick={() => toggleSort("Date")}>Date{sortArrow("Date")}</th>
@@ -468,20 +418,21 @@ function AllPosts({ data }) {
               const date = p.Date ? new Date(p.Date).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—";
               const er = p.Impressions > 0 ? (p.Engagements / p.Impressions) * 100 : 0;
               const { label, color } = healthForER(er);
+              const rowKey = (p["Post Name"] || "") + (p.Date || "") + i;
               return (
-                <tr key={i}>
+                <tr key={rowKey}>
                   <td>
                     <div className="campaign-name serif">
-                      {p.URL ? <a href={p.URL} target="_blank" rel="noopener" style={{ color: "#0070CA", textDecoration: "none" }}>{p["Post Name"] || "—"}</a> : p["Post Name"] || "—"}
+                      {p.URL ? <a href={p.URL} target="_blank" rel="noopener noreferrer" style={{ color: "#0070CA", textDecoration: "none" }}>{p["Post Name"] || "—"}</a> : p["Post Name"] || "—"}
                     </div>
                     {p.Notes && <div className="campaign-chan">{p.Notes}</div>}
                   </td>
-                  <td style={{ color: "var(--ink-3)", fontSize: "13px", whiteSpace: "nowrap" }}>{date}</td>
-                  <td style={{ color: "var(--ink-3)", fontSize: "13px" }}>{p.Platforms || "—"}</td>
+                  <td className="all-posts-cell-date">{date}</td>
+                  <td className="all-posts-cell-platform">{p.Platforms || "—"}</td>
                   <td className="r num">{(p.Impressions || 0).toLocaleString()}</td>
                   <td className="r num">{(p.Engagements || 0).toLocaleString()}</td>
                   <td className="r num">{er.toFixed(2)}%</td>
-                  <td className="health-col"><span style={{ color, fontSize: "13px", fontWeight: 500 }}>{label}</span></td>
+                  <td className="health-col"><span className="health-label" style={{ color }}>{label}</span></td>
                 </tr>
               );
             })}
@@ -566,15 +517,20 @@ function AllPosts({ data }) {
 // =================================================================
 // Notes
 // =================================================================
+function NoteList({ items }) {
+  if (!items.length) return <p className="note-empty">No notes yet.</p>;
+  return <ul>{items.map((n, i) => <li key={i}>{n}</li>)}</ul>;
+}
+
 function Notes({ data }) {
   return (
-    <section className="section wrap" data-screen-label="06 Notes">
+    <section className="section wrap" data-screen-label="07 Notes">
       <header className="section-head"><h2 className="section-title serif">Insights</h2></header>
       <div className="notes">
-        <div className="note working"><h4>Working</h4><ul>{data.notes.working.map((n, i) => <li key={i}>{n}</li>)}</ul></div>
-        <div className="note notworking"><h4>Not working</h4><ul>{data.notes.notWorking.map((n, i) => <li key={i}>{n}</li>)}</ul></div>
-        <div className="note"><h4>Actions</h4><ul>{data.notes.actions.map((n, i) => <li key={i}>{n}</li>)}</ul></div>
-        <div className="note"><h4>Next quarter</h4><ul>{data.notes.next.map((n, i) => <li key={i}>{n}</li>)}</ul></div>
+        <div className="note working"><h4>Working</h4><NoteList items={data.notes.working} /></div>
+        <div className="note notworking"><h4>Not working</h4><NoteList items={data.notes.notWorking} /></div>
+        <div className="note"><h4>Actions</h4><NoteList items={data.notes.actions} /></div>
+        <div className="note"><h4>Next quarter</h4><NoteList items={data.notes.next} /></div>
       </div>
     </section>
   );
@@ -593,12 +549,24 @@ function Colophon() {
 // App
 // =================================================================
 function App() {
-  const SAFE_DELTA = { dir: "flat", pct: 0 };
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [metric, setMetric] = useState(t.trendMetric || "impressions");
   const [platform, setPlatform] = useState(t.topPlatform || "linkedin");
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState("");
+
+  // Read URL params once — used by poll effect and normalizeReport
+  const params = new URLSearchParams(window.location.search);
+  const agency = params.get("agency") || "isl";
+  const reportKey = params.get("report") || (agency + "q3");
+
+  // Set page title immediately from URL params (before data loads)
+  useEffect(() => {
+    const AGENCY_NAMES = { isl: "Integrated Staffing", as: "Accountant Staffing", ads: "Administrative Staffing" };
+    const suffix = (reportKey.match(/q\d+$/) || ["q3"])[0];
+    const qMeta = getQuarterBySuffix(suffix);
+    document.title = `${AGENCY_NAMES[agency] || "Integrated Staffing"} ${qMeta.label} ${qMeta.year}`;
+  }, []);
 
   // Apply layout/density/accent tweaks to body
   useEffect(() => {
@@ -609,17 +577,12 @@ function App() {
     document.documentElement.style.setProperty("--isl-blue", accentColor);
   }, [t.layout, t.density, t.accent]);
 
-  // Update page title once data is ready
-  useEffect(() => {
-    if (data) document.title = `${data.meta.agencyName} ${data.meta.quarter} ${data.meta.year}`;
-  }, [data]);
-
   // Poll for ISL_REPORT (set by the inline script in index.html)
   useEffect(() => {
     const started = Date.now();
     const poll = setInterval(() => {
       if (window.ISL_REPORT) {
-        setData(normalizeReport(window.ISL_REPORT));
+        setData(normalizeReport(window.ISL_REPORT, agency, reportKey));
         clearInterval(poll);
         return;
       }
@@ -639,31 +602,30 @@ function App() {
 
   // Render nav (masthead + tabs + quarter chooser) once on mount
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const agency = params.get("agency") || "isl";
-    const reportKey = params.get("report") || (agency + "q3");
-    const QUARTER_META = {
-      q1: { label: "Q1", rangeLabel: "Sep – Nov 2025" },
-      q2: { label: "Q2", rangeLabel: "Dec – Feb 2026" },
-      q3: { label: "Q3", rangeLabel: "Mar – May 2026" },
-    };
     const suffix = (reportKey.match(/q\d+$/) || ["q3"])[0];
-    const quarter = { key: reportKey, ...(QUARTER_META[suffix] || QUARTER_META.q3) };
+    const qMeta = getQuarterBySuffix(suffix);
+    const quarter = { key: reportKey, label: qMeta.label, rangeLabel: qMeta.rangeLabel };
     renderNav("social", quarter, true);
   }, []);
 
-  // Hide loading screen once data has arrived
+  // Hide loading screen once data or an error has arrived
   useEffect(() => {
     if (data) hideLoadingScreen();
   }, [data]);
 
+  useEffect(() => {
+    if (loadError) hideLoadingScreen();
+  }, [loadError]);
+
   if (loadError) {
-    hideLoadingScreen();
     return (
       <main className="report-wrap">
         <section className="section wrap">
           <header className="section-head"><h2 className="section-title serif">Unable to load report</h2></header>
-          <p>{loadError}</p>
+          <div className="error-section">
+            <p>{loadError}</p>
+            <button className="error-retry-btn" onClick={() => window.location.reload()}>Try again</button>
+          </div>
         </section>
       </main>
     );

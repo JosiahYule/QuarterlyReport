@@ -15,6 +15,30 @@
 const { useState, useEffect, useRef } = React;
 
 // =============================================================================
+// SHARED UTILITIES
+// Defined here (loaded first on every page) so app.jsx, web, and trends
+// don't each need their own copy.
+// =============================================================================
+function parseDelta(d) {
+  if (d == null) return { dir: "flat", pct: 0 };
+  if (typeof d === "object" && "dir" in d) return d;
+  if (typeof d === "object" && "direction" in d) return { dir: d.direction === "up" ? "up" : d.direction === "down" ? "down" : "flat", pct: d.percent || 0 };
+  if (typeof d !== "string") return { dir: "flat", pct: 0 };
+  const s = d.trim();
+  let dir = "flat";
+  if (/^[▲↑]/.test(s) || /\bup\b/i.test(s)) dir = "up";
+  else if (/^[▼↓]/.test(s) || /\bdown\b/i.test(s)) dir = "down";
+  const m = s.match(/-?\d+(\.\d+)?/);
+  return { dir, pct: m ? Math.abs(parseFloat(m[0])) : 0 };
+}
+function arrow(dir) { return dir === "up" ? "↑" : dir === "down" ? "↓" : "—"; }
+
+// Returns the quarter config entry for a given suffix ("q1", "q2", "q3").
+function getQuarterBySuffix(suffix) {
+  return QUARTERS.find(q => q.suffix === suffix) || QUARTERS[0];
+}
+
+// =============================================================================
 // AGENCY CONFIG
 // All agency-specific text and key prefixes live here. To add a new agency,
 // add one entry to this object. Nothing else needs to change.
@@ -40,12 +64,11 @@ const AGENCIES = {
   },
 };
 
-// Quarter definitions: label shown in the chooser, the range string, and the
-// quarter number suffix used to build the report key (prefix + suffix = key).
+// Quarter definitions — single source of truth for all pages.
 const QUARTERS = [
-  { suffix: "q3", label: "Q3", rangeLabel: "Mar–May 2026", year: "2026" },
-  { suffix: "q2", label: "Q2", rangeLabel: "Dec–Feb 2026", year: "2026" },
-  { suffix: "q1", label: "Q1", rangeLabel: "Sep–Nov 2025", year: "2025" },
+  { suffix: "q3", label: "Q3", quarterWord: "Three", rangeLabel: "Mar–May 2026", year: "2026", issue: "3" },
+  { suffix: "q2", label: "Q2", quarterWord: "Two",   rangeLabel: "Dec–Feb 2026", year: "2026", issue: "2" },
+  { suffix: "q1", label: "Q1", quarterWord: "One",   rangeLabel: "Sep–Nov 2025", year: "2025", issue: "1" },
 ];
 
 // =============================================================================
@@ -185,7 +208,7 @@ function Masthead({ agencyKey, onAgencyChange }) {
           <a
             href={agency.url}
             target="_blank"
-            rel="noopener"
+            rel="noopener noreferrer"
             className="masthead-site-link"
           >
             {agency.url.replace("https://", "")}
@@ -296,161 +319,23 @@ const tabs = [
 }
 
 // =============================================================================
-// CSS ADDITIONS FOR AGENCY SWITCHER
-// Injected once at runtime so it lives alongside the component logic.
-// These extend editorial.css without touching that file.
-// =============================================================================
-function injectAgencyStyles() {
-  if (document.getElementById("nav-agency-styles")) return;
-  const style = document.createElement("style");
-  style.id = "nav-agency-styles";
-  style.textContent = `
-  /* ---- Masthead positioning fix ---- */
-.masthead {
-  overflow: visible !important;
-}
-.masthead-row {
-  overflow: visible !important;
-}
-.masthead-left {
-  position: relative;
-  overflow: visible !important;
-}
-    /* ---- Masthead agency button ---- */
-    .masthead-agency-btn {
-      display: inline-flex;
-      align-items: baseline;
-      gap: 6px;
-      background: none;
-      border: none;
-      cursor: pointer;
-      padding: 0;
-      font-family: var(--serif);
-      font-size: 28px;
-      line-height: 1;
-      letter-spacing: -0.02em;
-      color: var(--ink);
-      position: relative;
-    }
-    .masthead-agency-btn em {
-      font-style: italic;
-      color: var(--isl-blue);
-    }
-    .masthead-agency-caret {
-      font-family: var(--sans);
-      font-size: 11px;
-      color: var(--ink-4);
-      margin-left: 2px;
-      transition: transform .15s ease;
-      align-self: center;
-    }
-    .masthead-agency-btn[aria-expanded="true"] .masthead-agency-caret {
-      transform: rotate(180deg);
-    }
-    .masthead-agency-btn:hover em,
-    .masthead-agency-btn:focus-visible em {
-      opacity: 0.75;
-    }
-    .masthead-agency-btn:focus-visible {
-      outline: 2px solid var(--isl-blue);
-      outline-offset: 4px;
-      border-radius: 2px;
-    }
-
-    /* ---- Agency dropdown menu ---- */
-    .agency-menu {
-      position: absolute;
-      top: calc(100% + 10px);
-      left: 0;
-      z-index: 200;
-      background: var(--paper);
-      border: 1px solid var(--ink);
-      min-width: 230px;
-      padding: 6px 0;
-      box-shadow: 0 8px 24px rgba(20,17,13,0.12);
-    }
-    .agency-option {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 14px;
-      background: none;
-      border: none;
-      cursor: pointer;
-      text-align: left;
-      font: inherit;
-      color: var(--ink-2);
-      font-size: 13px;
-      transition: background .12s ease;
-    }
-    .agency-option:hover,
-    .agency-option:focus-visible {
-      background: var(--paper-2);
-      color: var(--ink);
-      outline: none;
-    }
-    .agency-option.is-current {
-      color: var(--ink);
-    }
-    .agency-option-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 34px;
-      height: 22px;
-      border-radius: 2px;
-      font-family: var(--sans);
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      color: #fff;
-      flex-shrink: 0;
-    }
-    /* Per-agency badge colours — extend here if you add more agencies */
-    .agency-badge-isl  { background: #0a4d8c; }
-    .agency-badge-as   { background: #7a5c00; }
-    .agency-badge-ads  { background: #0F5B78; }
-
-    .agency-option-name {
-      flex: 1;
-    }
-    .agency-option-check {
-      font-size: 12px;
-      color: var(--isl-blue);
-      flex-shrink: 0;
-    }
-
-    /* ---- Masthead site link ---- */
-    .masthead-site-link {
-      font-size: 12px;
-      color: var(--ink-4);
-      text-decoration: none;
-      transition: color .12s ease;
-    }
-    .masthead-site-link:hover {
-      color: var(--ink-2);
-    }
-  `;
-  document.head.appendChild(style);
-}
-
-// =============================================================================
 // PUBLIC API
 // =============================================================================
 
-// renderNav — call once per page, before data loads.
+let _navReactRoot = null;
+
+// renderNav — call to mount or update the nav (safe to call multiple times).
 //   active:    "social" | "web" | "trends"
 //   quarter:   { key, label, rangeLabel } — pass null for pages without quarter switching
 //   onQuarter: callback — pass null for pages without quarter switching
 function renderNav(active, quarter, onQuarter) {
-  injectAgencyStyles();
   const navRoot = document.getElementById("nav-root");
   if (!navRoot) return;
 
   const { agency } = getParams();
 
-  ReactDOM.createRoot(navRoot).render(
+  if (!_navReactRoot) _navReactRoot = ReactDOM.createRoot(navRoot);
+  _navReactRoot.render(
     <>
       <LoadingScreen />
       <Masthead agencyKey={agency} />

@@ -38,11 +38,17 @@
   @media (max-width: 880px) {
     .pages-grid { grid-template-columns: repeat(2, 1fr); }
     .page-tile:nth-child(2n) { border-right: 0; }
+    /* Reset 4-col last-row rule, re-apply for 2-col layout */
+    .page-tile:nth-last-child(-n+4) { border-bottom: 1px solid var(--rule); }
+    .page-tile:nth-last-child(-n+2) { border-bottom: 0; }
     .channel-row-web { grid-template-columns: 1fr 1fr; row-gap: 12px; }
   }
   @media (max-width: 560px) {
     .pages-grid { grid-template-columns: 1fr; }
     .page-tile { border-right: 0; }
+    /* In 1-col layout only the very last tile loses its border */
+    .page-tile:nth-last-child(-n+2) { border-bottom: 1px solid var(--rule); }
+    .page-tile:last-child { border-bottom: 0; }
   }
 </style>
 </head>
@@ -51,24 +57,20 @@
 <div id="nav-root"></div>
 <div id="root"></div>
 
-<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <script type="text/babel" src="../nav.jsx"></script>
 <script src="../tweaks-panel.jsx" type="text/babel"></script>
 
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 
+// parseDelta and arrow are defined in nav.jsx (loaded first) as shared globals.
+
 const WEB_ENDPOINT = "https://script.google.com/macros/s/AKfycbwWpZWB_eP48AX_B4TkGgKjEJPGoB7y9ynpv74SWA3MiEtV-Kmd-0eV-ecfTIysbWY3CQ/exec";
 
 const TWEAK_DEFAULTS = { layout: "editorial", density: "balanced", accent: "isl" };
-
-const REPORT_META = {
-  webq1: { quarter: "Q1", quarterWord: "One",   rangeLabel: "Sep – Nov 2025", year: "2025", issue: "1" },
-  webq2: { quarter: "Q2", quarterWord: "Two",   rangeLabel: "Dec – Feb 2026", year: "2026", issue: "2" },
-  webq3: { quarter: "Q3", quarterWord: "Three", rangeLabel: "Mar – May 2026", year: "2026", issue: "3" },
-};
 
 const fmtInt  = n => (typeof n === "number" && Number.isFinite(n)) ? n.toLocaleString() : "—";
 const fmtPct  = n => (typeof n === "number" && Number.isFinite(n)) ? n.toFixed(1) + "%" : "—";
@@ -77,19 +79,6 @@ function fmtTime(sec) {
   const m = Math.floor(sec / 60), s = Math.round(sec % 60);
   return m + ":" + String(s).padStart(2, "0");
 }
-function parseDelta(d) {
-  if (d == null) return { dir: "flat", pct: 0 };
-  if (typeof d === "object" && "dir" in d) return d;
-  if (typeof d === "object" && "direction" in d) return { dir: d.direction, pct: d.percent || 0 };
-  if (typeof d !== "string") return { dir: "flat", pct: 0 };
-  const s = d.trim();
-  let dir = "flat";
-  if (/^[▲↑]/.test(s)) dir = "up";
-  else if (/^[▼↓]/.test(s)) dir = "down";
-  const m = s.match(/-?\d+(\.\d+)?/);
-  return { dir, pct: m ? Math.abs(parseFloat(m[0])) : 0 };
-}
-function arrow(dir) { return dir === "up" ? "↑" : dir === "down" ? "↓" : "—"; }
 function getReportKey() { return (new URLSearchParams(window.location.search).get("report") || "webq3").toLowerCase(); }
 function getPrevKey(key) { const m = key.match(/^(.*?)(\d+)$/i); if (!m) return null; const n = Number(m[2]); return n <= 1 ? null : m[1] + (n - 1); }
 async function fetchReport(key) { const res = await fetch(`${WEB_ENDPOINT}?report=${key}&t=${Date.now()}`, { cache: "no-store" }); if (!res.ok) throw new Error("Fetch failed: " + res.status); return res.json(); }
@@ -98,9 +87,14 @@ function calcAutoDelta(cur, prev) {
   const pct = ((cur - prev) / Math.abs(prev)) * 100;
   return { dir: pct > 0 ? "up" : pct < 0 ? "down" : "flat", pct: Math.abs(pct) };
 }
+// Derive quarter meta from nav.jsx's QUARTERS (webq1 → suffix q1 → getQuarterBySuffix)
+function getWebQuarterMeta(reportKey) {
+  const suffix = (reportKey.match(/q\d+$/) || ["q3"])[0];
+  return getQuarterBySuffix(suffix);
+}
 
 function Hero({ reportKey, data }) {
-  const meta = REPORT_META[reportKey] || REPORT_META.webq3;
+  const meta = getWebQuarterMeta(reportKey);
   const agencyCfg = getActiveAgencyConfig();
   const note = typeof data.insights?.working === "string"
     ? data.insights.working.split("\n\n")[0]
@@ -241,21 +235,32 @@ function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [data, setData] = useState(null);
   const [prevData, setPrevData] = useState(null);
+  const [loadError, setLoadError] = useState("");
   const reportKey = getReportKey();
-  const meta = REPORT_META[reportKey] || REPORT_META.webq3;
+  const meta = getWebQuarterMeta(reportKey);
+
+  // Set page title immediately from URL params
+  useEffect(() => {
+    const agencyCfg = getActiveAgencyConfig();
+    document.title = `${agencyCfg.name} ${meta.label} ${meta.year} — Website`;
+  }, []);
 
   useEffect(() => {
     document.body.setAttribute("data-layout", t.layout);
     document.body.setAttribute("data-density", t.density);
   }, [t.layout, t.density]);
 
-useEffect(() => {
-  renderNav("web", { key: reportKey, label: meta.quarter, rangeLabel: meta.rangeLabel }, true);
-}, [reportKey]);
+  useEffect(() => {
+    renderNav("web", { key: reportKey, label: meta.label, rangeLabel: meta.rangeLabel }, true);
+  }, [reportKey]);
 
   useEffect(() => {
     if (data) hideLoadingScreen();
   }, [data]);
+
+  useEffect(() => {
+    if (loadError) hideLoadingScreen();
+  }, [loadError]);
 
   useEffect(() => {
     (async () => {
@@ -264,9 +269,26 @@ useEffect(() => {
         setData(current);
         const prevKey = getPrevKey(reportKey);
         if (prevKey) { try { setPrevData(await fetchReport(prevKey)); } catch (e) { console.warn("Failed to load previous quarter:", e); } }
-      } catch (err) { console.error(err); }
+      } catch (err) {
+        console.error(err);
+        setLoadError(err?.message || "Unable to load report data.");
+      }
     })();
   }, [reportKey]);
+
+  if (loadError) {
+    return (
+      <main className="report-wrap">
+        <section className="section wrap">
+          <header className="section-head"><h2 className="section-title serif">Unable to load report</h2></header>
+          <div className="error-section">
+            <p>{loadError}</p>
+            <button className="error-retry-btn" onClick={() => window.location.reload()}>Try again</button>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   if (!data) return null;
 
