@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useSocialReport } from "../hooks/useSocialReport.js";
 import { Delta } from "../components/Delta.jsx";
+import { PageLoader } from "../components/PageLoader.jsx";
 import { fmt, fmtExact } from "../utils.js";
 
 const FLAT = { dir: "flat", pct: 0 };
@@ -527,7 +528,7 @@ export function SocialPage({ agency, quarter, onReady }) {
     );
   }
 
-  if (!data) return <main className="report-wrap page-loading" />;
+  if (!data) return <PageLoader />;
 
   return (
     <main className="report-wrap">

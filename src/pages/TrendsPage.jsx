@@ -3,6 +3,7 @@ import Chart from "chart.js/auto";
 import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete } from "../hooks/useTrendsData.js";
 import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { fmt, fmtApprox } from "../utils.js";
+import { PageLoader } from "../components/PageLoader.jsx";
 
 // Chart colours
 const C = {
@@ -262,7 +263,7 @@ export function TrendsPage({ agency, onReady }) {
     );
   }
 
-  if (!qdata) return <main className="report-wrap page-loading" />;
+  if (!qdata) return <PageLoader />;
 
   const q3     = TRENDS_QUARTERS[2];
   const q3comp = quarterCompletion(q3);

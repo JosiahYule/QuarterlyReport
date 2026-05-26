@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { useWebReport } from "../hooks/useWebReport.js";
 import { Delta } from "../components/Delta.jsx";
+import { PageLoader } from "../components/PageLoader.jsx";
 import { fmtInt, fmtPct, fmtTime, calcAutoDelta, parseDelta } from "../utils.js";
 import { AGENCIES, QUARTERS } from "../config.js";
 
@@ -221,7 +222,7 @@ export function WebPage({ agency, quarter, onReady }) {
     );
   }
 
-  if (!data) return <main className="report-wrap page-loading" />;
+  if (!data) return <PageLoader />;
 
   return (
     <main className="report-wrap">
