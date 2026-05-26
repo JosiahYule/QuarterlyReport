@@ -40,7 +40,7 @@ function Hero({ reportKey, data }) {
     <section className="hero wrap">
       <div className="hero-b-top">
         <div className="hero-b-left">
-          <div className="hero-b-q serif">{meta.quarter}</div>
+          <div className="hero-b-q serif">{meta.label}</div>
           <div className="hero-b-divider"></div>
           <div className="hero-b-meta">
             <div className="hero-b-meta-name">{agencyCfg.name}</div>
@@ -49,7 +49,7 @@ function Hero({ reportKey, data }) {
         </div>
         <div className="hero-b-type">Website</div>
       </div>
-      <p className="hero-b-note serif">{note}</p>
+      <p className="hero-b-note">{note}</p>
     </section>
   );
 }
