@@ -1,46 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Quarterly Report</title>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="editorial.css" />
-
-<!-- styles moved to editorial.css -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quarterly Report</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/editorial.css" />
 </head>
-<body data-layout="editorial" data-density="balanced" style="background-color: rgb(255, 255, 255)">
-
-<div id="nav-root"></div>
-<div id="root"></div>
-
-<script>
-  window.ISL_REPORT_STATUS = { state: "loading", error: null };
-  (async () => {
-    const params = new URLSearchParams(window.location.search);
-    const agency = params.get("agency") || "isl";
-    const report = params.get("report") || (agency + "q3");
-    try {
-      const res = await fetch(
-        `https://script.google.com/macros/s/AKfycbwB-RGI1lVHrUE03PkkSEYbLuiTLxE4phMBBOm81diNJtSPyUWGoB_bOlkgFIoVF4yzLQ/exec?report=${report}&t=${Date.now()}`
-      );
-      if (!res.ok) throw new Error(`Failed to load report (${res.status})`);
-      const payload = await res.json();
-      window.ISL_REPORT = payload;
-      window.ISL_REPORT.__agency = agency;
-      window.ISL_REPORT.__reportKey = report;
-      window.ISL_REPORT_STATUS = { state: "ready", error: null };
-    } catch (err) {
-      console.error(err);
-      window.ISL_REPORT_STATUS = { state: "error", error: err?.message || "Unable to load report data." };
-    }
-  })();
-</script>
-<script type="module" src="./app.jsx"></script>
-
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>
