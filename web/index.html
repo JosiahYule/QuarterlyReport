@@ -81,7 +81,7 @@ function fmtTime(sec) {
 }
 function getReportKey() { return (new URLSearchParams(window.location.search).get("report") || "webq3").toLowerCase(); }
 function getPrevKey(key) { const m = key.match(/^(.*?)(\d+)$/i); if (!m) return null; const n = Number(m[2]); return n <= 1 ? null : m[1] + (n - 1); }
-async function fetchReport(key) { const res = await fetch(`${WEB_ENDPOINT}?report=${key}&t=${Date.now()}`, { cache: "no-store" }); if (!res.ok) throw new Error("Fetch failed: " + res.status); return res.json(); }
+async function fetchReport(key, signal) { const res = await fetch(`${WEB_ENDPOINT}?report=${key}&t=${Date.now()}`, { cache: "no-store", signal }); if (!res.ok) throw new Error("Fetch failed: " + res.status); return res.json(); }
 function calcAutoDelta(cur, prev) {
   if (typeof cur !== "number" || typeof prev !== "number" || prev === 0) return null;
   const pct = ((cur - prev) / Math.abs(prev)) * 100;
@@ -140,7 +140,7 @@ function Numbers({ data, prevData }) {
               <div className="kpi-label">{k.label}</div>
               <div className="kpi-value num">{k.fmt(v)}</div>
               <div className="kpi-foot">
-                <span className={"delta " + d.dir}><span className="arrow serif ital">{arrow(d.dir)}</span><span>{d.pct.toFixed(1)}%</span></span>
+                <span className={"delta " + d.dir} aria-label={`${d.dir === "up" ? "increased" : d.dir === "down" ? "decreased" : "unchanged"} ${d.pct.toFixed(1)} percent`}><span className="arrow serif ital" aria-hidden="true">{arrow(d.dir)}</span><span>{d.pct.toFixed(1)}%</span></span>
                 <span className="delta-note">{k.note}</span>
               </div>
             </div>
@@ -263,17 +263,26 @@ function App() {
   }, [loadError]);
 
   useEffect(() => {
+    const controller = new AbortController();
+    setData(null);
+    setPrevData(null);
+    setLoadError("");
     (async () => {
       try {
-        const current = await fetchReport(reportKey);
+        const current = await fetchReport(reportKey, controller.signal);
         setData(current);
         const prevKey = getPrevKey(reportKey);
-        if (prevKey) { try { setPrevData(await fetchReport(prevKey)); } catch (e) { console.warn("Failed to load previous quarter:", e); } }
+        if (prevKey) {
+          try { setPrevData(await fetchReport(prevKey, controller.signal)); }
+          catch (e) { if (e.name !== "AbortError") console.warn("Failed to load previous quarter:", e); }
+        }
       } catch (err) {
+        if (err.name === "AbortError") return;
         console.error(err);
         setLoadError(err?.message || "Unable to load report data.");
       }
     })();
+    return () => controller.abort();
   }, [reportKey]);
 
   if (loadError) {

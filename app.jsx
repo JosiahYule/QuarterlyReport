@@ -176,7 +176,7 @@ function Numbers({ data }) {
               <div className="kpi-label">{k.label}</div>
               <div className="kpi-value num">{k.fmt(v)}</div>
               <div className="kpi-foot">
-                <span className={"delta " + d.dir}><span className="arrow serif ital">{arrow(d.dir)}</span><span>{d.pct.toFixed(1)}%</span></span>
+                <span className={"delta " + d.dir} aria-label={`${d.dir === "up" ? "increased" : d.dir === "down" ? "decreased" : "unchanged"} ${d.pct.toFixed(1)} percent`}><span className="arrow serif ital" aria-hidden="true">{arrow(d.dir)}</span><span>{d.pct.toFixed(1)}%</span></span>
                 <span className="delta-note">{k.note}</span>
               </div>
             </div>
@@ -213,8 +213,10 @@ function TrendChart({ data, metric = "impressions" }) {
   const avg = active.values.reduce((a, b) => a + b, 0) / active.values.length;
   const peakIdx = active.values.indexOf(rawMax);
 
+  const chartId = "trend-chart-title";
   return (
-    <svg className="trend-chart" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid meet">
+    <svg className="trend-chart" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby={chartId}>
+      <title id={chartId}>{active.name} — week by week</title>
       {ticks.map((t, i) => <g key={i}>
         <line x1={padL} x2={w - padR} y1={t.y} y2={t.y} stroke="var(--rule-soft)" strokeWidth="1" />
         <text x={padL - 12} y={t.y + 4} textAnchor="end" fontSize="11" fill="var(--ink-4)" fontFamily="var(--sans)">{t.v < 10 ? t.v.toFixed(1) : Math.round(t.v)}{active.unit}</text>
@@ -311,7 +313,7 @@ function TopPosts({ data, platform, setPlatform }) {
         ))}
       </div>
       <div className="table-wrap"><table className="table">
-        <thead><tr><th>Post</th><th className="r">Impressions</th><th className="r">Reactions</th><th className="r">Shares</th><th className="r">Engagement</th></tr></thead>
+        <thead><tr><th scope="col">Post</th><th scope="col" className="r">Impressions</th><th scope="col" className="r">Reactions</th><th scope="col" className="r">Shares</th><th scope="col" className="r">Engagement</th></tr></thead>
         <tbody>
           {posts.map((c) => {
             const engagement = c.impressions > 0 ? (c.likes + c.shares) / c.impressions * 100 : 0;
@@ -404,13 +406,13 @@ function AllPosts({ data }) {
         <table className="table" style={{ marginBottom: 0 }}>
           <thead>
             <tr>
-              <th>Post</th>
-              <th style={thStyle} onClick={() => toggleSort("Date")}>Date{sortArrow("Date")}</th>
-              <th>Platforms</th>
-              <th className="r" style={thStyle} onClick={() => toggleSort("Impressions")}>Impressions{sortArrow("Impressions")}</th>
-              <th className="r" style={thStyle} onClick={() => toggleSort("Engagements")}>Engagements{sortArrow("Engagements")}</th>
-              <th className="r" style={thStyle} onClick={() => toggleSort("EngRate")}>Eng. Rate{sortArrow("EngRate")}</th>
-              <th className="health-col">Health</th>
+              <th scope="col">Post</th>
+              <th scope="col" style={thStyle} onClick={() => toggleSort("Date")}>Date{sortArrow("Date")}</th>
+              <th scope="col">Platforms</th>
+              <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("Impressions")}>Impressions{sortArrow("Impressions")}</th>
+              <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("Engagements")}>Engagements{sortArrow("Engagements")}</th>
+              <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("EngRate")}>Eng. Rate{sortArrow("EngRate")}</th>
+              <th scope="col" className="health-col">Health</th>
             </tr>
           </thead>
           <tbody>
@@ -423,7 +425,7 @@ function AllPosts({ data }) {
                 <tr key={rowKey}>
                   <td>
                     <div className="campaign-name serif">
-                      {p.URL ? <a href={p.URL} target="_blank" rel="noopener noreferrer" style={{ color: "#0070CA", textDecoration: "none" }}>{p["Post Name"] || "—"}</a> : p["Post Name"] || "—"}
+                      {p.URL ? <a href={p.URL} target="_blank" rel="noopener noreferrer" style={{ color: "var(--isl-blue)", textDecoration: "none" }}>{p["Post Name"] || "—"}</a> : p["Post Name"] || "—"}
                     </div>
                     {p.Notes && <div className="campaign-chan">{p.Notes}</div>}
                   </td>
