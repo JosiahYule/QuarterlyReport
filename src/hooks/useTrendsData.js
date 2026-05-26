@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { SOCIAL_ENDPOINT, AGENCIES, TRENDS_QUARTERS } from "../config.js";
+import { SOCIAL_ENDPOINT, AGENCIES, TRENDS_QUARTERS, CURRENT_QUARTER } from "../config.js";
 import { toNumber, nfk, fmtApprox } from "../utils.js";
 
 // ─── Metric definitions ────────────────────────────────────────────
@@ -107,7 +107,7 @@ export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory
 }
 
 // ─── History persistence ──────────────────────────────────────────
-export function getHistoryKey(agency) { return `${agency}q3_proj_history`; }
+export function getHistoryKey(agency) { return `${agency}${CURRENT_QUARTER.suffix}_proj_history`; }
 
 export function storeSnapshot(agency, d3) {
   if (!d3) return;

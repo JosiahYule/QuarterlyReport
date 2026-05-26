@@ -18,9 +18,11 @@ function ChartCard({ metric, agency, qdata }) {
   const canvasRef = useRef(null);
   const chartRef  = useRef(null);
   const [d1, d2, d3] = qdata;
-  const q2 = TRENDS_QUARTERS[1];
-  const q3 = TRENDS_QUARTERS[2];
+  const [tq1, tq2, tq3] = TRENDS_QUARTERS;
+  const q2 = tq2;
+  const q3 = tq3;
   const done = quarterComplete(q3);
+  const rangeShort = q => q.rangeLabel.split(" ")[0];
 
   const q1v = extractMetric(d1, metric);
   const q2v = extractMetric(d2, metric);
@@ -43,7 +45,11 @@ function ChartCard({ metric, agency, qdata }) {
     : (q3v ?? 0);
 
   const isProjected = projected !== null;
-  const labels = ["Q1 · Sep–Nov", "Q2 · Dec–Feb", isProjected ? "Q3 · Projected" : "Q3 · Mar–May"];
+  const labels = [
+    `${tq1.label} · ${rangeShort(tq1)}`,
+    `${tq2.label} · ${rangeShort(tq2)}`,
+    isProjected ? `${tq3.label} · Projected` : `${tq3.label} · ${rangeShort(tq3)}`,
+  ];
   const colors = [C.q1, C.q2, isProjected ? C.proj : C.q3];
   const values = [q1v ?? 0, q2v ?? 0, chartQ3val];
 
@@ -103,11 +109,11 @@ function ChartCard({ metric, agency, qdata }) {
   }, [agency, JSON.stringify(values)]);
 
   const legendItems = [
-    { color: C.q1, label: "Q1 Actual" },
-    { color: C.q2, label: "Q2 Actual" },
+    { color: C.q1, label: `${tq1.label} Actual` },
+    { color: C.q2, label: `${tq2.label} Actual` },
     isProjected
-      ? { color: C.proj, label: "Q3 Projected" }
-      : { color: C.q3,   label: `Q3 ${done ? "Actual" : "To Date"}` },
+      ? { color: C.proj, label: `${tq3.label} Projected` }
+      : { color: C.q3,   label: `${tq3.label} ${done ? "Actual" : "To Date"}` },
   ];
 
   return (
@@ -132,8 +138,9 @@ function ChartCard({ metric, agency, qdata }) {
 // ─── Projection card ──────────────────────────────────────────────
 function ProjCard({ metric, agency, qdata, q3comp, q3done }) {
   const [d1, d2, d3] = qdata;
-  const q2 = TRENDS_QUARTERS[1];
-  const q3 = TRENDS_QUARTERS[2];
+  const [, tq2, tq3] = TRENDS_QUARTERS;
+  const q2 = tq2;
+  const q3 = tq3;
 
   const q1v = extractMetric(d1, metric);
   const q2v = extractMetric(d2, metric);
@@ -154,16 +161,17 @@ function ProjCard({ metric, agency, qdata, q3comp, q3done }) {
   const rateVsQ2  = pace && q2Rate ? ((pace.dailyRate - q2Rate) / q2Rate * 100) : null;
   const headlineVal = projected !== null && metric.baselineFromQ2 && q2v !== null ? q2v + projected : projected;
   const headline  = headlineVal !== null ? fmtApprox(headlineVal, metric.isPercent) : fmt(q3v, metric.isPercent);
+  const ql = tq3.label;
   const headlineSub = headlineVal !== null
-    ? (q3done ? (metric.baselineFromQ2 ? "Q3 Projected Total" : "Q3 Final")
-               : (metric.baselineFromQ2 ? "Projected Total · Q3" : "Projected Final · Q3"))
-    : (metric.baselineFromQ2 ? "Q3 Current Total" : "Q3 Current");
+    ? (q3done ? (metric.baselineFromQ2 ? `${ql} Projected Total` : `${ql} Final`)
+               : (metric.baselineFromQ2 ? `Projected Total · ${ql}` : `Projected Final · ${ql}`))
+    : (metric.baselineFromQ2 ? `${ql} Current Total` : `${ql} Current`);
 
   const dElapsed = pace ? Math.round(pace.dElapsed) : 0;
   const dTotal   = pace ? Math.round(pace.dTotal)   : 92;
   const pct      = (q3comp * 100).toFixed(1);
 
-  const stat1Label = metric.baselineFromQ2 ? "Q3 Net New" : "Q3 to Date";
+  const stat1Label = metric.baselineFromQ2 ? `${ql} Net New` : `${ql} to Date`;
   const stat1Val   = metric.baselineFromQ2 && q3v !== null && q2v !== null ? fmt(q3v - q2v, metric.isPercent) : fmt(q3v, metric.isPercent);
 
   const stat2Val = pace
@@ -207,7 +215,7 @@ function ProjCard({ metric, agency, qdata, q3comp, q3done }) {
           <div className={"proj-stat-value " + stat3Cls}>{stat3Val}</div>
         </div>
         <div className="proj-stat">
-          <div className="proj-stat-label">Q2 Actual</div>
+          <div className="proj-stat-label">{tq2.label} Actual</div>
           <div className="proj-stat-value">{fmt(q2v, metric.isPercent)}</div>
         </div>
       </div>
@@ -227,7 +235,7 @@ function Hero({ agency, q3comp, q3done }) {
           <div className="hero-b-divider" />
           <div className="hero-b-meta">
             <div className="hero-b-meta-name">{cfg.name}</div>
-            <div className="hero-b-meta-range">Q1 · Q2 · Q3 · 2026</div>
+            <div className="hero-b-meta-range">{TRENDS_QUARTERS.map(q => q.label).join(" · ")} · {TRENDS_QUARTERS[2].year}</div>
           </div>
         </div>
         <div className="hero-b-type trends-progress">
