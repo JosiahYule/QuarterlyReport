@@ -139,7 +139,7 @@ function Hero({ data }) {
         </div>
         <div className="hero-b-type">Social Media</div>
       </div>
-      <p className="hero-b-note serif">
+      <p className="hero-b-note">
         {data.editorsNote.split(/(\bLinkedIn\b|\bFacebook\b|\bInstagram\b)/).map((part, i) =>
           part === "LinkedIn" || part === "Facebook" || part === "Instagram"
             ? <em key={i}>{part}</em>
