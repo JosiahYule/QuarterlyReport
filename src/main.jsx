@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import { useUrlState } from "./hooks/useUrlState.js";
-import { Masthead, StickyNav } from "./components/Nav.jsx";
+import { AppNav } from "./components/Nav.jsx";
 import { LoadingScreen } from "./components/LoadingScreen.jsx";
 import { SocialPage } from "./pages/SocialPage.jsx";
 import { WebPage } from "./pages/WebPage.jsx";
@@ -26,8 +26,7 @@ function App() {
   return (
     <>
       <LoadingScreen visible={!appReady} />
-      <Masthead agency={agency} onNavigate={navigate} />
-      <StickyNav view={view} quarter={quarter} onNavigate={navigate} />
+      <AppNav agency={agency} view={view} quarter={quarter} onNavigate={navigate} />
       {view === "social" && <SocialPage key={`${agency}-${quarter}`} agency={agency} quarter={quarter} onReady={handleReady} />}
       {view === "web"    && <WebPage    key={`web-${quarter}`}        agency={agency} quarter={quarter} onReady={handleReady} />}
       {view === "trends" && <TrendsPage key={agency}                  agency={agency}                   onReady={handleReady} />}

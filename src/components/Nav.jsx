@@ -1,6 +1,25 @@
 import React, { useState, useEffect, useRef } from "react";
 import { AGENCIES, QUARTERS } from "../config.js";
 
+const TABS = [
+  { id: "social",  label: "Social Media" },
+  { id: "web",     label: "Website" },
+  { id: "trends",  label: "Trends" },
+];
+
+function useCloseOnOutside(ref, onClose) {
+  useEffect(() => {
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [ref, onClose]);
+}
+
 // ─── Agency switcher dropdown ─────────────────────────────────────
 function AgencyMenu({ current, onSelect, onClose }) {
   return (
@@ -47,120 +66,91 @@ function QuarterMenu({ current, onSelect, onClose }) {
   );
 }
 
-// ─── Masthead ─────────────────────────────────────────────────────
-export function Masthead({ agency, onNavigate }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef();
+// ─── Single combined nav bar ──────────────────────────────────────
+export function AppNav({ agency, view, quarter, onNavigate }) {
+  const [agencyOpen,  setAgencyOpen]  = useState(false);
+  const [quarterOpen, setQuarterOpen] = useState(false);
+
+  const agencyRef  = useRef();
+  const quarterRef = useRef();
+
+  useCloseOnOutside(agencyRef,  () => setAgencyOpen(false));
+  useCloseOnOutside(quarterRef, () => setQuarterOpen(false));
+
   const cfg = AGENCIES[agency] || AGENCIES.isl;
+  const q   = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];
+
   const words = cfg.name.split(" ");
-  const rest = words.slice(0, -1).join(" ");
-  const last = words[words.length - 1];
-
-  useEffect(() => {
-    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, []);
+  const rest  = words.slice(0, -1).join(" ");
+  const last  = words[words.length - 1];
 
   return (
-    <header className="masthead">
-      <div className="wrap masthead-row">
-        <div className="masthead-left" ref={ref}>
-          <button
-            className="masthead-agency-btn serif"
-            onClick={() => setOpen(o => !o)}
-            aria-haspopup="true"
-            aria-expanded={open}
-            aria-label={`Current agency: ${cfg.name}. Click to switch.`}
-          >
-            {rest && <>{rest} </>}<em>{last}</em>
-            <span className="masthead-agency-caret" aria-hidden="true">▾</span>
-          </button>
-          {open && (
-            <AgencyMenu
-              current={agency}
-              onSelect={key => onNavigate({ agency: key })}
-              onClose={() => setOpen(false)}
-            />
-          )}
-        </div>
-        <a
-          href={cfg.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="masthead-site-link"
-        >
-          {cfg.url.replace("https://", "")}
-        </a>
-      </div>
-    </header>
-  );
-}
+    <header className="app-nav">
+      <div className="wrap app-nav-row">
 
-// ─── Sticky nav ───────────────────────────────────────────────────
-export function StickyNav({ view, quarter, onNavigate }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef();
-  const q = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];
+        {/* Left: agency name → divider → view tabs */}
+        <div className="app-nav-left">
 
-  const tabs = [
-    { id: "social",  label: "Social Media" },
-    { id: "web",     label: "Website" },
-    { id: "trends",  label: "Trends" },
-  ];
-
-  useEffect(() => {
-    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, []);
-
-  return (
-    <div className="masthead-nav">
-      <div className="wrap masthead-nav-row">
-        <nav className="nav-tabs">
-          {tabs.map(t => (
+          <div className="app-nav-agency" ref={agencyRef}>
             <button
-              key={t.id}
-              className={view === t.id ? "is-active" : ""}
-              onClick={() => onNavigate({ view: t.id })}
+              className="app-nav-agency-btn serif"
+              onClick={() => setAgencyOpen(o => !o)}
+              aria-haspopup="true"
+              aria-expanded={agencyOpen}
+              aria-label={`Current agency: ${cfg.name}. Click to switch.`}
             >
-              {t.label}
+              {rest && <>{rest} </>}<em>{last}</em>
+              <span className="app-nav-caret" aria-hidden="true">▾</span>
             </button>
-          ))}
-        </nav>
-        <div className="nav-meta">
-          <span>{q.rangeLabel}</span>
-          <div ref={ref} style={{ position: "relative" }}>
+            {agencyOpen && (
+              <AgencyMenu
+                current={agency}
+                onSelect={key => onNavigate({ agency: key })}
+                onClose={() => setAgencyOpen(false)}
+              />
+            )}
+          </div>
+
+          <div className="app-nav-divider" aria-hidden="true" />
+
+          <nav className="app-nav-tabs">
+            {TABS.map(t => (
+              <button
+                key={t.id}
+                className={view === t.id ? "is-active" : ""}
+                onClick={() => onNavigate({ view: t.id })}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+
+        </div>
+
+        {/* Right: range label + quarter chooser */}
+        <div className="app-nav-right">
+          <span className="app-nav-range">{q.rangeLabel}</span>
+          <div ref={quarterRef} style={{ position: "relative" }}>
             <button
               className="qchooser"
               aria-haspopup="menu"
-              aria-expanded={open}
-              onClick={() => setOpen(o => !o)}
+              aria-expanded={quarterOpen}
+              onClick={() => setQuarterOpen(o => !o)}
             >
               <span>{q.label}</span>
               <span className="caret">▾</span>
             </button>
-            {open && (
+            {quarterOpen && (
               <QuarterMenu
                 current={quarter}
                 onSelect={suffix => onNavigate({ quarter: suffix })}
-                onClose={() => setOpen(false)}
+                onClose={() => setQuarterOpen(false)}
               />
             )}
           </div>
         </div>
+
       </div>
-    </div>
+    </header>
   );
 }
