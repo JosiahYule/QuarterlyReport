@@ -6,7 +6,7 @@ A live marketing analytics dashboard built for three sister staffing agencies �
 
 ## What it does
 
-Each quarter, this dashboard gives a single source of truth for how each agency is performing across its digital channels. Rather than exporting spreadsheets or building static slide decks, the data lives in Google Sheets and the dashboard reads it live — so the numbers are always current.
+Each quarter, this dashboard gives a single source of truth for how each agency is performing across its digital channels. Rather than exporting spreadsheets or building static slide decks, the data lives in Google Sheets and the dashboard reads it live, so the numbers are always current.
 
 **Three views, one app:**
 
@@ -14,7 +14,7 @@ Each quarter, this dashboard gives a single source of truth for how each agency 
 - **Website** — traffic KPIs, channel breakdown (organic, direct, referral, paid, social), top pages with deltas vs. prior quarter
 - **Trends** — quarter-over-quarter trajectory for key metrics across Q1, Q2, and Q3, with a pace-based projection for where Q3 will finish
 
-Any combination of agency and quarter is a URL — switch between them instantly without a page reload.
+Any combination of agency and quarter is a URL. You can easily switch between them instantly without a page reload.
 
 ---
 
@@ -31,7 +31,6 @@ Any combination of agency and quarter is a URL — switch between them instantly
 | Routing | Custom URL-param hook (no router library) |
 | Hosting | GitHub Pages |
 
-No backend, no database, no authentication. The entire app is a static bundle that fetches JSON from two Google Apps Script endpoints.
 
 ---
 
@@ -44,7 +43,7 @@ Social endpoint:  ?report=islq3   → returns ISL Q3 social data
 Web endpoint:     ?report=webq3   → returns Q3 web data (not agency-specific)
 ```
 
-The script looks up the right sheet tab by that key and returns a consistent JSON shape. The dashboard doesn't branch on agency — it just reads the shape and renders it, so the same components work for all three agencies.
+The script looks up the right sheet tab by that key and returns a consistent JSON shape. The dashboard doesn't branch on agency. It reads the shape and renders it, so the same components work for all three agencies.
 
 ---
 
@@ -80,7 +79,7 @@ The script looks up the right sheet tab by that key and returns a consistent JSO
 
 ## URL structure
 
-The entire app state lives in URL params — no router library needed. Sharing or bookmarking a URL always opens the exact same view.
+The entire app state lives in URL params. Sharing or bookmarking a URL always opens the exact same view.
 
 | Param | Options | Default |
 |---|---|---|
@@ -94,26 +93,6 @@ The entire app state lives in URL params — no router library needed. Sharing o
 /?agency=ads&view=trends               → Administrative Staffing, Trends view
 /?quarter=q1&view=social               → ISL Q1 Social Media
 ```
-
----
-
-## Running locally
-
-```bash
-npm install
-npm run dev
-```
-
-The app opens at `http://localhost:5173`. It fetches live data from the Google Apps Script endpoints, so an internet connection is required for data to load. The UI and navigation work offline; only the data panels will show a loading/error state.
-
-**Other commands:**
-
-```bash
-npm run build    # Production bundle → dist/
-npm run preview  # Serve the dist/ build locally
-```
-
----
 
 ## Adding a new quarter
 
@@ -154,6 +133,7 @@ Then add a badge colour in `editorial.css`:
 ```
 
 The agency will appear in the switcher dropdown immediately. Make sure the Google Apps Script returns data under the expected report key (`new` + quarter suffix, e.g. `newq3`).
+Also add the matching entry to `TRENDS_QUARTERS` if you want it to appear in the Trends view. The nav quarter chooser and all data hooks pick it up automatically.
 
 ---
 
