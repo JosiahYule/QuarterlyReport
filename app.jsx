@@ -1,7 +1,10 @@
 // ISL Quarterly Report — Organic Social Media
 // Editorial design with Tweaks for layout & density variants
 
-const { useState, useEffect, useMemo, useRef } = React;
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import ReactDOM from 'react-dom/client';
+import { parseDelta, arrow, getQuarterBySuffix, renderNav, hideLoadingScreen } from './nav.jsx';
+import { useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakColor } from './tweaks-panel.jsx';
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "layout": "editorial",
@@ -10,8 +13,6 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "trendMetric": "impressions",
   "topPlatform": "linkedin"
 } /*EDITMODE-END*/;
-
-// parseDelta and arrow are defined in nav.jsx (loaded first) as shared globals.
 
 const SAFE_DELTA = { dir: "flat", pct: 0 };
 
