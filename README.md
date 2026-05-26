@@ -110,29 +110,6 @@ Also add the matching entry to `TRENDS_QUARTERS` if you want it to appear in the
 
 ---
 
-## Adding a new agency
-
-Open `src/config.js` and add an entry to `AGENCIES`:
-
-```js
-export const AGENCIES = {
-  isl: { label: "ISL", name: "Integrated Staffing",    prefix: "isl", url: "https://integratedstaffing.ca" },
-  as:  { label: "AS",  name: "Accountant Staffing",     prefix: "as",  url: "https://accountantstaffing.ca" },
-  ads: { label: "ADS", name: "Administrative Staffing", prefix: "ads", url: "https://administrativestaffing.ca" },
-  // new: { label: "NEW", name: "New Agency", prefix: "new", url: "https://newagency.ca" },
-};
-```
-
-Then add a badge colour in `editorial.css`:
-
-```css
-.agency-badge-new { background: #2d6a4f; }
-```
-
-The agency will appear in the switcher dropdown immediately. Make sure the Google Apps Script returns data under the expected report key (`new` + quarter suffix, e.g. `newq3`).
-
----
-
 ## Q3 pace projections (Trends view)
 
 The Trends page projects where Q3 will finish before the quarter ends. It uses a blended model:
