@@ -22,13 +22,7 @@ function Hero({ data }) {
         <div className="hero-b-type">Social Media</div>
       </div>
       {data.editorsNote && (
-        <p className="hero-b-note">
-          {data.editorsNote.split(/(\bLinkedIn\b|\bFacebook\b|\bInstagram\b)/).map((part, i) =>
-            part === "LinkedIn" || part === "Facebook" || part === "Instagram"
-              ? <em key={i}>{part}</em>
-              : <React.Fragment key={i}>{part}</React.Fragment>
-          )}
-        </p>
+        <p className="hero-b-note">{data.editorsNote}</p>
       )}
     </section>
   );
