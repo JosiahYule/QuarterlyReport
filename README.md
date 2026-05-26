@@ -96,16 +96,43 @@ The entire app state lives in URL params. Sharing or bookmarking a URL always op
 
 ## Adding a new quarter
 
-Open `src/config.js` and add an entry to the top of the `QUARTERS` array:
+Nothing to do. The dashboard detects the current quarter automatically from today's date and generates `QUARTERS` and `TRENDS_QUARTERS` at runtime. When Q4 starts (June 1), the nav will default to Q4, the Trends page will show Q2/Q3/Q4, and the projection history key in localStorage will roll to the new quarter — all without any code changes.
+
+The fiscal calendar is defined in `src/config.js` as `Q_DEFS` if you ever need to adjust quarter boundaries:
 
 ```js
-export const QUARTERS = [
-  { suffix: "q4", label: "Q4", rangeLabel: "Jun–Aug 2026", year: "2026" }, // ← add here
-  { suffix: "q3", label: "Q3", rangeLabel: "Mar–May 2026", year: "2026" },
-  ...
+const Q_DEFS = [
+  { suffix: "q1", label: "Q1", startM: 8,  endM: 11, range: "Sep–Nov" },
+  { suffix: "q2", label: "Q2", startM: 11, endM: 2,  range: "Dec–Feb" },
+  { suffix: "q3", label: "Q3", startM: 2,  endM: 5,  range: "Mar–May" },
+  { suffix: "q4", label: "Q4", startM: 5,  endM: 8,  range: "Jun–Aug" },
 ];
 ```
 
+`startM` and `endM` are 0-indexed months (`0` = January). `endM` is the exclusive boundary (first month of the next quarter).
+
+---
+
+## Adding a new agency
+
+Open `src/config.js` and add an entry to `AGENCIES`:
+
+```js
+export const AGENCIES = {
+  isl: { label: "ISL", name: "Integrated Staffing",    prefix: "isl", url: "https://integratedstaffing.ca" },
+  as:  { label: "AS",  name: "Accountant Staffing",     prefix: "as",  url: "https://accountantstaffing.ca" },
+  ads: { label: "ADS", name: "Administrative Staffing", prefix: "ads", url: "https://administrativestaffing.ca" },
+  // new: { label: "NEW", name: "New Agency", prefix: "new", url: "https://newagency.ca" },
+};
+```
+
+Then add a badge colour in `editorial.css`:
+
+```css
+.agency-badge-new { background: #2d6a4f; }
+```
+
+The agency will appear in the switcher dropdown immediately. Make sure the Google Apps Script returns data under the expected report key (`new` + quarter suffix, e.g. `newq3`).
 Also add the matching entry to `TRENDS_QUARTERS` if you want it to appear in the Trends view. The nav quarter chooser and all data hooks pick it up automatically.
 
 ---

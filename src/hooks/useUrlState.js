@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
-import { AGENCIES, QUARTERS, VIEWS } from "../config.js";
+import { AGENCIES, QUARTERS, VIEWS, CURRENT_QUARTER } from "../config.js";
 
-const DEFAULTS = { agency: "isl", quarter: "q3", view: "social" };
+const DEFAULTS = { agency: "isl", quarter: CURRENT_QUARTER.suffix, view: "social" };
 
 function readUrl() {
   const p = new URLSearchParams(window.location.search);
