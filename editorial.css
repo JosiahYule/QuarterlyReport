@@ -17,7 +17,7 @@
   --down:       #9a2820;
   --flat:       #6a655d;
 
-  --serif: "Instrument Serif", "Newsreader", "Times New Roman", Georgia, serif;
+  --serif: "Inter Tight", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   --sans:  "Inter Tight", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
 
   --col:   1180px;
@@ -80,7 +80,21 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 @keyframes loadScan  { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 @keyframes loadPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-/* Subtle placeholder while a view's data loads */
+/* Page-level loading bar */
+.page-loader {
+  position: fixed; top: 56px; left: 0; right: 0; z-index: 40;
+  height: 2px; background: var(--rule-soft); overflow: hidden;
+}
+.page-loader-fill {
+  position: absolute; inset: 0;
+  background: var(--accent);
+  animation: pageLoaderScan 1.2s ease-in-out infinite;
+}
+@keyframes pageLoaderScan {
+  0%   { transform: translateX(-100%) scaleX(0.5); }
+  50%  { transform: translateX(25%)   scaleX(1.4); }
+  100% { transform: translateX(200%)  scaleX(0.5); }
+}
 .page-loading { min-height: 60vh; }
 
 /* ─── Single app nav bar ────────────────────────────────────────── */
@@ -187,7 +201,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .hero {
   padding-top: clamp(42px, 7.2vw, 76px);
   padding-bottom: clamp(28px, 5vw, 52px);
-  border-bottom: 1px solid var(--rule);
 }
 .hero-b-top {
   display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 28px;
@@ -216,9 +229,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 /* ─── Section chrome ───────────────────────────────────────────── */
 .section {
   padding-top: var(--pad-y); padding-bottom: var(--pad-y);
-  border-bottom: 1px solid var(--rule);
 }
-.section:last-child { border-bottom: 0; }
 .section-head  { margin-bottom: 40px; }
 .section-title {
   font-family: var(--serif); font-size: clamp(28px, 3.4vw, 42px);
@@ -299,10 +310,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   padding: 12px 16px 12px 0; border-bottom: 1px solid var(--ink); white-space: nowrap;
 }
 .table thead th.r   { text-align: right; padding-right: 0; }
-.table tbody td     { padding: 24px 16px 24px 0; border-bottom: 1px solid var(--rule); vertical-align: baseline; font-size: 14px; }
-.table tbody td.r   { text-align: right; padding-right: 0; font-family: var(--serif); font-size: 19px; color: var(--ink); }
+.table tbody td     { padding: 14px 16px 14px 0; border-bottom: 1px solid var(--rule); vertical-align: baseline; font-size: 14px; }
+.table tbody td.r   { text-align: right; padding-right: 0; font-family: var(--serif); font-size: 17px; color: var(--ink); }
 .table tbody td.r .sub { font-size: 11px; color: var(--ink-4); font-family: var(--sans); display: block; margin-top: 2px; }
-.campaign-name  { font-family: var(--serif); font-size: 20px; color: var(--ink); line-height: 1.25; }
+.campaign-name  { font-family: var(--serif); font-size: 15px; color: var(--ink); line-height: 1.35; font-weight: 500; }
 .campaign-chan  { font-size: 12px; color: var(--ink-3); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.12em; }
 .table-wrap     { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
