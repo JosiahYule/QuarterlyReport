@@ -387,7 +387,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .all-posts-list-wrap thead th { position: sticky; top: 0; background: var(--paper); z-index: 2; }
 .all-posts-cell-date     { color: var(--ink-3); font-size: 13px; white-space: nowrap; }
 .all-posts-cell-platform { color: var(--ink-3); font-size: 13px; }
-.health-col  { text-align: left; min-width: 130px; white-space: nowrap; padding-left: 20px; }
+.health-col                    { text-align: left; min-width: 130px; white-space: nowrap; }
+.table thead th.health-col,
+.table tbody td.health-col     { padding-left: 24px; }
 .health-label { font-size: 13px; font-weight: 500; }
 
 .view-toggle { display: inline-flex; border: 1px solid var(--rule); }
