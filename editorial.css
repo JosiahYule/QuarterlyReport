@@ -120,8 +120,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   letter-spacing: -0.02em; color: var(--ink);
   white-space: nowrap;
 }
-.app-nav-agency-btn em { font-style: italic; color: var(--accent); }
-.app-nav-agency-btn:hover em { opacity: 0.7; }
+.app-nav-agency-btn:hover { opacity: 0.7; }
 .app-nav-agency-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
 .app-nav-caret {
   font-family: var(--sans); font-size: 10px; color: var(--ink-4);
@@ -218,7 +217,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   max-width: 64ch; border-top: 1px solid var(--rule); padding-top: 24px;
   text-wrap: pretty;
 }
-.hero-b-note em { font-style: italic; color: var(--accent); }
 
 /* Trends hero progress pill */
 .trends-progress   { display: flex; align-items: center; gap: 16px; }
@@ -246,7 +244,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 }
 .kpi { display: flex; flex-direction: column; gap: 12px; padding-top: 16px; border-top: 1px solid var(--ink); }
 .kpi-label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
-.kpi-value { font-family: var(--serif); font-size: clamp(42px, 4.6vw, 64px); line-height: 1; letter-spacing: -0.025em; color: var(--ink); font-variant-numeric: tabular-nums lining-nums; }
+.kpi-value { font-family: var(--serif); font-size: clamp(42px, 4.6vw, 64px); line-height: 1; letter-spacing: -0.025em; color: var(--ink); font-variant-numeric: tabular-nums lining-nums; font-weight: 300; }
 .kpi-foot  { display: flex; align-items: baseline; gap: 10px; font-size: 13px; color: var(--ink-3); }
 
 /* ─── Delta badge ──────────────────────────────────────────────── */
@@ -298,7 +296,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 .channel-idx  { font-family: var(--serif); font-style: italic; font-size: 22px; color: var(--accent); }
 .channel-name { font-family: var(--serif); font-size: 22px; line-height: 1.2; color: var(--ink); }
-.channel-note { font-size: 12px; color: var(--ink-3); margin-top: 4px; font-style: italic; max-width: 36ch; line-height: 1.4; font-family: var(--serif); }
+.channel-note { font-size: 12px; color: var(--ink-3); margin-top: 4px; max-width: 36ch; line-height: 1.4; }
 .col-num      { text-align: right; font-variant-numeric: tabular-nums lining-nums; }
 .col-num .big { font-family: var(--serif); font-size: 22px; color: var(--ink); display: block; }
 .col-num .sub { font-size: 11px; color: var(--ink-4); }
@@ -363,7 +361,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .note li::before { content: "—"; position: absolute; left: 0; color: var(--ink-4); font-family: var(--serif); }
 .note.working    li::before { color: var(--up); }
 .note.notworking li::before { color: var(--down); }
-.note-empty { font-family: var(--serif); font-size: 16px; color: var(--ink-4); font-style: italic; padding-left: 20px; position: relative; }
+.note-empty { font-size: 16px; color: var(--ink-4); padding-left: 20px; position: relative; }
 .note-empty::before { content: "—"; position: absolute; left: 0; color: var(--ink-4); font-family: var(--serif); }
 
 /* ─── All Posts controls ────────────────────────────────────────── */
@@ -389,7 +387,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .all-posts-list-wrap thead th { position: sticky; top: 0; background: var(--paper); z-index: 2; }
 .all-posts-cell-date     { color: var(--ink-3); font-size: 13px; white-space: nowrap; }
 .all-posts-cell-platform { color: var(--ink-3); font-size: 13px; }
-.health-col  { text-align: left; min-width: 130px; white-space: nowrap; }
+.health-col  { text-align: left; min-width: 130px; white-space: nowrap; padding-left: 20px; }
 .health-label { font-size: 13px; font-weight: 500; }
 
 .view-toggle { display: inline-flex; border: 1px solid var(--rule); }
