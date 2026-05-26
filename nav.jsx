@@ -1,3 +1,6 @@
+import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom/client';
+
 // nav.jsx — shared masthead, nav, and loading screen
 // Used by: index.html (Social Media), web/index.html (Website), trends/index.html (Trends)
 //
@@ -11,8 +14,6 @@
 // The agency and quarter are stored in the URL so the page can be bookmarked,
 // shared, or refreshed and land in the same state.
 // =============================================================================
-
-const { useState, useEffect, useRef } = React;
 
 // =============================================================================
 // SHARED UTILITIES
@@ -370,3 +371,11 @@ function buildReportKey(fallbackSuffix = "q3") {
   if (report) return report;
   return agencyReportKey(agency, fallbackSuffix);
 }
+
+export {
+  parseDelta, arrow, getQuarterBySuffix,
+  AGENCIES, QUARTERS,
+  getParams, agencyReportKey, reportSuffix, buildUrl,
+  renderNav, hideLoadingScreen,
+  getActiveAgency, getActiveAgencyConfig, buildReportKey,
+};
