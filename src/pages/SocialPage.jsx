@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useSocialReport } from "../hooks/useSocialReport.js";
 import { Delta } from "../components/Delta.jsx";
 import { PageLoader } from "../components/PageLoader.jsx";
+import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
+import { EmptyNote } from "../components/EmptyState.jsx";
 import { fmt, fmtExact } from "../utils.js";
 
 const FLAT = { dir: "flat", pct: 0 };
@@ -42,7 +44,7 @@ const KPI_DEFS = [
 
 function Numbers({ data }) {
   return (
-    <section className="section wrap">
+    <section className="section wrap kpi-section" aria-label="Key performance indicators">
       <header className="section-head">
         <h2 className="section-title serif">The Numbers</h2>
       </header>
@@ -142,7 +144,7 @@ function Trend({ data }) {
       </header>
       <div className="trend-body">
         <TrendChart data={data} metric={metric} />
-        <div className="trend-legend">
+        <div className="trend-legend" role="group" aria-label="Select metric">
           {Object.entries(lines).map(([key, l]) => {
             const total = l.vals.reduce((a, b) => a + b, 0);
             const display = l.unit === "K" ? Math.round(total) + "K" : Math.round(total).toLocaleString();
@@ -153,6 +155,7 @@ function Trend({ data }) {
                 onClick={() => setMetric(key)}
                 role="button"
                 tabIndex={0}
+                aria-pressed={metric === key}
                 onKeyDown={e => e.key === "Enter" && setMetric(key)}
               >
                 <span className="swatch" style={{ background: l.color }} />
@@ -175,17 +178,17 @@ function Platforms({ data }) {
         <h2 className="section-title serif">By Platform</h2>
       </header>
       <div className="channels">
-        <div className="channel-row is-head">
-          <div />
-          <div>Platform</div>
-          <div className="col-num">Followers</div>
-          <div className="col-num">Engagement Rate</div>
-          <div className="col-num">Page Reach</div>
-          <div className="col-num">Page Clicks</div>
+        <div className="channel-row is-head" role="row">
+          <div role="columnheader" />
+          <div role="columnheader">Platform</div>
+          <div className="col-num" role="columnheader">Followers</div>
+          <div className="col-num" role="columnheader">Engagement Rate</div>
+          <div className="col-num" role="columnheader">Page Reach</div>
+          <div className="col-num" role="columnheader">Page Clicks</div>
         </div>
         {data.platforms.map((p, i) => (
-          <div className="channel-row" key={p.key}>
-            <div className="channel-idx serif ital">{String(i + 1).padStart(2, "0")}.</div>
+          <div className="channel-row" key={p.key} role="row">
+            <div className="channel-idx serif ital" aria-hidden="true">{String(i + 1).padStart(2, "0")}.</div>
             <div>
               <div className="channel-name serif">{p.name}</div>
               {p.note && <div className="channel-note">{p.note}</div>}
@@ -228,10 +231,14 @@ function TopPosts({ data }) {
       <header className="section-head">
         <h2 className="section-title serif">Top Posts</h2>
       </header>
-      <div className="platform-tabs">
+      <div className="platform-tabs" role="tablist" aria-label="Platform">
         {PLATFORMS.map(pt => (
           <button
             key={pt.key}
+            role="tab"
+            aria-selected={platform === pt.key}
+            aria-controls={`top-posts-panel-${pt.key}`}
+            id={`top-posts-tab-${pt.key}`}
             className={"platform-tab serif" + (platform === pt.key ? " is-active" : "")}
             onClick={() => setPlatform(pt.key)}
           >
@@ -239,37 +246,43 @@ function TopPosts({ data }) {
           </button>
         ))}
       </div>
-      <div className="table-wrap">
-        <table className="table">
-          <thead>
-            <tr>
-              <th scope="col">Post</th>
-              <th scope="col" className="r">Impressions</th>
-              <th scope="col" className="r">Reactions</th>
-              <th scope="col" className="r">Shares</th>
-              <th scope="col" className="r">Engagement</th>
-            </tr>
-          </thead>
-          <tbody>
-            {posts.map((c, i) => {
-              const engagement = c.impressions > 0 ? (c.likes + c.shares) / c.impressions * 100 : 0;
-              return (
-                <tr key={c.title + i}>
-                  <td>
-                    <span className="campaign-name serif">{c.title}</span>
-                    <div className="campaign-chan">{platform}</div>
-                  </td>
-                  <td className="r num">{fmtExact(c.impressions)}</td>
-                  <td className="r num">{c.likes}</td>
-                  <td className="r num">{c.shares}</td>
-                  <td className="r num" style={{ color: engagement >= 5 ? "var(--up)" : "var(--ink)" }}>
-                    {engagement.toFixed(2)}%
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div
+        role="tabpanel"
+        id={`top-posts-panel-${platform}`}
+        aria-labelledby={`top-posts-tab-${platform}`}
+      >
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th scope="col">Post</th>
+                <th scope="col" className="r">Impressions</th>
+                <th scope="col" className="r">Reactions</th>
+                <th scope="col" className="r">Shares</th>
+                <th scope="col" className="r">Engagement</th>
+              </tr>
+            </thead>
+            <tbody>
+              {posts.map((c, i) => {
+                const engagement = c.impressions > 0 ? (c.likes + c.shares) / c.impressions * 100 : 0;
+                return (
+                  <tr key={c.title + i}>
+                    <td>
+                      <span className="campaign-name serif">{c.title}</span>
+                      <div className="campaign-chan">{platform}</div>
+                    </td>
+                    <td className="r num">{fmtExact(c.impressions)}</td>
+                    <td className="r num">{c.likes}</td>
+                    <td className="r num">{c.shares}</td>
+                    <td className="r num" style={{ color: engagement >= 5 ? "var(--up)" : "var(--ink)" }}>
+                      {engagement.toFixed(2)}%
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   );
@@ -293,8 +306,8 @@ function AllPosts({ data }) {
 
   const sortIcon = (key) =>
     sort.key !== key
-      ? <span style={{ opacity: 0.3, marginLeft: 4 }}>↕</span>
-      : <span style={{ marginLeft: 4 }}>{sort.dir === "desc" ? "↓" : "↑"}</span>;
+      ? <span style={{ opacity: 0.3, marginLeft: 4 }} aria-hidden="true">↕</span>
+      : <span style={{ marginLeft: 4 }} aria-label={sort.dir === "desc" ? "sorted descending" : "sorted ascending"}>{sort.dir === "desc" ? "↓" : "↑"}</span>;
 
   const posts = useMemo(() => {
     return (data.allPosts || [])
@@ -345,18 +358,38 @@ function AllPosts({ data }) {
             placeholder="Search posts, notes, or post type…"
             value={search}
             onChange={e => setSearch(e.target.value)}
+            aria-label="Search posts"
           />
-          <select className="all-posts-select" value={platform} onChange={e => setPlatform(e.target.value)}>
+          <select
+            className="all-posts-select"
+            value={platform}
+            onChange={e => setPlatform(e.target.value)}
+            aria-label="Filter by platform"
+          >
             <option value="all">All platforms</option>
             <option value="linkedin">LinkedIn</option>
             <option value="facebook">Facebook</option>
             <option value="instagram">Instagram</option>
           </select>
-          <span className="all-posts-count">{posts.length} posts</span>
+          <span className="all-posts-count" aria-live="polite" aria-atomic="true">
+            {posts.length} posts
+          </span>
         </div>
-        <div className="view-toggle">
-          <button className={"toggle-btn" + (view === "list" ? " is-active" : "")} onClick={() => setView("list")}>List</button>
-          <button className={"toggle-btn" + (view === "calendar" ? " is-active" : "")} onClick={() => setView("calendar")}>Calendar</button>
+        <div className="view-toggle" role="group" aria-label="View mode">
+          <button
+            className={"toggle-btn" + (view === "list" ? " is-active" : "")}
+            onClick={() => setView("list")}
+            aria-pressed={view === "list"}
+          >
+            List
+          </button>
+          <button
+            className={"toggle-btn" + (view === "calendar" ? " is-active" : "")}
+            onClick={() => setView("calendar")}
+            aria-pressed={view === "calendar"}
+          >
+            Calendar
+          </button>
         </div>
       </div>
 
@@ -366,11 +399,19 @@ function AllPosts({ data }) {
             <thead>
               <tr>
                 <th scope="col">Post</th>
-                <th scope="col" style={thStyle} onClick={() => toggleSort("Date")}>Date{sortIcon("Date")}</th>
+                <th scope="col" style={thStyle} onClick={() => toggleSort("Date")}>
+                  Date{sortIcon("Date")}
+                </th>
                 <th scope="col">Platforms</th>
-                <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("Impressions")}>Impressions{sortIcon("Impressions")}</th>
-                <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("Engagements")}>Engagements{sortIcon("Engagements")}</th>
-                <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("EngRate")}>Eng. Rate{sortIcon("EngRate")}</th>
+                <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("Impressions")}>
+                  Impressions{sortIcon("Impressions")}
+                </th>
+                <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("Engagements")}>
+                  Engagements{sortIcon("Engagements")}
+                </th>
+                <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("EngRate")}>
+                  Eng. Rate{sortIcon("EngRate")}
+                </th>
                 <th scope="col" className="health-col">Health</th>
               </tr>
             </thead>
@@ -442,7 +483,7 @@ function AllPosts({ data }) {
             return (
               <div key={monthKey} className="calendar-month">
                 <h3 className="calendar-month-title serif">{label}</h3>
-                <div className="calendar-weekdays">
+                <div className="calendar-weekdays" aria-hidden="true">
                   {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => <div key={d}>{d}</div>)}
                 </div>
                 <div className="calendar-grid-month">
@@ -451,14 +492,14 @@ function AllPosts({ data }) {
                     const inMonth = dayNumber >= 1 && dayNumber <= daysInMonth;
                     const postsForDay = inMonth ? (dayToPosts[dayNumber] || []) : [];
                     return (
-                      <div key={idx} className={"calendar-day-cell" + (inMonth ? "" : " is-pad")}>
-                        {inMonth && <div className="calendar-day-number serif">{dayNumber}</div>}
+                      <div key={idx} className={"calendar-day-cell" + (inMonth ? "" : " is-pad")} aria-label={inMonth ? `${label} ${dayNumber}, ${postsForDay.length} post${postsForDay.length !== 1 ? "s" : ""}` : undefined}>
+                        {inMonth && <div className="calendar-day-number serif" aria-hidden="true">{dayNumber}</div>}
                         <div className="calendar-day-posts">
                           {postsForDay.map((p, i) => {
                             const er = p.Impressions > 0 ? (p.Engagements / p.Impressions) * 100 : 0;
-                            const { color, label } = healthForER(er);
+                            const { color, label: healthLabel } = healthForER(er);
                             return (
-                              <article key={i} className="calendar-post" style={{ "--health-color": color }} title={`${label} · ER ${er.toFixed(2)}%`}>
+                              <article key={i} className="calendar-post" style={{ "--health-color": color }} title={`${healthLabel} · ER ${er.toFixed(2)}%`}>
                                 <div className="calendar-post-title">{p["Post Name"] || "—"}</div>
                                 <div className="calendar-post-meta">{p.Platforms || "—"} · {er.toFixed(2)}%</div>
                               </article>
@@ -480,7 +521,7 @@ function AllPosts({ data }) {
 
 // ─── Notes ────────────────────────────────────────────────────────
 function NoteList({ items }) {
-  if (!items.length) return <p className="note-empty">No notes yet.</p>;
+  if (!items.length) return <EmptyNote />;
   return <ul>{items.map((n, i) => <li key={i}>{n}</li>)}</ul>;
 }
 
@@ -513,7 +554,7 @@ export function SocialPage({ agency, quarter, onReady }) {
       <main className="report-wrap">
         <section className="section wrap">
           <header className="section-head"><h2 className="section-title serif">Unable to load report</h2></header>
-          <div className="error-section">
+          <div className="error-section" role="alert">
             <p>{error}</p>
             <button className="error-retry-btn" onClick={() => window.location.reload()}>Try again</button>
           </div>
@@ -522,17 +563,17 @@ export function SocialPage({ agency, quarter, onReady }) {
     );
   }
 
-  if (!data) return <PageLoader />;
+  if (!data) return <PageLoader view="social" />;
 
   return (
     <main className="report-wrap">
-      <Hero data={data} />
-      <Numbers data={data} />
-      <Trend data={data} />
-      <Platforms data={data} />
-      <TopPosts data={data} />
-      <AllPosts data={data} />
-      <Notes data={data} />
+      <ErrorBoundary><Hero data={data} /></ErrorBoundary>
+      <ErrorBoundary><Numbers data={data} /></ErrorBoundary>
+      <ErrorBoundary><Trend data={data} /></ErrorBoundary>
+      <ErrorBoundary><Platforms data={data} /></ErrorBoundary>
+      <ErrorBoundary><TopPosts data={data} /></ErrorBoundary>
+      <ErrorBoundary><AllPosts data={data} /></ErrorBoundary>
+      <ErrorBoundary><Notes data={data} /></ErrorBoundary>
     </main>
   );
 }

@@ -1,21 +1,33 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import { useUrlState } from "./hooks/useUrlState.js";
 import { AppNav } from "./components/Nav.jsx";
 import { LoadingScreen } from "./components/LoadingScreen.jsx";
-import { SocialPage } from "./pages/SocialPage.jsx";
-import { WebPage } from "./pages/WebPage.jsx";
-import { TrendsPage } from "./pages/TrendsPage.jsx";
+import { PageSkeleton } from "./components/Skeleton.jsx";
 import { AGENCIES, QUARTERS } from "./config.js";
+
+const SocialPage = lazy(() => import("./pages/SocialPage.jsx").then(m => ({ default: m.SocialPage })));
+const WebPage    = lazy(() => import("./pages/WebPage.jsx").then(m => ({ default: m.WebPage })));
+const TrendsPage = lazy(() => import("./pages/TrendsPage.jsx").then(m => ({ default: m.TrendsPage })));
 
 function App() {
   const [urlState, navigate] = useUrlState();
   const { agency, quarter, view } = urlState;
   const [appReady, setAppReady] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const announcementTimer = useRef(null);
 
-  const handleReady = useCallback(() => setAppReady(true), []);
+  const handleReady = useCallback(() => {
+    setAppReady(true);
+    const cfg = AGENCIES[agency] || AGENCIES.isl;
+    const q = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];
+    const viewLabel = view === "social" ? "Social Media" : view === "web" ? "Website" : "Trends";
+    const msg = `${cfg.name} ${q.label} ${viewLabel} report loaded`;
+    clearTimeout(announcementTimer.current);
+    setAnnouncement(msg);
+    announcementTimer.current = setTimeout(() => setAnnouncement(""), 3000);
+  }, [agency, quarter, view]);
 
-  // Update page title on state changes
   useEffect(() => {
     const cfg = AGENCIES[agency] || AGENCIES.isl;
     const q   = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];
@@ -23,13 +35,37 @@ function App() {
     document.title = `${cfg.name} ${q.label} ${q.year} — ${viewLabel}`;
   }, [agency, quarter, view]);
 
+  useEffect(() => () => clearTimeout(announcementTimer.current), []);
+
+  const skelView = view === "web" ? "web" : view === "trends" ? "trends" : "social";
+
   return (
     <>
+      {/* Screen-reader-only live region announces when each page finishes loading */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        role="status"
+      >
+        {announcement}
+      </div>
+
       <LoadingScreen visible={!appReady} />
       <AppNav agency={agency} view={view} quarter={quarter} onNavigate={navigate} />
-      {view === "social" && <SocialPage key={`${agency}-${quarter}`} agency={agency} quarter={quarter} onReady={handleReady} />}
-      {view === "web"    && <WebPage    key={`web-${quarter}`}        agency={agency} quarter={quarter} onReady={handleReady} />}
-      {view === "trends" && <TrendsPage key={agency}                  agency={agency}                   onReady={handleReady} />}
+
+      <Suspense fallback={<PageSkeleton view={skelView} />}>
+        {view === "social" && (
+          <SocialPage key={`${agency}-${quarter}`} agency={agency} quarter={quarter} onReady={handleReady} />
+        )}
+        {view === "web" && (
+          <WebPage key={`web-${agency}-${quarter}`} agency={agency} quarter={quarter} onReady={handleReady} />
+        )}
+        {view === "trends" && (
+          <TrendsPage key={agency} agency={agency} onReady={handleReady} />
+        )}
+      </Suspense>
+
       <footer className="wrap colophon">Prepared by Josiah Yule</footer>
     </>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { SOCIAL_ENDPOINT, AGENCIES, TRENDS_QUARTERS, CURRENT_QUARTER } from "../config.js";
 import { toNumber, nfk, fmtApprox } from "../utils.js";
 
@@ -151,14 +151,18 @@ export function quarterCompletion(q) {
 export function quarterComplete(q) { return new Date() >= q.end; }
 
 // ─── Hook ─────────────────────────────────────────────────────────
-async function fetchQuarter(key) {
+async function fetchQuarter(key, signal) {
   try {
-    const res = await fetch(`${SOCIAL_ENDPOINT}?report=${encodeURIComponent(key)}&nocache=1&t=${Date.now()}`, { cache: "no-store" });
+    const res = await fetch(
+      `${SOCIAL_ENDPOINT}?report=${encodeURIComponent(key)}&nocache=1&t=${Date.now()}`,
+      { cache: "no-store", signal }
+    );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     if (json?.error) throw new Error(json.message || "Endpoint error");
     return json;
-  } catch {
+  } catch (e) {
+    if (e.name === "AbortError") throw e;
     return null;
   }
 }
@@ -166,20 +170,36 @@ async function fetchQuarter(key) {
 export function useTrendsData(agency) {
   const [state, setState] = useState({ qdata: null, status: "loading", error: null });
 
-  const load = useCallback(async () => {
-    const prefix = AGENCIES[agency]?.prefix ?? agency;
-    const keys = TRENDS_QUARTERS.map(q => prefix + q.suffix);
-    const qdata = await Promise.all(keys.map(fetchQuarter));
-    storeSnapshot(agency, qdata[2]);
-    setState({ qdata, status: "ready", error: null });
-  }, [agency]);
-
   useEffect(() => {
+    const controllers = [];
+
+    const run = async () => {
+      const ctrl = new AbortController();
+      controllers.push(ctrl);
+      const prefix = AGENCIES[agency]?.prefix ?? agency;
+      const keys = TRENDS_QUARTERS.map(q => prefix + q.suffix);
+      try {
+        const qdata = await Promise.all(keys.map(k => fetchQuarter(k, ctrl.signal)));
+        storeSnapshot(agency, qdata[2]);
+        setState({ qdata, status: "ready", error: null });
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          setState(s => s.status === "loading"
+            ? { qdata: null, status: "error", error: err.message }
+            : s);
+        }
+      }
+    };
+
     setState({ qdata: null, status: "loading", error: null });
-    load().catch(err => setState({ qdata: null, status: "error", error: err.message }));
-    const id = setInterval(load, 300_000);
-    return () => clearInterval(id);
-  }, [load]);
+    run();
+    const id = setInterval(run, 300_000);
+
+    return () => {
+      clearInterval(id);
+      controllers.forEach(c => c.abort());
+    };
+  }, [agency]);
 
   return state;
 }
