@@ -2,6 +2,8 @@ import React, { useEffect } from "react";
 import { useWebReport } from "../hooks/useWebReport.js";
 import { Delta } from "../components/Delta.jsx";
 import { PageLoader } from "../components/PageLoader.jsx";
+import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
+import { EmptyNote } from "../components/EmptyState.jsx";
 import { fmtInt, fmtPct, fmtTime, calcAutoDelta, parseDelta } from "../utils.js";
 import { AGENCIES, QUARTERS } from "../config.js";
 
@@ -47,7 +49,7 @@ function Numbers({ data, prevData }) {
   const o = data.overall || {};
   const prev = prevData?.overall || {};
   return (
-    <section className="section wrap">
+    <section className="section wrap kpi-section" aria-label="Key performance indicators">
       <header className="section-head">
         <h2 className="section-title serif">The Numbers</h2>
       </header>
@@ -85,20 +87,20 @@ function Channels({ data, prevData }) {
         <h2 className="section-title serif">Traffic Channels</h2>
       </header>
       <div className="channels">
-        <div className="channel-row-web is-head">
-          <div />
-          <div>Channel</div>
-          <div className="col-num">Sessions</div>
-          <div className="col-num">Share</div>
-          <div className="col-num">Eng. Rate</div>
+        <div className="channel-row-web is-head" role="row">
+          <div role="columnheader" />
+          <div role="columnheader">Channel</div>
+          <div className="col-num" role="columnheader">Sessions</div>
+          <div className="col-num" role="columnheader">Share</div>
+          <div className="col-num" role="columnheader">Eng. Rate</div>
         </div>
         {channels.map((c, i) => {
           const prev = prevMap[c.name?.toLowerCase()] || null;
           const sd = calcAutoDelta(c.sessions, prev?.sessions);
           const ed = calcAutoDelta(c.engagementRate, prev?.engagementRate);
           return (
-            <div className="channel-row-web" key={c.name}>
-              <div className="channel-idx serif ital">{String(i + 1).padStart(2, "0")}</div>
+            <div className="channel-row-web" key={c.name} role="row">
+              <div className="channel-idx serif ital" aria-hidden="true">{String(i + 1).padStart(2, "0")}</div>
               <div><div className="channel-name serif">{c.name}</div></div>
               <div className="col-num">
                 <span className="big serif num">{fmtInt(c.sessions)}</span>
@@ -191,7 +193,7 @@ function Notes({ data }) {
               <h4>{s.label}</h4>
               {items.length
                 ? <ul>{items.map((n, i) => <li key={i}>{n}</li>)}</ul>
-                : <p className="note-empty">No notes yet.</p>}
+                : <EmptyNote />}
             </div>
           );
         })}
@@ -213,7 +215,7 @@ export function WebPage({ agency, quarter, onReady }) {
       <main className="report-wrap">
         <section className="section wrap">
           <header className="section-head"><h2 className="section-title serif">Unable to load report</h2></header>
-          <div className="error-section">
+          <div className="error-section" role="alert">
             <p>{error}</p>
             <button className="error-retry-btn" onClick={() => window.location.reload()}>Try again</button>
           </div>
@@ -222,15 +224,15 @@ export function WebPage({ agency, quarter, onReady }) {
     );
   }
 
-  if (!data) return <PageLoader />;
+  if (!data) return <PageLoader view="web" />;
 
   return (
     <main className="report-wrap">
-      <Hero agency={agency} quarter={quarter} data={data} />
-      <Numbers data={data} prevData={prevData} />
-      <Channels data={data} prevData={prevData} />
-      <TopPages data={data} prevData={prevData} />
-      <Notes data={data} />
+      <ErrorBoundary><Hero agency={agency} quarter={quarter} data={data} /></ErrorBoundary>
+      <ErrorBoundary><Numbers data={data} prevData={prevData} /></ErrorBoundary>
+      <ErrorBoundary><Channels data={data} prevData={prevData} /></ErrorBoundary>
+      <ErrorBoundary><TopPages data={data} prevData={prevData} /></ErrorBoundary>
+      <ErrorBoundary><Notes data={data} /></ErrorBoundary>
     </main>
   );
 }
