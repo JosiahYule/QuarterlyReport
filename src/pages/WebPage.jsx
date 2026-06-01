@@ -13,8 +13,8 @@ const FLAT = { dir: "flat", pct: 0 };
 function Hero({ agency, quarter, data }) {
   const cfg = AGENCIES[agency] || AGENCIES.isl;
   const q   = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];
-  const note = typeof data.insights?.working === "string"
-    ? data.insights.working.split("\n\n")[0]
+  const note = typeof data.summary?.bullet === "string" && data.summary.bullet.trim()
+    ? data.summary.bullet.trim()
     : `Website performance report for ${cfg.name}.`;
 
   return (
