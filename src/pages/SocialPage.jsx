@@ -522,7 +522,8 @@ function AllPosts({ data }) {
 // ─── Notes ────────────────────────────────────────────────────────
 function NoteList({ items }) {
   if (!items.length) return <EmptyNote />;
-  return <ul>{items.map((n, i) => <li key={i}>{n}</li>)}</ul>;
+  const paras = items.flatMap(n => n.split("\n\n").filter(Boolean));
+  return <div>{paras.map((n, i) => <p key={i}>{n}</p>)}</div>;
 }
 
 function Notes({ data }) {

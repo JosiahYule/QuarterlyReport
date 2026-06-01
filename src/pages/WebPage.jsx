@@ -192,7 +192,7 @@ function Notes({ data }) {
             <div className={"note " + s.cls} key={s.key}>
               <h4>{s.label}</h4>
               {items.length
-                ? <ul>{items.map((n, i) => <li key={i}>{n}</li>)}</ul>
+                ? <div>{items.map((n, i) => <p key={i}>{n}</p>)}</div>
                 : <EmptyNote />}
             </div>
           );
