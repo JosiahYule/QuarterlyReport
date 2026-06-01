@@ -78,7 +78,7 @@ function normalizeReport(raw, agency, quarter) {
       year:       qMeta.year,
       agencyName: NAMES[agency] || "Integrated Staffing",
     },
-    editorsNote:      insightMap.editorsNote || insightMap.working || "",
+    editorsNote:      (typeof raw.summary?.bullet === "string" && raw.summary.bullet.trim()) ? raw.summary.bullet.trim() : "",
     overall, deltas,
     platforms,
     topPostsByPlatform: byPlatform,
