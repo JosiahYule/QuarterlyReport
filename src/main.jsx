@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
+import { AdminApp } from "./pages/admin/AdminApp.jsx";
 import ReactDOM from "react-dom/client";
 import { useUrlState } from "./hooks/useUrlState.js";
 import { AppNav } from "./components/Nav.jsx";
@@ -71,4 +72,5 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+const isAdmin = window.location.pathname.startsWith("/admin");
+ReactDOM.createRoot(document.getElementById("root")).render(isAdmin ? <AdminApp /> : <App />);

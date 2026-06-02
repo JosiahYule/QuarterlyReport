@@ -1,74 +1,111 @@
 import { useState, useEffect } from "react";
-import { SOCIAL_ENDPOINT, AGENCIES, QUARTERS } from "../config.js";
-import { parseDelta } from "../utils.js";
+import { supabase } from "../lib/supabase.js";
+import { AGENCIES, QUARTERS } from "../config.js";
+import { calcAutoDelta } from "../utils.js";
 
-const FLAT = { dir: "flat", pct: 0 };
-
-function getQuarterBySuffix(suffix) {
+function getQuarterMeta(suffix) {
   return QUARTERS.find(q => q.suffix === suffix) || QUARTERS[0];
 }
 
-function normalizeReport(raw, agency, quarter) {
-  if (!raw) return null;
+function getPrevSuffix(suffix) {
+  const idx = QUARTERS.findIndex(q => q.suffix === suffix);
+  return idx >= 0 && idx < QUARTERS.length - 1 ? QUARTERS[idx + 1].suffix : null;
+}
 
-  // Pre-normalized shape
-  if (raw.overall && raw.platforms) {
-    const deltas = raw.deltas
-      ? Object.fromEntries(Object.entries(raw.deltas).map(([k, v]) => [k, parseDelta(v)]))
-      : {};
-    const platforms = Array.isArray(raw.platforms)
-      ? raw.platforms.map(p => ({
-          ...p,
-          followersDelta:      parseDelta(p.followersDelta),
-          engagementRateDelta: parseDelta(p.engagementRateDelta),
-          pageReachDelta:      parseDelta(p.pageReachDelta),
-          pageClicksDelta:     parseDelta(p.pageClicksDelta),
-        }))
-      : raw.platforms;
-    return { ...raw, deltas, platforms };
+async function fetchReport(agency, quarter) {
+  const { data, error } = await supabase
+    .from("social_reports")
+    .select(`
+      id, editors_note,
+      social_kpis(*),
+      social_platforms(*),
+      social_top_posts(*),
+      social_posts(*),
+      social_insights(*)
+    `)
+    .eq("agency", agency)
+    .eq("quarter", quarter)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+function normalize(report, agency, quarter, prev) {
+  if (!report) return null;
+
+  const qMeta   = getQuarterMeta(quarter);
+  const kpis    = report.social_kpis?.[0]    || {};
+  const prevKpi = prev?.social_kpis?.[0]     || null;
+
+  const overall = {
+    posts:             kpis.posts,
+    impressions:       kpis.impressions,
+    shares:            kpis.shares,
+    reactions:         kpis.reactions,
+    followers:         kpis.followers,
+    linkclicks:        kpis.link_clicks,
+    comments:          kpis.comments,
+    avgengagementrate: kpis.avg_engagement_rate,
+  };
+
+  const deltas = {};
+  if (prevKpi) {
+    const prevOverall = {
+      posts:             prevKpi.posts,
+      impressions:       prevKpi.impressions,
+      shares:            prevKpi.shares,
+      reactions:         prevKpi.reactions,
+      followers:         prevKpi.followers,
+      linkclicks:        prevKpi.link_clicks,
+      comments:          prevKpi.comments,
+      avgengagementrate: prevKpi.avg_engagement_rate,
+    };
+    for (const key of Object.keys(overall)) {
+      const d = calcAutoDelta(overall[key], prevOverall[key]);
+      if (d) deltas[key] = d;
+    }
   }
 
-  const overall = {}, deltas = {};
-  const keyMap = {
-    posts: "posts", impressions: "impressions", shares: "shares",
-    reactions: "reactions", followers: "followers",
-    linkClicks: "linkclicks", comments: "comments",
-    avgEngagementRate: "avgengagementrate",
-  };
-  (raw.quarterTotals || []).forEach(row => {
-    const key = keyMap[row.field] || row.field.toLowerCase();
-    overall[key] = row.value;
-    deltas[key]  = parseDelta(row.delta);
-  });
+  const platforms = [...(report.social_platforms || [])]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(p => ({
+      key:                 p.name.toLowerCase(),
+      name:                p.name,
+      followers:           p.followers,
+      followersDelta:      { dir: "flat", pct: 0 },
+      engagementRate:      p.engagement_rate,
+      engagementRateDelta: { dir: "flat", pct: 0 },
+      pageReach:           p.page_reach,
+      pageReachDelta:      { dir: "flat", pct: 0 },
+      pageClicks:          p.page_clicks,
+      pageClicksDelta:     { dir: "flat", pct: 0 },
+      note:                p.note || "",
+    }));
 
-  const platforms = (raw.platformBreakdown || []).map(p => ({
-    key: p.Platform.toLowerCase(), name: p.Platform,
-    followers: p.Followers,             followersDelta:      parseDelta(p["Followers Δ"]),
-    engagementRate: p["Engagement Rate"], engagementRateDelta: parseDelta(p["ER Δ"]),
-    pageReach: p.Reach,                  pageReachDelta:      parseDelta(p["Reach Δ"]),
-    pageClicks: p.Clicks,                pageClicksDelta:     parseDelta(p["Clicks Δ"]),
-    note: "",
-  }));
+  const topPostsByPlatform = { linkedin: [], facebook: [], instagram: [] };
+  for (const p of (report.social_top_posts || [])) {
+    topPostsByPlatform[p.platform]?.push({
+      title: p.title, impressions: p.impressions, likes: p.likes, shares: p.shares,
+    });
+  }
 
-  const byPlatform = { linkedin: [], facebook: [], instagram: [] };
-  (raw.topPosts || []).forEach(p => {
-    const key = (p.Platform || "").toLowerCase();
-    if (byPlatform[key] && p.Title) {
-      byPlatform[key].push({ title: p.Title, impressions: p.Impressions || 0, likes: p.Likes || 0, shares: p.Shares || 0 });
-    }
-  });
-
-  const insightMap = {};
-  (raw.insights || []).forEach(i => { insightMap[i.Section] = i.Text; });
-
+  const ins = report.social_insights?.[0] || {};
   const notes = {
-    working:    insightMap.working    ? [insightMap.working]    : [],
-    notWorking: insightMap.notWorking ? [insightMap.notWorking] : [],
-    actions:    insightMap.actions    ? [insightMap.actions]    : [],
-    next:       insightMap.next       ? [insightMap.next]       : [],
+    working:    ins.working      ? [ins.working]      : [],
+    notWorking: ins.not_working  ? [ins.not_working]  : [],
+    actions:    ins.actions      ? [ins.actions]      : [],
+    next:       ins.next_quarter ? [ins.next_quarter] : [],
   };
 
-  const qMeta = getQuarterBySuffix(quarter);
+  const allPosts = (report.social_posts || []).map(p => ({
+    "Post Name":  p.post_name,
+    Date:         p.post_date,
+    Platforms:    p.platforms,
+    Impressions:  p.impressions,
+    Engagements:  p.engagements,
+    URL:          p.url,
+    Notes:        p.notes,
+  }));
 
   return {
     meta: {
@@ -77,12 +114,13 @@ function normalizeReport(raw, agency, quarter) {
       year:       qMeta.year,
       agencyName: AGENCIES[agency]?.name || "Integrated Staffing",
     },
-    editorsNote:      (typeof raw.summary?.bullet === "string" && raw.summary.bullet.trim()) ? raw.summary.bullet.trim() : "",
-    overall, deltas,
+    editorsNote: report.editors_note || "",
+    overall,
+    deltas,
     platforms,
-    topPostsByPlatform: byPlatform,
+    topPostsByPlatform,
     notes,
-    allPosts: raw.allPosts || [],
+    allPosts,
     weekly: Array.from({ length: 13 }, (_, i) => ({ wk: i + 1, imp: 0, leads: 0, spend: 0 })),
   };
 }
@@ -91,26 +129,25 @@ export function useSocialReport(agency, quarter) {
   const [state, setState] = useState({ data: null, status: "loading", error: null });
 
   useEffect(() => {
-    const reportKey = (AGENCIES[agency]?.prefix ?? agency) + quarter;
-    const controller = new AbortController();
+    let cancelled = false;
     setState({ data: null, status: "loading", error: null });
 
     (async () => {
       try {
-        const res = await fetch(`${SOCIAL_ENDPOINT}?report=${reportKey}&t=${Date.now()}`, {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const raw = await res.json();
-        setState({ data: normalizeReport(raw, agency, quarter), status: "ready", error: null });
+        const prevSuffix = getPrevSuffix(quarter);
+        const [report, prev] = await Promise.all([
+          fetchReport(agency, quarter),
+          prevSuffix ? fetchReport(agency, prevSuffix) : Promise.resolve(null),
+        ]);
+        if (!cancelled) {
+          setState({ data: normalize(report, agency, quarter, prev), status: "ready", error: null });
+        }
       } catch (err) {
-        if (err.name === "AbortError") return;
-        setState({ data: null, status: "error", error: err.message || "Failed to load report" });
+        if (!cancelled) setState({ data: null, status: "error", error: err.message || "Failed to load report" });
       }
     })();
 
-    return () => controller.abort();
+    return () => { cancelled = true; };
   }, [agency, quarter]);
 
   return state;
