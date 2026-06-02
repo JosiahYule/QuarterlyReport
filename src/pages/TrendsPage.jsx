@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo } from "react";
 import Chart from "chart.js/auto";
-import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete } from "../hooks/useTrendsData.js";
+import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits } from "../hooks/useTrendsData.js";
 import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { fmt, fmtApprox } from "../utils.js";
 import { PageLoader } from "../components/PageLoader.jsx";
@@ -50,7 +50,7 @@ function makeTooltipHandler(isPercent) {
 }
 
 // ─── Chart card ───────────────────────────────────────────────────
-function ChartCard({ metric, agency, qdata }) {
+function ChartCard({ metric, agency, qdata, audit }) {
   const canvasRef = useRef(null);
   const chartRef  = useRef(null);
   const [d1, d2, d3] = qdata;
@@ -71,7 +71,7 @@ function ChartCard({ metric, agency, qdata }) {
   const histBaseline = metric.baselineFromQ2 && q2v !== null ? q2v : 0;
 
   let pace = metric.isPace && !done
-    ? computeAdvancedPace(q3input, q3.start, q3.end, q2Rate, getMetricHistory(agency, metric.id), histBaseline)
+    ? computeAdvancedPace(q3input, q3.start, q3.end, q2Rate, getMetricHistory(agency, metric.id), histBaseline, new Date(), audit?.calibrationFactor ?? 1)
     : null;
 
   const projected = pace?.projected ?? null;
@@ -88,7 +88,7 @@ function ChartCard({ metric, agency, qdata }) {
   const colors = [C.q1, C.q2, isProjected ? C.proj : C.q3];
   const values = [q1v ?? 0, q2v ?? 0, chartQ3val];
 
-  const sub = done ? "Quarter-over-quarter actuals" : "Q1 & Q2 actuals · Q3 pace projection";
+  const sub = done ? "Quarter-over-quarter actuals" : `${tq1.label} & ${tq2.label} actuals · ${tq3.label} calibrated pace projection`;
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -167,7 +167,7 @@ function ChartCard({ metric, agency, qdata }) {
 }
 
 // ─── Projection card ──────────────────────────────────────────────
-function ProjCard({ metric, agency, qdata, q3comp, q3done }) {
+function ProjCard({ metric, agency, qdata, q3comp, q3done, audit }) {
   const [d1, d2, d3] = qdata;
   const [, tq2, tq3] = TRENDS_QUARTERS;
 
@@ -182,7 +182,7 @@ function ProjCard({ metric, agency, qdata, q3comp, q3done }) {
     : null;
 
   let pace = metric.isPace && !q3done
-    ? computeAdvancedPace(q3input, tq3.start, tq3.end, q2Rate, getMetricHistory(agency, metric.id), histBaseline)
+    ? computeAdvancedPace(q3input, tq3.start, tq3.end, q2Rate, getMetricHistory(agency, metric.id), histBaseline, new Date(), audit?.calibrationFactor ?? 1)
     : null;
 
   const projected = pace?.projected ?? null;
@@ -205,6 +205,8 @@ function ProjCard({ metric, agency, qdata, q3comp, q3done }) {
   const stat2Val = pace
     ? (metric.isPercent ? `${pace.dailyRate.toFixed(3)}%/day` : `${pace.dailyRate.toFixed(1)}/day`)
     : "—";
+  const calibrationVal = audit ? `${audit.calibrationFactor >= 1 ? "+" : ""}${((audit.calibrationFactor - 1) * 100).toFixed(1)}%` : "—";
+  const calibrationCls = audit ? (audit.calibrationFactor >= 1 ? "pos" : "neg") : "na";
 
   let stat3Val = "—", stat3Cls = "na";
   if (rateVsQ2 !== null) {
@@ -239,12 +241,55 @@ function ProjCard({ metric, agency, qdata, q3comp, q3done }) {
           <div className={"proj-stat-value rate"}>{stat2Val}</div>
         </div>
         <div className="proj-stat">
-          <div className="proj-stat-label">Rate vs Q2</div>
+          <div className="proj-stat-label">Rate vs {tq2.label}</div>
           <div className={"proj-stat-value " + stat3Cls}>{stat3Val}</div>
         </div>
         <div className="proj-stat">
-          <div className="proj-stat-label">{tq2.label} Actual</div>
-          <div className="proj-stat-value">{fmt(q2v, metric.isPercent)}</div>
+          <div className="proj-stat-label">{tq2.label} Accuracy Adj.</div>
+          <div className={"proj-stat-value " + calibrationCls}>{calibrationVal}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Projection accuracy card ─────────────────────────────────────
+function AccuracyCard({ metric, audit, previousQuarter, currentQuarter }) {
+  const errorVal = audit?.percentError;
+  const errorCls = errorVal === null || errorVal === undefined
+    ? "na"
+    : Math.abs(errorVal) <= 10 ? "pos" : "neg";
+  const errorText = errorVal === null || errorVal === undefined
+    ? "—"
+    : `${errorVal > 0 ? "+" : ""}${errorVal.toFixed(1)}%`;
+  const adjustmentText = audit
+    ? `${audit.calibrationFactor >= 1 ? "+" : ""}${((audit.calibrationFactor - 1) * 100).toFixed(1)}%`
+    : "—";
+  const windowText = audit?.firstDay && audit?.lastDay
+    ? `Days ${audit.firstDay}–${audit.lastDay} · ${audit.sampleCount} snapshots`
+    : "No saved projection snapshots";
+
+  return (
+    <div className="accuracy-card">
+      <div className="accuracy-card-label">{metric.label}</div>
+      <div className="accuracy-card-main">
+        <span className={"accuracy-error " + errorCls}>{errorText}</span>
+        <span className="accuracy-error-label">avg. projection error</span>
+      </div>
+      <div className="accuracy-card-sub">{windowText}</div>
+      <div className="accuracy-stats-grid">
+        <div className="accuracy-stat">
+          <div className="accuracy-stat-label">{previousQuarter.label} Actual</div>
+          <div className="accuracy-stat-value">{audit ? fmtApprox(audit.actual, metric.isPercent) : "—"}</div>
+        </div>
+        <div className="accuracy-stat">
+          <div className="accuracy-stat-label">Avg Projected</div>
+          <div className="accuracy-stat-value">{audit ? fmtApprox(audit.avgProjected, metric.isPercent) : "—"}</div>
+        </div>
+        <div className="accuracy-stat accuracy-stat-wide">
+          <div className="accuracy-stat-label">{currentQuarter.label} Projection Adjustment</div>
+          <div className="accuracy-stat-value">{adjustmentText}</div>
         </div>
       </div>
     </div>
@@ -285,6 +330,8 @@ export function TrendsPage({ agency, onReady }) {
     if (status === "ready" || status === "error") onReady?.();
   }, [status, onReady]);
 
+  const audits = useMemo(() => qdata ? buildProjectionAudits(agency, qdata) : {}, [agency, qdata]);
+
   if (status === "error") {
     return (
       <main className="report-wrap">
@@ -302,22 +349,40 @@ export function TrendsPage({ agency, onReady }) {
   if (!qdata) return <PageLoader view="trends" />;
 
   const q3     = TRENDS_QUARTERS[2];
+  const [, previousQuarter] = TRENDS_QUARTERS;
   const q3comp = quarterCompletion(q3);
   const q3done = quarterComplete(q3);
+  const hasAudits = Object.values(audits).some(Boolean);
 
   return (
     <main className="report-wrap">
       <ErrorBoundary><Hero agency={agency} q3comp={q3comp} q3done={q3done} /></ErrorBoundary>
 
+      {hasAudits && (
+        <ErrorBoundary>
+          <section className="section wrap accuracy-section">
+            <header className="section-head">
+              <h2 className="section-title serif">{previousQuarter.label} Projection Accuracy</h2>
+              <p className="section-sub">Saved {previousQuarter.label} projection snapshots are compared with final {previousQuarter.label} actuals; the resulting bias factor calibrates {q3.label} projections.</p>
+            </header>
+            <div className="accuracy-grid">
+              {METRICS.map(m => (
+                <AccuracyCard key={m.id} metric={m} audit={audits[m.id]} previousQuarter={previousQuarter} currentQuarter={q3} />
+              ))}
+            </div>
+          </section>
+        </ErrorBoundary>
+      )}
+
       <ErrorBoundary>
         <section className="section wrap">
           <header className="section-head">
-            <h2 className="section-title serif">Q3 Projected Finals</h2>
-            <p className="section-sub">Estimated end-of-quarter totals based on observed daily rate × total quarter days.</p>
+            <h2 className="section-title serif">{q3.label} Projected Finals</h2>
+            <p className="section-sub">Estimated end-of-quarter totals use observed daily rate × total quarter days, adjusted by {previousQuarter.label} projection accuracy when saved snapshots are available.</p>
           </header>
           <div className="proj-grid">
             {METRICS.map(m => (
-              <ProjCard key={m.id} metric={m} agency={agency} qdata={qdata} q3comp={q3comp} q3done={q3done} />
+              <ProjCard key={m.id} metric={m} agency={agency} qdata={qdata} q3comp={q3comp} q3done={q3done} audit={audits[m.id]} />
             ))}
           </div>
         </section>
@@ -327,11 +392,11 @@ export function TrendsPage({ agency, onReady }) {
         <section className="section wrap">
           <header className="section-head">
             <h2 className="section-title serif">Quarterly Trends</h2>
-            <p className="section-sub">Quarter-over-quarter trajectory with Q3 pace projections.</p>
+            <p className="section-sub">Quarter-over-quarter trajectory with {q3.label} pace projections.</p>
           </header>
           <div className="charts-grid">
             {METRICS.map(m => (
-              <ChartCard key={m.id} metric={m} agency={agency} qdata={qdata} />
+              <ChartCard key={m.id} metric={m} agency={agency} qdata={qdata} audit={audits[m.id]} />
             ))}
           </div>
         </section>

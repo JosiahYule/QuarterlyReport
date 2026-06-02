@@ -50,9 +50,9 @@ export function extractMetric(data, metric) {
 }
 
 // ─── Pace projection ──────────────────────────────────────────────
-export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory, histBaseline = 0) {
+export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory, histBaseline = 0, asOfDate = new Date(), calibrationFactor = 1) {
   if (current === null || !Number.isFinite(current)) return null;
-  const now = new Date();
+  const now = asOfDate instanceof Date ? asOfDate : new Date(asOfDate);
   const dElapsed = (now - qStart) / 86400000;
   if (dElapsed < 7) return null;
   const dTotal = (qEnd - qStart) / 86400000;
@@ -99,15 +99,17 @@ export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory
   else                                           blended = simpleProj;
 
   const confidence = Math.min(1, dElapsed / 14);
-  const projected = q2Rate !== null && Number.isFinite(q2Rate) && q2Rate > 0
+  const rawProjected = q2Rate !== null && Number.isFinite(q2Rate) && q2Rate > 0
     ? confidence * blended + (1 - confidence) * (q2Rate * dTotal)
     : blended;
+  const safeCalibration = Number.isFinite(calibrationFactor) && calibrationFactor > 0 ? calibrationFactor : 1;
+  const projected = rawProjected * safeCalibration;
 
-  return { projected, dailyRate: rollingRate ?? simpleRate, dElapsed, dTotal };
+  return { projected, rawProjected, dailyRate: rollingRate ?? simpleRate, dElapsed, dTotal, calibrationFactor: safeCalibration };
 }
 
 // ─── History persistence ──────────────────────────────────────────
-export function getHistoryKey(agency) { return `${agency}${CURRENT_QUARTER.suffix}_proj_history`; }
+export function getHistoryKey(agency, quarter = CURRENT_QUARTER) { return `${agency}${quarter.suffix}_proj_history`; }
 
 export function storeSnapshot(agency, d3) {
   if (!d3) return;
@@ -126,18 +128,100 @@ export function storeSnapshot(agency, d3) {
   } catch (e) {}
 }
 
-export function loadHistory(agency) {
+export function loadHistory(agency, quarter = CURRENT_QUARTER) {
   let hist = [];
-  try { hist = JSON.parse(localStorage.getItem(getHistoryKey(agency)) || "[]"); } catch { return []; }
+  try { hist = JSON.parse(localStorage.getItem(getHistoryKey(agency, quarter)) || "[]"); } catch { return []; }
   const byDay = {};
   for (const snap of hist) byDay[new Date(snap.t).toDateString()] = snap;
   return Object.values(byDay).sort((a, b) => a.t - b.t);
 }
 
-export function getMetricHistory(agency, metricId) {
-  return loadHistory(agency)
+export function getMetricHistory(agency, metricId, quarter = CURRENT_QUARTER) {
+  return loadHistory(agency, quarter)
     .filter(s => s.vals && s.vals[metricId] !== undefined)
-    .map(s => ({ t: s.t, val: s.vals[metricId] }));
+    .map(s => ({ t: s.t, val: s.vals[metricId] }))
+    .sort((a, b) => a.t - b.t);
+}
+
+export function clampCalibrationFactor(factor) {
+  if (!Number.isFinite(factor) || factor <= 0) return 1;
+  return Math.min(1.5, Math.max(0.5, factor));
+}
+
+export function buildProjectionAudit({ agency, metric, actualValue, completedQuarter, previousQuarter, previousQuarterValue, twoBackValue }) {
+  if (!metric?.isPace || actualValue === null || previousQuarterValue === null) return null;
+
+  const previousDays = (previousQuarter.end - previousQuarter.start) / 86400000;
+  const previousInput = metric.baselineFromQ2
+    ? (twoBackValue !== null ? previousQuarterValue - twoBackValue : null)
+    : previousQuarterValue;
+  const previousRate = previousInput !== null ? previousInput / previousDays : null;
+  const actualInput = metric.baselineFromQ2 ? actualValue - previousQuarterValue : actualValue;
+  if (!Number.isFinite(actualInput) || actualInput < 0) return null;
+
+  const histBaseline = metric.baselineFromQ2 ? previousQuarterValue : 0;
+  const quarterStart = completedQuarter.start.getTime();
+  const quarterEnd = completedQuarter.end.getTime();
+  const metricHistory = getMetricHistory(agency, metric.id, completedQuarter)
+    .filter(s => s.t >= quarterStart && s.t < quarterEnd && Number.isFinite(s.val));
+
+  const samples = [];
+  for (const sample of metricHistory) {
+    const sampleInput = metric.baselineFromQ2 ? sample.val - previousQuarterValue : sample.val;
+    if (!Number.isFinite(sampleInput) || sampleInput < 0) continue;
+    const sampleHistory = metricHistory.filter(s => s.t <= sample.t);
+    const pace = computeAdvancedPace(
+      sampleInput,
+      completedQuarter.start,
+      completedQuarter.end,
+      previousRate,
+      sampleHistory,
+      histBaseline,
+      new Date(sample.t)
+    );
+    if (pace?.projected !== null && Number.isFinite(pace.projected) && pace.projected > 0) {
+      samples.push({ t: sample.t, projected: pace.projected, day: Math.round(pace.dElapsed) });
+    }
+  }
+
+  if (!samples.length) return null;
+  const avgProjected = samples.reduce((sum, s) => sum + s.projected, 0) / samples.length;
+  const error = avgProjected - actualInput;
+  const percentError = actualInput !== 0 ? error / actualInput * 100 : null;
+  const accuracyRatio = avgProjected > 0 ? actualInput / avgProjected : 1;
+  const calibrationFactor = clampCalibrationFactor(accuracyRatio);
+
+  return {
+    actual: actualInput,
+    avgProjected,
+    error,
+    percentError,
+    accuracyRatio,
+    calibrationFactor,
+    sampleCount: samples.length,
+    firstDay: samples[0]?.day ?? null,
+    lastDay: samples[samples.length - 1]?.day ?? null,
+  };
+}
+
+export function buildProjectionAudits(agency, qdata, quarters = TRENDS_QUARTERS) {
+  if (!Array.isArray(qdata) || qdata.length < 3 || !Array.isArray(quarters) || quarters.length < 3) return {};
+  const [twoBackData, previousData] = qdata;
+  const [twoBackQuarter, previousQuarter, currentQuarter] = quarters;
+  if (!quarterComplete(previousQuarter) || !currentQuarter) return {};
+
+  return Object.fromEntries(METRICS.map(metric => {
+    const audit = buildProjectionAudit({
+      agency,
+      metric,
+      actualValue: extractMetric(previousData, metric),
+      completedQuarter: previousQuarter,
+      previousQuarter: twoBackQuarter,
+      previousQuarterValue: extractMetric(twoBackData, metric),
+      twoBackValue: null,
+    });
+    return [metric.id, audit];
+  }));
 }
 
 // ─── Quarter completion ───────────────────────────────────────────
