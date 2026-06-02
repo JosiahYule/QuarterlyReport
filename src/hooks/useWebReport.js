@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { WEB_ENDPOINT, AGENCIES, QUARTERS } from "../config.js";
+import { WEB_ENDPOINT, QUARTERS } from "../config.js";
 
 function getPrevSuffix(currentSuffix) {
   const idx = QUARTERS.findIndex(q => q.suffix === currentSuffix);
@@ -12,12 +12,11 @@ async function fetchReport(key, signal) {
   return res.json();
 }
 
-export function useWebReport(agency, quarter) {
+export function useWebReport(quarter) {
   const [state, setState] = useState({ data: null, prevData: null, status: "loading", error: null });
 
   useEffect(() => {
-    const prefix = AGENCIES[agency]?.prefix ?? agency;
-    const reportKey = prefix + "web" + quarter;
+    const reportKey = "web" + quarter;
     const controller = new AbortController();
     setState({ data: null, prevData: null, status: "loading", error: null });
 
@@ -28,7 +27,7 @@ export function useWebReport(agency, quarter) {
 
         const prevSuffix = getPrevSuffix(quarter);
         if (prevSuffix) {
-          const prevKey = prefix + "web" + prevSuffix;
+          const prevKey = "web" + prevSuffix;
           try {
             const prevData = await fetchReport(prevKey, controller.signal);
             setState(s => ({ ...s, prevData }));
@@ -43,7 +42,7 @@ export function useWebReport(agency, quarter) {
     })();
 
     return () => controller.abort();
-  }, [agency, quarter]);
+  }, [quarter]);
 
   return state;
 }

@@ -202,7 +202,7 @@ function Notes({ data }) {
 
 // ─── Page ─────────────────────────────────────────────────────────
 export function WebPage({ agency, quarter, onReady }) {
-  const { data, prevData, status, error } = useWebReport(agency, quarter);
+  const { data, prevData, status, error } = useWebReport(quarter);
 
   useEffect(() => {
     if (status === "ready" || status === "error") onReady?.();
