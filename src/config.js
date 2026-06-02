@@ -4,12 +4,6 @@ export const AGENCIES = {
   ads: { label: "ADS", name: "Administrative Staffing", prefix: "ads", url: "https://administrativestaffing.ca" },
 };
 
-export const SOCIAL_ENDPOINT =
-  "https://script.google.com/macros/s/AKfycbwB-RGI1lVHrUE03PkkSEYbLuiTLxE4phMBBOm81diNJtSPyUWGoB_bOlkgFIoVF4yzLQ/exec";
-
-export const WEB_ENDPOINT =
-  "https://script.google.com/macros/s/AKfycbwWpZWB_eP48AX_B4TkGgKjEJPGoB7y9ynpv74SWA3MiEtV-Kmd-0eV-ecfTIysbWY3CQ/exec";
-
 export const VIEWS = ["social", "web", "trends"];
 
 // ─── Quarter calendar (fiscal year starts September) ──────────────

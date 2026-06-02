@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { SOCIAL_ENDPOINT, AGENCIES, TRENDS_QUARTERS, CURRENT_QUARTER } from "../config.js";
+import { supabase } from "../lib/supabase.js";
+import { AGENCIES, TRENDS_QUARTERS, CURRENT_QUARTER } from "../config.js";
 import { toNumber, nfk } from "../utils.js";
 
 // ─── Metric definitions ────────────────────────────────────────────
@@ -237,18 +238,29 @@ export function quarterCompletion(q) {
 export function quarterComplete(q) { return new Date() >= q.end; }
 
 // ─── Hook ─────────────────────────────────────────────────────────
-async function fetchQuarter(key, signal) {
+async function fetchQuarter(agency, quarter) {
   try {
-    const res = await fetch(
-      `${SOCIAL_ENDPOINT}?report=${encodeURIComponent(key)}&nocache=1&t=${Date.now()}`,
-      { cache: "no-store", signal }
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if (json?.error) throw new Error(json.message || "Endpoint error");
-    return json;
+    const { data, error } = await supabase
+      .from("social_reports")
+      .select("social_kpis(*)")
+      .eq("agency", agency)
+      .eq("quarter", quarter)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    const k = data.social_kpis?.[0] || {};
+    return {
+      overall: {
+        posts:       k.posts,
+        impressions: k.impressions,
+        shares:      k.shares,
+        reactions:   k.reactions,
+        followers:   k.followers,
+        linkclicks:  k.link_clicks,
+        comments:    k.comments,
+      },
+    };
   } catch (e) {
-    if (e.name === "AbortError") throw e;
     return null;
   }
 }
@@ -257,21 +269,17 @@ export function useTrendsData(agency) {
   const [state, setState] = useState({ qdata: null, status: "loading", error: null });
 
   useEffect(() => {
-    let currentCtrl = null;
+    let cancelled = false;
 
     const run = async () => {
-      if (currentCtrl) currentCtrl.abort();
-      currentCtrl = new AbortController();
-      const ctrl = currentCtrl;
-
-      const prefix = AGENCIES[agency]?.prefix ?? agency;
-      const keys = TRENDS_QUARTERS.map(q => prefix + q.suffix);
       try {
-        const qdata = await Promise.all(keys.map(k => fetchQuarter(k, ctrl.signal)));
-        storeSnapshot(agency, qdata[2]);
-        setState({ qdata, status: "ready", error: null });
+        const qdata = await Promise.all(TRENDS_QUARTERS.map(q => fetchQuarter(agency, q.suffix)));
+        if (!cancelled) {
+          storeSnapshot(agency, qdata[2]);
+          setState({ qdata, status: "ready", error: null });
+        }
       } catch (err) {
-        if (err.name !== "AbortError") {
+        if (!cancelled) {
           setState(s => s.status === "loading"
             ? { qdata: null, status: "error", error: err.message }
             : s);
@@ -284,8 +292,8 @@ export function useTrendsData(agency) {
     const id = setInterval(run, 300_000);
 
     return () => {
+      cancelled = true;
       clearInterval(id);
-      if (currentCtrl) currentCtrl.abort();
     };
   }, [agency]);
 

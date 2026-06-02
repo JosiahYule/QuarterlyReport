@@ -1,47 +1,91 @@
 import { useState, useEffect } from "react";
-import { WEB_ENDPOINT, QUARTERS } from "../config.js";
+import { supabase } from "../lib/supabase.js";
+import { QUARTERS } from "../config.js";
 
-function getPrevSuffix(currentSuffix) {
-  const idx = QUARTERS.findIndex(q => q.suffix === currentSuffix);
+function getPrevSuffix(suffix) {
+  const idx = QUARTERS.findIndex(q => q.suffix === suffix);
   return idx >= 0 && idx < QUARTERS.length - 1 ? QUARTERS[idx + 1].suffix : null;
 }
 
-async function fetchReport(key, signal) {
-  const res = await fetch(`${WEB_ENDPOINT}?report=${key}&t=${Date.now()}`, { cache: "no-store", signal });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+async function fetchReport(quarter) {
+  const { data, error } = await supabase
+    .from("web_reports")
+    .select(`
+      id, summary_bullet,
+      web_kpis(*),
+      web_channels(*),
+      web_pages(*),
+      web_insights(*)
+    `)
+    .eq("quarter", quarter)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+function normalize(report) {
+  if (!report) return null;
+  const kpis = report.web_kpis?.[0]    || {};
+  const ins  = report.web_insights?.[0] || {};
+  return {
+    summary: { bullet: report.summary_bullet || "" },
+    overall: {
+      sessions:             kpis.sessions,
+      users:                kpis.users,
+      engagementRate:       kpis.engagement_rate,
+      avgEngagementTimeSec: kpis.avg_engagement_time_sec,
+      actions:              kpis.actions,
+      formSubmissions:      kpis.form_submissions,
+    },
+    deltas: {},
+    channels: [...(report.web_channels || [])]
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map(c => ({
+        name:           c.name,
+        sessions:       c.sessions,
+        shareOfTraffic: c.share_of_traffic,
+        engagementRate: c.engagement_rate,
+      })),
+    topPages: [...(report.web_pages || [])]
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map(p => ({
+        key:              p.key,
+        pageViews:        p.page_views,
+        bounceRate:       p.bounce_rate,
+        avgTimeOnPageSec: p.avg_time_on_page_sec,
+      })),
+    insights: {
+      working:    ins.working      || "",
+      notWorking: ins.not_working  || "",
+      actions:    ins.actions      || "",
+      next:       ins.next_quarter || "",
+    },
+  };
 }
 
 export function useWebReport(quarter) {
   const [state, setState] = useState({ data: null, prevData: null, status: "loading", error: null });
 
   useEffect(() => {
-    const reportKey = "web" + quarter;
-    const controller = new AbortController();
+    let cancelled = false;
     setState({ data: null, prevData: null, status: "loading", error: null });
 
     (async () => {
       try {
-        const data = await fetchReport(reportKey, controller.signal);
-        setState(s => ({ ...s, data, status: "ready" }));
-
         const prevSuffix = getPrevSuffix(quarter);
-        if (prevSuffix) {
-          const prevKey = "web" + prevSuffix;
-          try {
-            const prevData = await fetchReport(prevKey, controller.signal);
-            setState(s => ({ ...s, prevData }));
-          } catch (e) {
-            if (e.name !== "AbortError") console.warn("Previous quarter unavailable:", e.message);
-          }
+        const [report, prevReport] = await Promise.all([
+          fetchReport(quarter),
+          prevSuffix ? fetchReport(prevSuffix) : Promise.resolve(null),
+        ]);
+        if (!cancelled) {
+          setState({ data: normalize(report), prevData: normalize(prevReport), status: "ready", error: null });
         }
       } catch (err) {
-        if (err.name === "AbortError") return;
-        setState({ data: null, prevData: null, status: "error", error: err.message || "Failed to load report" });
+        if (!cancelled) setState({ data: null, prevData: null, status: "error", error: err.message || "Failed to load report" });
       }
     })();
 
-    return () => controller.abort();
+    return () => { cancelled = true; };
   }, [quarter]);
 
   return state;
