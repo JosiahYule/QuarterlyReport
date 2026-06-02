@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { SOCIAL_ENDPOINT, AGENCIES, TRENDS_QUARTERS, CURRENT_QUARTER } from "../config.js";
-import { toNumber, nfk, fmtApprox } from "../utils.js";
+import { toNumber, nfk } from "../utils.js";
 
 // ─── Metric definitions ────────────────────────────────────────────
 export const METRICS = [
@@ -153,9 +153,11 @@ export function buildProjectionAudit({ agency, metric, actualValue, completedQua
 
   const previousDays = (previousQuarter.end - previousQuarter.start) / 86400000;
   const previousInput = metric.baselineFromQ2
-    ? (twoBackValue !== null ? previousQuarterValue - twoBackValue : null)
+    ? (twoBackValue != null ? previousQuarterValue - twoBackValue : null)
     : previousQuarterValue;
-  const previousRate = previousInput !== null ? previousInput / previousDays : null;
+  const previousRate = previousInput !== null && Number.isFinite(previousInput)
+    ? previousInput / previousDays
+    : null;
   const actualInput = metric.baselineFromQ2 ? actualValue - previousQuarterValue : actualValue;
   if (!Number.isFinite(actualInput) || actualInput < 0) return null;
 
