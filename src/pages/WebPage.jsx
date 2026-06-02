@@ -4,10 +4,8 @@ import { Delta } from "../components/Delta.jsx";
 import { PageLoader } from "../components/PageLoader.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { EmptyNote } from "../components/EmptyState.jsx";
-import { fmtInt, fmtPct, fmtTime, calcAutoDelta, parseDelta } from "../utils.js";
+import { fmtInt, fmtPct, fmtTime, calcAutoDelta, parseDelta, FLAT } from "../utils.js";
 import { AGENCIES, QUARTERS } from "../config.js";
-
-const FLAT = { dir: "flat", pct: 0 };
 
 // ─── Hero ─────────────────────────────────────────────────────────
 function Hero({ agency, quarter, data }) {
@@ -86,7 +84,7 @@ function Channels({ data, prevData }) {
       <header className="section-head">
         <h2 className="section-title serif">Traffic Channels</h2>
       </header>
-      <div className="channels">
+      <div className="channels" role="grid" aria-label="Traffic channels breakdown">
         <div className="channel-row-web is-head" role="row">
           <div role="columnheader" />
           <div role="columnheader">Channel</div>
@@ -204,7 +202,7 @@ function Notes({ data }) {
 
 // ─── Page ─────────────────────────────────────────────────────────
 export function WebPage({ agency, quarter, onReady }) {
-  const { data, prevData, status, error } = useWebReport(quarter);
+  const { data, prevData, status, error } = useWebReport(agency, quarter);
 
   useEffect(() => {
     if (status === "ready" || status === "error") onReady?.();
