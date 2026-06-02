@@ -256,14 +256,14 @@ function TopPosts({ data }) {
               <tr>
                 <th scope="col">Post</th>
                 <th scope="col" className="r">Impressions</th>
-                <th scope="col" className="r">Reactions</th>
-                <th scope="col" className="r">Shares</th>
-                <th scope="col" className="r">Likes + Shares Rate</th>
+                <th scope="col" className="r">Engagements</th>
+                <th scope="col" className="r">Eng. Rate</th>
               </tr>
             </thead>
             <tbody>
               {posts.map((c, i) => {
-                const likesSharesRate = c.impressions > 0 ? (c.likes + c.shares) / c.impressions * 100 : 0;
+                const engagements = (c.likes || 0) + (c.shares || 0);
+                const engRate = c.impressions > 0 ? engagements / c.impressions * 100 : 0;
                 return (
                   <tr key={c.title + i}>
                     <td>
@@ -271,10 +271,9 @@ function TopPosts({ data }) {
                       <div className="campaign-chan">{platform}</div>
                     </td>
                     <td className="r num">{fmtExact(c.impressions)}</td>
-                    <td className="r num">{c.likes}</td>
-                    <td className="r num">{c.shares}</td>
-                    <td className="r num" style={{ color: likesSharesRate >= 5 ? "var(--up)" : "var(--ink)" }}>
-                      {likesSharesRate.toFixed(2)}%
+                    <td className="r num">{fmtExact(engagements)}</td>
+                    <td className="r num" style={{ color: engRate >= 5 ? "var(--up)" : "var(--ink)" }}>
+                      {engRate.toFixed(2)}%
                     </td>
                   </tr>
                 );
@@ -522,7 +521,7 @@ function AllPosts({ data }) {
 // ─── Notes ────────────────────────────────────────────────────────
 function NoteList({ items }) {
   if (!items.length) return <EmptyNote />;
-  const paras = items.flatMap(n => n.split("\n\n").filter(Boolean));
+  const paras = items.flatMap(n => n.split(/\n+/).filter(s => s.trim()));
   return <div>{paras.map((n, i) => <p key={i}>{n}</p>)}</div>;
 }
 
