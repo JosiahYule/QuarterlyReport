@@ -711,9 +711,9 @@
 }
 
 .admin-header-inner {
-  max-width: var(--wrap);
+  max-width: 960px;
   margin: 0 auto;
-  padding: 0 var(--edge);
+  padding: 0 32px;
   height: 56px;
   display: flex;
   align-items: center;
@@ -729,7 +729,7 @@
 
 /* Layout */
 .admin-wrap { min-height: 100svh; display: flex; flex-direction: column; background: var(--paper); }
-.admin-main { max-width: var(--wrap); margin: 0 auto; padding: 32px var(--edge) 80px; width: 100%; }
+.admin-main { max-width: 960px; margin: 0 auto; padding: 32px 32px 80px; width: 100%; }
 
 /* Shared inputs */
 .admin-select {
@@ -752,7 +752,7 @@
   width: 100%;
   height: 36px;
   padding: 0 10px;
-  border: 1px solid var(--rule-soft);
+  border: 1px solid var(--rule);
   background: var(--paper);
   font-family: var(--sans);
   font-size: 14px;
@@ -767,7 +767,7 @@
 .admin-textarea {
   width: 100%;
   padding: 10px;
-  border: 1px solid var(--rule-soft);
+  border: 1px solid var(--rule);
   background: var(--paper);
   font-family: var(--sans);
   font-size: 14px;
@@ -779,11 +779,12 @@
 }
 .admin-textarea:focus { outline: none; border-color: var(--ink); }
 
-.admin-field       { display: flex; flex-direction: column; gap: 6px; }
-.admin-label       { font-size: 12px; font-weight: 500; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase; }
+.admin-field       { display: flex; flex-direction: column; gap: 5px; }
+.admin-label       { font-size: 11px; font-weight: 600; color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase; }
+.admin-section-heading { font-size: 13px; font-weight: 500; color: var(--ink-2); letter-spacing: .02em; margin-bottom: 4px; }
 .admin-error       { font-size: 13px; color: var(--down); margin: 8px 0 0; }
-.admin-list-hint   { font-size: 13px; color: var(--ink-3); margin-bottom: 16px; }
-.admin-csv-hint    { font-size: 12px; color: var(--ink-4); margin: 6px 0 12px; }
+.admin-list-hint   { font-size: 13px; color: var(--ink-3); margin-bottom: 12px; }
+.admin-csv-hint    { font-size: 12px; color: var(--ink-4); margin: 4px 0 10px; }
 .admin-csv-hint code { background: var(--rule-soft); padding: 1px 5px; font-size: 11px; }
 
 /* Buttons */
@@ -871,14 +872,15 @@
 
 /* Form sections */
 .admin-form-section   { display: flex; flex-direction: column; gap: 20px; }
-.admin-kpi-grid       { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+.admin-kpi-grid       { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 .admin-insights-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.admin-section-card   { background: var(--paper-2); padding: 20px; margin-bottom: 0; }
 
 /* List rows (platforms, channels, pages) */
-.admin-list-row        { display: flex; align-items: flex-start; gap: 8px; padding: 16px; border: 1px solid var(--rule-soft); margin-bottom: 8px; background: var(--paper); }
-.admin-list-row-grid   { flex: 1; display: grid; gap: 12px; }
-.admin-platform-grid   { grid-template-columns: repeat(3, 1fr); }
-.admin-channel-grid    { grid-template-columns: repeat(4, 1fr); }
+.admin-list-row        { display: flex; align-items: flex-start; gap: 8px; padding: 14px 16px; border: 1px solid var(--rule); margin-bottom: 6px; background: var(--paper-2); }
+.admin-list-row-grid   { flex: 1; display: grid; gap: 10px; }
+.admin-platform-grid   { grid-template-columns: 1.4fr repeat(2, 1fr); }
+.admin-channel-grid    { grid-template-columns: 1.6fr repeat(3, 1fr); }
 .admin-page-grid       { grid-template-columns: 2fr 1fr 1fr 1fr; }
 .admin-toppost-grid    { grid-template-columns: 3fr 1fr 1fr 1fr; }
 
@@ -897,11 +899,21 @@
 .admin-save-msg.is-error { color: var(--down); }
 
 /* Responsive admin */
+@media (max-width: 960px) {
+  .admin-header-inner { padding: 0 20px; }
+  .admin-main         { padding: 24px 20px 80px; }
+}
 @media (max-width: 720px) {
+  .admin-kpi-grid       { grid-template-columns: repeat(2, 1fr); }
   .admin-insights-grid  { grid-template-columns: 1fr; }
   .admin-platform-grid  { grid-template-columns: 1fr 1fr; }
   .admin-channel-grid   { grid-template-columns: 1fr 1fr; }
   .admin-page-grid      { grid-template-columns: 1fr 1fr; }
   .admin-toppost-grid   { grid-template-columns: 1fr 1fr; }
   .admin-header-selects { flex-direction: column; gap: 4px; }
+}
+@media (max-width: 480px) {
+  .admin-kpi-grid       { grid-template-columns: repeat(2, 1fr); }
+  .admin-header-inner   { padding: 0 16px; }
+  .admin-main           { padding: 20px 16px 80px; }
 }
