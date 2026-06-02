@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
-import { AGENCIES, TRENDS_QUARTERS, CURRENT_QUARTER } from "../config.js";
+import { TRENDS_QUARTERS, CURRENT_QUARTER } from "../config.js";
 import { toNumber, nfk } from "../utils.js";
 
 // ─── Metric definitions ────────────────────────────────────────────
@@ -94,7 +94,7 @@ export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory
     }
   }
 
-  // Dynamic blending: trust data-driven methods more as the quarter matures.
+  // Dynamic blending: shift weight toward data-driven methods as quarter matures.
   let blended;
   if (regProj !== null && rollingProj !== null) {
     if (elapsedFraction < 0.25)      blended = 0.30 * simpleProj + 0.35 * rollingProj + 0.35 * regProj;
@@ -108,23 +108,31 @@ export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory
     blended = simpleProj;
   }
 
-  // Ramp off the Q2-rate anchor as we accumulate more current-quarter evidence.
+  // Ramp off Q2-rate anchor as current-quarter evidence accumulates.
   const anchorWeight = Math.max(0, (0.25 - elapsedFraction) / 0.25);
   const rawProjected = q2Rate !== null && Number.isFinite(q2Rate) && q2Rate > 0 && anchorWeight > 0
     ? anchorWeight * (q2Rate * dTotal) + (1 - anchorWeight) * blended
     : blended;
 
   const safeCalibration = Number.isFinite(calibrationFactor) && calibrationFactor > 0 ? calibrationFactor : 1;
-  // Floor: a cumulative metric can't finish below its current value.
   const projected = Math.max(rawProjected * safeCalibration, current);
 
   return { projected, rawProjected, dailyRate: rollingRate ?? simpleRate, dElapsed, dTotal, calibrationFactor: safeCalibration };
 }
 
-// ─── Week-ago projection ──────────────────────────────────────────
-export function getWeekAgoProjection(agency, metric, tq3, q2Rate, histBaseline = 0) {
+// ─── History: pure helpers (operate on pre-fetched snapshot arrays) ──
+// snapshots: [{ t: number, vals: { metricId: number } }]
+
+export function getMetricHistory(snapshots, metricId) {
+  return (snapshots || [])
+    .filter(s => s.vals && s.vals[metricId] !== undefined)
+    .map(s => ({ t: s.t, val: s.vals[metricId] }))
+    .sort((a, b) => a.t - b.t);
+}
+
+export function getWeekAgoProjection(snapshots, metric, tq3, q2Rate, histBaseline = 0) {
+  const allHistory = getMetricHistory(snapshots, metric.id);
   const weekAgoT = Date.now() - 7 * 86400000;
-  const allHistory = getMetricHistory(agency, metric.id);
   const pastHistory = allHistory.filter(s => s.t <= weekAgoT);
   if (!pastHistory.length) return null;
   const snap = pastHistory[pastHistory.length - 1];
@@ -134,9 +142,8 @@ export function getWeekAgoProjection(agency, metric, tq3, q2Rate, histBaseline =
   return pace.projected + (metric.baselineFromQ2 ? histBaseline : 0);
 }
 
-// ─── Projection timeline (for sparkline) ─────────────────────────
-export function getProjectionTimeline(agency, metric, tq3, q2Rate, histBaseline = 0) {
-  const allHistory = getMetricHistory(agency, metric.id);
+export function getProjectionTimeline(snapshots, metric, tq3, q2Rate, histBaseline = 0) {
+  const allHistory = getMetricHistory(snapshots, metric.id);
   if (allHistory.length < 2) return [];
   const result = [];
   for (let i = 1; i < allHistory.length; i++) {
@@ -151,47 +158,47 @@ export function getProjectionTimeline(agency, metric, tq3, q2Rate, histBaseline 
   return result;
 }
 
-// ─── History persistence ──────────────────────────────────────────
-export function getHistoryKey(agency, quarter = CURRENT_QUARTER) { return `${agency}${quarter.suffix}_proj_history`; }
-
-export function storeSnapshot(agency, d3) {
+// ─── History: Supabase persistence ───────────────────────────────
+async function storeSnapshot(agency, d3) {
   if (!d3) return;
-  const snap = { t: Date.now(), vals: {} };
+  const vals = {};
   for (const m of METRICS) {
     if (!m.isPace) continue;
     const v = extractMetric(d3, m);
-    if (v !== null) snap.vals[m.id] = v;
+    if (v !== null) vals[m.id] = v;
   }
-  if (!Object.keys(snap.vals).length) return;
+  if (!Object.keys(vals).length) return;
+  const today = new Date().toISOString().slice(0, 10);
   try {
-    const raw = localStorage.getItem(getHistoryKey(agency));
-    const hist = raw ? JSON.parse(raw) : [];
-    hist.push(snap);
-    localStorage.setItem(getHistoryKey(agency), JSON.stringify(hist.slice(-500)));
-  } catch (e) {}
+    await supabase.from("projection_snapshots").upsert(
+      { agency, quarter: CURRENT_QUARTER.suffix, snapshot_date: today, captured_at: new Date().toISOString(), vals },
+      { onConflict: "agency,quarter,snapshot_date" }
+    );
+  } catch (_) {}
 }
 
-export function loadHistory(agency, quarter = CURRENT_QUARTER) {
-  let hist = [];
-  try { hist = JSON.parse(localStorage.getItem(getHistoryKey(agency, quarter)) || "[]"); } catch { return []; }
-  const byDay = {};
-  for (const snap of hist) byDay[new Date(snap.t).toDateString()] = snap;
-  return Object.values(byDay).sort((a, b) => a.t - b.t);
+async function loadSnapshots(agency, quarterSuffix) {
+  try {
+    const { data, error } = await supabase
+      .from("projection_snapshots")
+      .select("captured_at, vals")
+      .eq("agency", agency)
+      .eq("quarter", quarterSuffix)
+      .order("snapshot_date", { ascending: true });
+    if (error || !data) return [];
+    return data.map(row => ({ t: new Date(row.captured_at).getTime(), vals: row.vals }));
+  } catch (_) {
+    return [];
+  }
 }
 
-export function getMetricHistory(agency, metricId, quarter = CURRENT_QUARTER) {
-  return loadHistory(agency, quarter)
-    .filter(s => s.vals && s.vals[metricId] !== undefined)
-    .map(s => ({ t: s.t, val: s.vals[metricId] }))
-    .sort((a, b) => a.t - b.t);
-}
-
+// ─── Calibration audit ────────────────────────────────────────────
 export function clampCalibrationFactor(factor) {
   if (!Number.isFinite(factor) || factor <= 0) return 1;
   return Math.min(1.5, Math.max(0.5, factor));
 }
 
-export function buildProjectionAudit({ agency, metric, actualValue, completedQuarter, previousQuarter, previousQuarterValue, twoBackValue }) {
+export function buildProjectionAudit({ metric, actualValue, completedQuarter, previousQuarter, previousQuarterValue, twoBackValue, snapshotHistory }) {
   if (!metric?.isPace || actualValue === null || previousQuarterValue === null) return null;
 
   const previousDays = (previousQuarter.end - previousQuarter.start) / 86400000;
@@ -199,15 +206,14 @@ export function buildProjectionAudit({ agency, metric, actualValue, completedQua
     ? (twoBackValue != null ? previousQuarterValue - twoBackValue : null)
     : previousQuarterValue;
   const previousRate = previousInput !== null && Number.isFinite(previousInput)
-    ? previousInput / previousDays
-    : null;
+    ? previousInput / previousDays : null;
   const actualInput = metric.baselineFromQ2 ? actualValue - previousQuarterValue : actualValue;
   if (!Number.isFinite(actualInput) || actualInput < 0) return null;
 
   const histBaseline = metric.baselineFromQ2 ? previousQuarterValue : 0;
   const quarterStart = completedQuarter.start.getTime();
-  const quarterEnd = completedQuarter.end.getTime();
-  const metricHistory = getMetricHistory(agency, metric.id, completedQuarter)
+  const quarterEnd   = completedQuarter.end.getTime();
+  const metricHistory = getMetricHistory(snapshotHistory, metric.id)
     .filter(s => s.t >= quarterStart && s.t < quarterEnd && Number.isFinite(s.val));
 
   const samples = [];
@@ -215,15 +221,7 @@ export function buildProjectionAudit({ agency, metric, actualValue, completedQua
     const sampleInput = metric.baselineFromQ2 ? sample.val - previousQuarterValue : sample.val;
     if (!Number.isFinite(sampleInput) || sampleInput < 0) continue;
     const sampleHistory = metricHistory.filter(s => s.t <= sample.t);
-    const pace = computeAdvancedPace(
-      sampleInput,
-      completedQuarter.start,
-      completedQuarter.end,
-      previousRate,
-      sampleHistory,
-      histBaseline,
-      new Date(sample.t)
-    );
+    const pace = computeAdvancedPace(sampleInput, completedQuarter.start, completedQuarter.end, previousRate, sampleHistory, histBaseline, new Date(sample.t));
     if (pace?.projected !== null && Number.isFinite(pace.projected) && pace.projected > 0) {
       samples.push({ t: sample.t, projected: pace.projected, day: Math.round(pace.dElapsed) });
     }
@@ -237,33 +235,30 @@ export function buildProjectionAudit({ agency, metric, actualValue, completedQua
   const calibrationFactor = clampCalibrationFactor(accuracyRatio);
 
   return {
-    actual: actualInput,
-    avgProjected,
-    error,
-    percentError,
-    accuracyRatio,
-    calibrationFactor,
+    actual: actualInput, avgProjected, error, percentError,
+    accuracyRatio, calibrationFactor,
     sampleCount: samples.length,
     firstDay: samples[0]?.day ?? null,
-    lastDay: samples[samples.length - 1]?.day ?? null,
+    lastDay:  samples[samples.length - 1]?.day ?? null,
   };
 }
 
-export function buildProjectionAudits(agency, qdata, quarters = TRENDS_QUARTERS) {
+export function buildProjectionAudits(qdata, snapsByQuarter, quarters = TRENDS_QUARTERS) {
   if (!Array.isArray(qdata) || qdata.length < 3 || !Array.isArray(quarters) || quarters.length < 3) return {};
   const [twoBackData, previousData] = qdata;
-  const [twoBackQuarter, previousQuarter, currentQuarter] = quarters;
-  if (!quarterComplete(previousQuarter) || !currentQuarter) return {};
+  const [twoBackQuarter, previousQuarter] = quarters;
+  if (!quarterComplete(previousQuarter)) return {};
 
+  const prevSnaps = snapsByQuarter?.[previousQuarter.suffix] || [];
   return Object.fromEntries(METRICS.map(metric => {
     const audit = buildProjectionAudit({
-      agency,
       metric,
-      actualValue: extractMetric(previousData, metric),
-      completedQuarter: previousQuarter,
-      previousQuarter: twoBackQuarter,
+      actualValue:          extractMetric(previousData, metric),
+      completedQuarter:     previousQuarter,
+      previousQuarter:      twoBackQuarter,
       previousQuarterValue: extractMetric(twoBackData, metric),
-      twoBackValue: null,
+      twoBackValue:         null,
+      snapshotHistory:      prevSnaps,
     });
     return [metric.id, audit];
   }));
@@ -272,8 +267,8 @@ export function buildProjectionAudits(agency, qdata, quarters = TRENDS_QUARTERS)
 // ─── Quarter completion ───────────────────────────────────────────
 export function quarterCompletion(q) {
   const now = new Date();
-  if (now >= q.end)   return 1;
-  if (now < q.start)  return 0;
+  if (now >= q.end)  return 1;
+  if (now < q.start) return 0;
   return (now - q.start) / (q.end - q.start);
 }
 
@@ -302,41 +297,45 @@ async function fetchQuarter(agency, quarter) {
         comments:    k.comments,
       },
     };
-  } catch (e) {
+  } catch (_) {
     return null;
   }
 }
 
 export function useTrendsData(agency) {
-  const [state, setState] = useState({ qdata: null, status: "loading", error: null });
+  const [state, setState] = useState({ qdata: null, snapsByQuarter: {}, status: "loading", error: null });
 
   useEffect(() => {
     let cancelled = false;
 
     const run = async () => {
       try {
-        const qdata = await Promise.all(TRENDS_QUARTERS.map(q => fetchQuarter(agency, q.suffix)));
+        const [qdata, ...snapsArrays] = await Promise.all([
+          Promise.all(TRENDS_QUARTERS.map(q => fetchQuarter(agency, q.suffix))),
+          ...TRENDS_QUARTERS.map(q => loadSnapshots(agency, q.suffix)),
+        ]);
+
         if (!cancelled) {
+          const snapsByQuarter = Object.fromEntries(
+            TRENDS_QUARTERS.map((q, i) => [q.suffix, snapsArrays[i]])
+          );
+          // Fire-and-forget: write today's snapshot for the current quarter.
           storeSnapshot(agency, qdata[2]);
-          setState({ qdata, status: "ready", error: null });
+          setState({ qdata, snapsByQuarter, status: "ready", error: null });
         }
       } catch (err) {
         if (!cancelled) {
           setState(s => s.status === "loading"
-            ? { qdata: null, status: "error", error: err.message }
+            ? { qdata: null, snapsByQuarter: {}, status: "error", error: err.message }
             : s);
         }
       }
     };
 
-    setState({ qdata: null, status: "loading", error: null });
+    setState({ qdata: null, snapsByQuarter: {}, status: "loading", error: null });
     run();
     const id = setInterval(run, 300_000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
+    return () => { cancelled = true; clearInterval(id); };
   }, [agency]);
 
   return state;
