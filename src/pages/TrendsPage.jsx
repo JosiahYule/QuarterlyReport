@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo } from "react";
 import Chart from "chart.js/auto";
-import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits } from "../hooks/useTrendsData.js";
+import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, getWeekAgoProjection, getProjectionTimeline } from "../hooks/useTrendsData.js";
 import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { fmt, fmtApprox } from "../utils.js";
 import { PageLoader } from "../components/PageLoader.jsx";
@@ -183,6 +183,44 @@ function ChartCard({ metric, agency, qdata, calibrationFactor = 1 }) {
   );
 }
 
+// ─── Projection sparkline ─────────────────────────────────────────
+function ProjSparkline({ timeline, isPercent }) {
+  if (!timeline || timeline.length < 2) return null;
+  const W = 160, H = 36;
+  const vals = timeline.map(p => p.projected);
+  const minV = Math.min(...vals), maxV = Math.max(...vals);
+  const range = maxV - minV || 1;
+  const minT = timeline[0].t, maxT = timeline[timeline.length - 1].t;
+  const tRange = maxT - minT || 1;
+
+  const pts = timeline.map(p => {
+    const x = ((p.t - minT) / tRange) * W;
+    const y = H - ((p.projected - minV) / range) * H;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+
+  const last = timeline[timeline.length - 1].projected;
+  const first = timeline[0].projected;
+  const up = last >= first;
+  const color = up ? "var(--up)" : "var(--down)";
+
+  const labelY = H - ((last - minV) / range) * H;
+  const labelAnchor = labelY > H * 0.6 ? "end" : "start";
+  const labelDy = labelY > H * 0.6 ? -4 : 12;
+
+  return (
+    <div className="proj-sparkline-wrap" aria-hidden="true">
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: "block", overflow: "visible" }}>
+        <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" opacity=".7" />
+        <circle cx={pts.split(" ").pop().split(",")[0]} cy={labelY.toFixed(1)} r="3" fill={color} />
+      </svg>
+      <div className="proj-sparkline-label" style={{ color }}>
+        {up ? "▲" : "▼"} Projection trending {up ? "up" : "down"} this quarter
+      </div>
+    </div>
+  );
+}
+
 // ─── Projection card ──────────────────────────────────────────────
 function ProjCard({ metric, agency, qdata, q3comp, q3done, calibrationFactor = 1 }) {
   const [d1, d2, d3] = qdata;
@@ -204,12 +242,11 @@ function ProjCard({ metric, agency, qdata, q3comp, q3done, calibrationFactor = 1
 
   const projected = pace?.projected ?? null;
   const rateVsQ2  = pace && q2Rate ? ((pace.dailyRate - q2Rate) / q2Rate * 100) : null;
-  const headlineVal = projected !== null && metric.baselineFromQ2 && q2v !== null ? q2v + projected : projected;
-  const headline  = headlineVal !== null ? fmtApprox(headlineVal, metric.isPercent) : fmt(q3v, metric.isPercent);
+  const headlineVal = projected !== null ? projected : q3v;
+  const headline  = headlineVal !== null ? fmtApprox(headlineVal, metric.isPercent) : "—";
   const ql = tq3.label;
-  const headlineSub = headlineVal !== null
-    ? (q3done ? (metric.baselineFromQ2 ? `${ql} Projected Total` : `${ql} Final`)
-               : (metric.baselineFromQ2 ? `Projected Total · ${ql}` : `Projected Final · ${ql}`))
+  const headlineSub = projected !== null
+    ? (q3done ? `${ql} Final` : `Projected Final · ${ql}`)
     : (metric.baselineFromQ2 ? `${ql} Current Total` : `${ql} Current`);
 
   const dElapsed = pace ? Math.round(pace.dElapsed) : 0;
@@ -232,6 +269,23 @@ function ProjCard({ metric, agency, qdata, q3comp, q3done, calibrationFactor = 1
     stat3Val = "n/a";
   }
 
+  // Week-over-week projection change
+  const weekAgoProj = projected !== null && !q3done
+    ? getWeekAgoProjection(agency, metric, tq3, q2Rate, histBaseline)
+    : null;
+  let wowVal = "—", wowCls = "na";
+  if (weekAgoProj !== null && projected !== null) {
+    const delta = projected - weekAgoProj;
+    const sign = delta >= 0 ? "▲ +" : "▼ ";
+    wowVal = `${sign}${fmtApprox(Math.abs(delta), metric.isPercent)}`;
+    wowCls = delta >= 0 ? "pos" : "neg";
+  }
+
+  // Projection history sparkline
+  const timeline = projected !== null && !q3done
+    ? getProjectionTimeline(agency, metric, tq3, q2Rate, histBaseline)
+    : [];
+
   return (
     <div className="proj-card">
       <div className="proj-card-label">{metric.label}</div>
@@ -253,17 +307,18 @@ function ProjCard({ metric, agency, qdata, q3comp, q3done, calibrationFactor = 1
         </div>
         <div className="proj-stat">
           <div className="proj-stat-label">Daily Rate</div>
-          <div className={"proj-stat-value rate"}>{stat2Val}</div>
+          <div className="proj-stat-value rate">{stat2Val}</div>
         </div>
         <div className="proj-stat">
-          <div className="proj-stat-label">Rate vs Q2</div>
+          <div className="proj-stat-label">Rate vs {tq2.label}</div>
           <div className={"proj-stat-value " + stat3Cls}>{stat3Val}</div>
         </div>
         <div className="proj-stat">
-          <div className="proj-stat-label">{tq2.label} Actual</div>
-          <div className="proj-stat-value">{fmt(q2v, metric.isPercent)}</div>
+          <div className="proj-stat-label">vs Last Week</div>
+          <div className={"proj-stat-value " + wowCls}>{wowVal}</div>
         </div>
       </div>
+      <ProjSparkline timeline={timeline} isPercent={metric.isPercent} />
     </div>
   );
 }

@@ -58,6 +58,7 @@ export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory
   if (dElapsed < 7) return null;
   const dTotal = (qEnd - qStart) / 86400000;
   const dRemaining = dTotal - dElapsed;
+  const elapsedFraction = dElapsed / dTotal;
   const simpleRate = current / dElapsed;
   const simpleProj = simpleRate * dTotal;
 
@@ -93,20 +94,61 @@ export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory
     }
   }
 
+  // Dynamic blending: trust data-driven methods more as the quarter matures.
   let blended;
-  if (regProj !== null && rollingProj !== null)  blended = 0.20 * simpleProj + 0.40 * rollingProj + 0.40 * regProj;
-  else if (regProj !== null)                     blended = 0.40 * simpleProj + 0.60 * regProj;
-  else if (rollingProj !== null)                 blended = 0.35 * simpleProj + 0.65 * rollingProj;
-  else                                           blended = simpleProj;
+  if (regProj !== null && rollingProj !== null) {
+    if (elapsedFraction < 0.25)      blended = 0.30 * simpleProj + 0.35 * rollingProj + 0.35 * regProj;
+    else if (elapsedFraction < 0.55) blended = 0.20 * simpleProj + 0.40 * rollingProj + 0.40 * regProj;
+    else                             blended = 0.10 * simpleProj + 0.40 * rollingProj + 0.50 * regProj;
+  } else if (regProj !== null) {
+    blended = elapsedFraction < 0.4 ? 0.45 * simpleProj + 0.55 * regProj : 0.30 * simpleProj + 0.70 * regProj;
+  } else if (rollingProj !== null) {
+    blended = elapsedFraction < 0.4 ? 0.40 * simpleProj + 0.60 * rollingProj : 0.25 * simpleProj + 0.75 * rollingProj;
+  } else {
+    blended = simpleProj;
+  }
 
-  const confidence = Math.min(1, dElapsed / 14);
-  const rawProjected = q2Rate !== null && Number.isFinite(q2Rate) && q2Rate > 0
-    ? confidence * blended + (1 - confidence) * (q2Rate * dTotal)
+  // Ramp off the Q2-rate anchor as we accumulate more current-quarter evidence.
+  const anchorWeight = Math.max(0, (0.25 - elapsedFraction) / 0.25);
+  const rawProjected = q2Rate !== null && Number.isFinite(q2Rate) && q2Rate > 0 && anchorWeight > 0
+    ? anchorWeight * (q2Rate * dTotal) + (1 - anchorWeight) * blended
     : blended;
+
   const safeCalibration = Number.isFinite(calibrationFactor) && calibrationFactor > 0 ? calibrationFactor : 1;
-  const projected = rawProjected * safeCalibration;
+  // Floor: a cumulative metric can't finish below its current value.
+  const projected = Math.max(rawProjected * safeCalibration, current);
 
   return { projected, rawProjected, dailyRate: rollingRate ?? simpleRate, dElapsed, dTotal, calibrationFactor: safeCalibration };
+}
+
+// ─── Week-ago projection ──────────────────────────────────────────
+export function getWeekAgoProjection(agency, metric, tq3, q2Rate, histBaseline = 0) {
+  const weekAgoT = Date.now() - 7 * 86400000;
+  const allHistory = getMetricHistory(agency, metric.id);
+  const pastHistory = allHistory.filter(s => s.t <= weekAgoT);
+  if (!pastHistory.length) return null;
+  const snap = pastHistory[pastHistory.length - 1];
+  const snapInput = snap.val - histBaseline;
+  const pace = computeAdvancedPace(snapInput, tq3.start, tq3.end, q2Rate, pastHistory, histBaseline, new Date(snap.t));
+  if (!pace?.projected) return null;
+  return pace.projected + (metric.baselineFromQ2 ? histBaseline : 0);
+}
+
+// ─── Projection timeline (for sparkline) ─────────────────────────
+export function getProjectionTimeline(agency, metric, tq3, q2Rate, histBaseline = 0) {
+  const allHistory = getMetricHistory(agency, metric.id);
+  if (allHistory.length < 2) return [];
+  const result = [];
+  for (let i = 1; i < allHistory.length; i++) {
+    const pastHistory = allHistory.slice(0, i + 1);
+    const snap = allHistory[i];
+    const snapInput = snap.val - histBaseline;
+    const pace = computeAdvancedPace(snapInput, tq3.start, tq3.end, q2Rate, pastHistory, histBaseline, new Date(snap.t));
+    if (pace?.projected != null) {
+      result.push({ t: snap.t, projected: pace.projected + (metric.baselineFromQ2 ? histBaseline : 0) });
+    }
+  }
+  return result;
 }
 
 // ─── History persistence ──────────────────────────────────────────
