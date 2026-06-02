@@ -62,7 +62,7 @@ async function migrateSocial(agency, quarter) {
   console.log(`  ${reportKey}: found data, migrating…`);
 
   // Normalise overall KPIs (handles both pre-normalised and raw GAS shapes)
-  let overall = {}, allPosts = raw.allPosts || [];
+  let overall = {}, allPosts = Array.isArray(raw.allPosts) ? raw.allPosts : [];
   const keyMap = { posts:"posts", impressions:"impressions", shares:"shares",
     reactions:"reactions", followers:"followers", linkClicks:"linkclicks",
     comments:"comments", avgEngagementRate:"avgengagementrate" };
