@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { AGENCIES, QUARTERS } from "../config.js";
 
 const TABS = [
@@ -151,8 +151,11 @@ export function AppNav({ agency, view, quarter, onNavigate }) {
   const agencyRef  = useRef();
   const quarterRef = useRef();
 
-  useCloseOnOutside(agencyRef,  () => setAgencyOpen(false));
-  useCloseOnOutside(quarterRef, () => setQuarterOpen(false));
+  const closeAgency  = useCallback(() => setAgencyOpen(false),  []);
+  const closeQuarter = useCallback(() => setQuarterOpen(false), []);
+
+  useCloseOnOutside(agencyRef,  closeAgency);
+  useCloseOnOutside(quarterRef, closeQuarter);
 
   const cfg = AGENCIES[agency] || AGENCIES.isl;
   const q   = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];

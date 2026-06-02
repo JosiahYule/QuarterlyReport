@@ -257,11 +257,13 @@ export function useTrendsData(agency) {
   const [state, setState] = useState({ qdata: null, status: "loading", error: null });
 
   useEffect(() => {
-    const controllers = [];
+    let currentCtrl = null;
 
     const run = async () => {
-      const ctrl = new AbortController();
-      controllers.push(ctrl);
+      if (currentCtrl) currentCtrl.abort();
+      currentCtrl = new AbortController();
+      const ctrl = currentCtrl;
+
       const prefix = AGENCIES[agency]?.prefix ?? agency;
       const keys = TRENDS_QUARTERS.map(q => prefix + q.suffix);
       try {
@@ -283,7 +285,7 @@ export function useTrendsData(agency) {
 
     return () => {
       clearInterval(id);
-      controllers.forEach(c => c.abort());
+      if (currentCtrl) currentCtrl.abort();
     };
   }, [agency]);
 

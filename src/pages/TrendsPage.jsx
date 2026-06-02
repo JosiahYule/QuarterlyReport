@@ -44,8 +44,12 @@ function makeTooltipHandler(isPercent) {
     const y = tooltip.caretY;
 
     el.style.opacity = "1";
-    el.style.left = x + "px";
-    el.style.top  = y + "px";
+    el.style.top = y + "px";
+
+    // Clamp horizontally so the tooltip doesn't overflow the chart container.
+    const containerWidth = chart.canvas.parentNode.offsetWidth;
+    const tooltipWidth = el.offsetWidth || 120;
+    el.style.left = Math.min(x, containerWidth - tooltipWidth - 8) + "px";
   };
 }
 
@@ -88,8 +92,11 @@ function ChartCard({ metric, agency, qdata, calibrationFactor = 1 }) {
   const colors = [C.q1, C.q2, isProjected ? C.proj : C.q3];
   const values = [q1v ?? 0, q2v ?? 0, chartQ3val];
 
-  const sub = done ? "Quarter-over-quarter actuals" : "Q1 & Q2 actuals · Q3 pace projection";
+  const sub = done
+    ? "Quarter-over-quarter actuals"
+    : `${tq1.label} & ${tq2.label} actuals · ${tq3.label} pace projection`;
 
+  // Create the chart instance once per agency change; options (scales, tooltip) are stable.
   useEffect(() => {
     if (!canvasRef.current) return;
     if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
@@ -137,7 +144,17 @@ function ChartCard({ metric, agency, qdata, calibrationFactor = 1 }) {
     });
 
     return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
-  }, [agency, JSON.stringify(values)]);
+  }, [agency]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update data in-place when values change — avoids destroy/recreate on every data refresh.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = values;
+    chart.data.datasets[0].backgroundColor = colors;
+    chart.update();
+  }, [values[0], values[1], values[2], labels[2]]); // labels[2] changes when projected status flips
 
   const legendItems = [
     { color: C.q1, label: `${tq1.label} Actual` },
@@ -314,7 +331,7 @@ export function TrendsPage({ agency, onReady }) {
       <ErrorBoundary>
         <section className="section wrap">
           <header className="section-head">
-            <h2 className="section-title serif">Q3 Projected Finals</h2>
+            <h2 className="section-title serif">{TRENDS_QUARTERS[2].label} Projected Finals</h2>
             <p className="section-sub">Estimated end-of-quarter totals based on observed daily rate × total quarter days.</p>
           </header>
           <div className="proj-grid">
@@ -329,7 +346,7 @@ export function TrendsPage({ agency, onReady }) {
         <section className="section wrap">
           <header className="section-head">
             <h2 className="section-title serif">Quarterly Trends</h2>
-            <p className="section-sub">Quarter-over-quarter trajectory with Q3 pace projections.</p>
+            <p className="section-sub">Quarter-over-quarter trajectory with {TRENDS_QUARTERS[2].label} pace projections.</p>
           </header>
           <div className="charts-grid">
             {METRICS.map(m => (

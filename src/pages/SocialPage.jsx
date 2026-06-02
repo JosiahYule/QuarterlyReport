@@ -3,10 +3,8 @@ import { useSocialReport } from "../hooks/useSocialReport.js";
 import { Delta } from "../components/Delta.jsx";
 import { PageLoader } from "../components/PageLoader.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
-import { EmptyNote } from "../components/EmptyState.jsx";
-import { fmt, fmtExact } from "../utils.js";
-
-const FLAT = { dir: "flat", pct: 0 };
+import { EmptyNote, EmptyData } from "../components/EmptyState.jsx";
+import { fmt, fmtExact, FLAT } from "../utils.js";
 
 // ─── Hero ─────────────────────────────────────────────────────────
 function Hero({ data }) {
@@ -177,7 +175,7 @@ function Platforms({ data }) {
       <header className="section-head">
         <h2 className="section-title serif">By Platform</h2>
       </header>
-      <div className="channels">
+      <div className="channels" role="grid" aria-label="Platform breakdown">
         <div className="channel-row is-head" role="row">
           <div role="columnheader" />
           <div role="columnheader">Platform</div>
@@ -251,6 +249,7 @@ function TopPosts({ data }) {
         id={`top-posts-panel-${platform}`}
         aria-labelledby={`top-posts-tab-${platform}`}
       >
+        {posts.length === 0 && <EmptyData label="No top posts recorded for this platform." />}
         <div className="table-wrap">
           <table className="table">
             <thead>
@@ -259,12 +258,12 @@ function TopPosts({ data }) {
                 <th scope="col" className="r">Impressions</th>
                 <th scope="col" className="r">Reactions</th>
                 <th scope="col" className="r">Shares</th>
-                <th scope="col" className="r">Engagement</th>
+                <th scope="col" className="r">Likes + Shares Rate</th>
               </tr>
             </thead>
             <tbody>
               {posts.map((c, i) => {
-                const engagement = c.impressions > 0 ? (c.likes + c.shares) / c.impressions * 100 : 0;
+                const likesSharesRate = c.impressions > 0 ? (c.likes + c.shares) / c.impressions * 100 : 0;
                 return (
                   <tr key={c.title + i}>
                     <td>
@@ -274,8 +273,8 @@ function TopPosts({ data }) {
                     <td className="r num">{fmtExact(c.impressions)}</td>
                     <td className="r num">{c.likes}</td>
                     <td className="r num">{c.shares}</td>
-                    <td className="r num" style={{ color: engagement >= 5 ? "var(--up)" : "var(--ink)" }}>
-                      {engagement.toFixed(2)}%
+                    <td className="r num" style={{ color: likesSharesRate >= 5 ? "var(--up)" : "var(--ink)" }}>
+                      {likesSharesRate.toFixed(2)}%
                     </td>
                   </tr>
                 );
@@ -395,6 +394,7 @@ function AllPosts({ data }) {
 
       {view === "list" ? (
         <div className="all-posts-list-wrap">
+          {posts.length === 0 && <EmptyData label="No posts match your search or filter." />}
           <table className="table">
             <thead>
               <tr>

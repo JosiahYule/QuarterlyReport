@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
 import { WEB_ENDPOINT, QUARTERS } from "../config.js";
 
-function getPrevKey(key) {
-  const m = key.match(/^(.*?)(\d+)$/i);
-  if (!m) return null;
-  const n = Number(m[2]);
-  return n <= 1 ? null : m[1] + (n - 1);
+function getPrevSuffix(currentSuffix) {
+  const idx = QUARTERS.findIndex(q => q.suffix === currentSuffix);
+  return idx >= 0 && idx < QUARTERS.length - 1 ? QUARTERS[idx + 1].suffix : null;
 }
 
 async function fetchReport(key, signal) {
@@ -27,8 +25,9 @@ export function useWebReport(quarter) {
         const data = await fetchReport(reportKey, controller.signal);
         setState(s => ({ ...s, data, status: "ready" }));
 
-        const prevKey = getPrevKey(reportKey);
-        if (prevKey) {
+        const prevSuffix = getPrevSuffix(quarter);
+        if (prevSuffix) {
+          const prevKey = "web" + prevSuffix;
           try {
             const prevData = await fetchReport(prevKey, controller.signal);
             setState(s => ({ ...s, prevData }));

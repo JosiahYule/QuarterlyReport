@@ -1,3 +1,5 @@
+export const FLAT = { dir: "flat", pct: 0 };
+
 export function parseDelta(d) {
   if (d == null) return { dir: "flat", pct: 0 };
   if (typeof d === "object" && "dir" in d) return d;

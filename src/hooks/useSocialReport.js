@@ -69,14 +69,13 @@ function normalizeReport(raw, agency, quarter) {
   };
 
   const qMeta = getQuarterBySuffix(quarter);
-  const NAMES = { isl: "Integrated Staffing", as: "Accountant Staffing", ads: "Administrative Staffing" };
 
   return {
     meta: {
       quarter:    qMeta.label,
       rangeLabel: qMeta.rangeLabel,
       year:       qMeta.year,
-      agencyName: NAMES[agency] || "Integrated Staffing",
+      agencyName: AGENCIES[agency]?.name || "Integrated Staffing",
     },
     editorsNote:      (typeof raw.summary?.bullet === "string" && raw.summary.bullet.trim()) ? raw.summary.bullet.trim() : "",
     overall, deltas,
