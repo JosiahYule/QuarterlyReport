@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
 import { AGENCIES, QUARTERS } from "../config.js";
-import { calcAutoDelta } from "../utils.js";
+import { calcAutoDelta, FLAT } from "../utils.js";
 
 function getQuarterMeta(suffix) {
   return QUARTERS.find(q => q.suffix === suffix) || QUARTERS[0];
@@ -66,21 +66,29 @@ function normalize(report, agency, quarter, prev) {
     }
   }
 
+  const prevPlatformMap = {};
+  for (const p of (prev?.social_platforms || [])) {
+    prevPlatformMap[p.name.toLowerCase()] = p;
+  }
+
   const platforms = [...(report.social_platforms || [])]
     .sort((a, b) => a.sort_order - b.sort_order)
-    .map(p => ({
-      key:                 p.name.toLowerCase(),
-      name:                p.name,
-      followers:           p.followers,
-      followersDelta:      { dir: "flat", pct: 0 },
-      engagementRate:      p.engagement_rate,
-      engagementRateDelta: { dir: "flat", pct: 0 },
-      pageReach:           p.page_reach,
-      pageReachDelta:      { dir: "flat", pct: 0 },
-      pageClicks:          p.page_clicks,
-      pageClicksDelta:     { dir: "flat", pct: 0 },
-      note:                p.note || "",
-    }));
+    .map(p => {
+      const pp = prevPlatformMap[p.name.toLowerCase()];
+      return {
+        key:                 p.name.toLowerCase(),
+        name:                p.name,
+        followers:           p.followers,
+        followersDelta:      calcAutoDelta(p.followers,       pp?.followers)       || FLAT,
+        engagementRate:      p.engagement_rate,
+        engagementRateDelta: calcAutoDelta(p.engagement_rate, pp?.engagement_rate) || FLAT,
+        pageReach:           p.page_reach,
+        pageReachDelta:      calcAutoDelta(p.page_reach,      pp?.page_reach)      || FLAT,
+        pageClicks:          p.page_clicks,
+        pageClicksDelta:     calcAutoDelta(p.page_clicks,     pp?.page_clicks)     || FLAT,
+        note:                p.note || "",
+      };
+    });
 
   const topPostsByPlatform = { linkedin: [], facebook: [], instagram: [] };
   for (const p of (report.social_top_posts || [])) {

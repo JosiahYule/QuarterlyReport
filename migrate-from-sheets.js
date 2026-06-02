@@ -116,13 +116,23 @@ async function migrateSocial(agency, quarter) {
     notes:       p.Notes || p.notes || null,
   })).filter(p => p.post_name);
 
-  // Insights
+  // Insights — raw GAS returns an array [{Section, Text}]; pre-normalised shape
+  // returns a {working, notWorking, actions, next} object or raw.notes arrays.
+  const insMap = {};
+  if (Array.isArray(raw.insights)) {
+    raw.insights.forEach(i => {
+      const k = String(i.Section || i.section || "").trim().toLowerCase()
+        .replace(/[^a-z]/g, "");
+      if (k) insMap[k] = String(i.Text || i.text || "");
+    });
+  } else if (raw.insights && typeof raw.insights === "object") {
+    Object.assign(insMap, raw.insights);
+  }
   const n = raw.notes || {};
-  const ins = raw.insights || raw.insightMap || {};
-  const working     = (n.working    || []).join("\n\n") || ins.working    || "";
-  const notWorking  = (n.notWorking || []).join("\n\n") || ins.notWorking || "";
-  const actions     = (n.actions    || []).join("\n\n") || ins.actions    || "";
-  const next        = (n.next       || []).join("\n\n") || ins.next       || "";
+  const working    = insMap.working     || insMap.whatsworking    || (n.working    || []).join("\n\n") || "";
+  const notWorking = insMap.notworking  || insMap.whatsnotworking || (n.notWorking || []).join("\n\n") || "";
+  const actions    = insMap.actions     || (n.actions    || []).join("\n\n") || "";
+  const next       = insMap.next        || insMap.nextquarter     || (n.next       || []).join("\n\n") || "";
 
   const editorsNote = typeof raw.editorsNote === "string" ? raw.editorsNote
     : typeof raw.summary?.bullet === "string" ? raw.summary.bullet : "";
