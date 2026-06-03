@@ -94,8 +94,9 @@ function Channels({ data, prevData }) {
         </div>
         {channels.map((c, i) => {
           const prev = prevMap[c.name?.toLowerCase()] || null;
-          const sd = calcAutoDelta(c.sessions, prev?.sessions);
-          const ed = calcAutoDelta(c.engagementRate, prev?.engagementRate);
+          const sd  = calcAutoDelta(c.sessions, prev?.sessions);
+          const shd = calcAutoDelta(c.shareOfTraffic, prev?.shareOfTraffic);
+          const ed  = calcAutoDelta(c.engagementRate, prev?.engagementRate);
           return (
             <div className="channel-row-web" key={c.name} role="row">
               <div className="channel-idx serif ital" aria-hidden="true">{String(i + 1).padStart(2, "0")}</div>
@@ -106,6 +107,7 @@ function Channels({ data, prevData }) {
               </div>
               <div className="col-num">
                 <span className="big serif num">{fmtPct(c.shareOfTraffic)}</span>
+                {shd && <span className="sub"><Delta d={shd} /></span>}
               </div>
               <div className="col-num">
                 <span className="big serif num">{fmtPct(c.engagementRate)}</span>
