@@ -120,6 +120,11 @@ function Channels({ data, prevData }) {
 }
 
 // ─── Top pages ────────────────────────────────────────────────────
+function invertDir(d) {
+  if (!d) return null;
+  return { ...d, dir: d.dir === "up" ? "down" : d.dir === "down" ? "up" : "flat" };
+}
+
 function TopPages({ data, prevData }) {
   const pages = data.topPages || [];
   const prevMap = {};
@@ -134,27 +139,25 @@ function TopPages({ data, prevData }) {
         {pages.map(p => {
           const prev = prevMap[(p.key || p.name || "").toLowerCase()] || null;
           const vd = calcAutoDelta(p.pageViews, prev?.pageViews);
+          const bd = invertDir(calcAutoDelta(p.bounceRate, prev?.bounceRate));
           const td = calcAutoDelta(p.avgTimeOnPageSec, prev?.avgTimeOnPageSec);
           return (
             <div className="page-tile" key={p.key}>
               <div className="page-tile-name serif">{p.key}</div>
               <div className="page-stat">
                 <div className="page-stat-label">Page Views</div>
-                <div className="page-stat-value serif">
-                  {fmtInt(p.pageViews)}
-                  {vd && <Delta d={vd} className="page-delta" />}
-                </div>
+                <div className="page-stat-value serif">{fmtInt(p.pageViews)}</div>
+                {vd && <Delta d={vd} className="page-delta" />}
               </div>
               <div className="page-stat">
                 <div className="page-stat-label">Bounce Rate</div>
                 <div className="page-stat-value serif">{fmtPct(p.bounceRate)}</div>
+                {bd && <Delta d={bd} className="page-delta" />}
               </div>
               <div className="page-stat">
                 <div className="page-stat-label">Avg Time</div>
-                <div className="page-stat-value serif">
-                  {fmtTime(p.avgTimeOnPageSec)}
-                  {td && <Delta d={td} className="page-delta" />}
-                </div>
+                <div className="page-stat-value serif">{fmtTime(p.avgTimeOnPageSec)}</div>
+                {td && <Delta d={td} className="page-delta" />}
               </div>
             </div>
           );
