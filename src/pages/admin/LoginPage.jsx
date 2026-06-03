@@ -14,7 +14,7 @@ export function LoginPage({ onSignIn }) {
       await onSignIn(email);
       setSent(true);
     } catch (err) {
-      setError(err.message || "Failed to send link");
+      setError("Failed to send magic link. Please check your email address and try again.");
     } finally {
       setLoading(false);
     }

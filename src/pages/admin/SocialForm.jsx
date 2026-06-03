@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../lib/supabase.js";
 
 const num = v => (v === "" || v === null || v === undefined) ? null : (isFinite(Number(v)) ? Number(v) : null);
@@ -40,13 +40,13 @@ function parseCsv(text) {
   return lines.slice(1).map(line => {
     const cols = line.split(",").map(c => c.trim().replace(/^"|"$/g, ""));
     return {
-      post_name:   iName  !== -1 ? cols[iName]  : "",
-      post_date:   iDate  !== -1 ? cols[iDate]  : "",
-      platforms:   iPlat  !== -1 ? cols[iPlat]  : "",
+      post_name:   iName  !== -1 ? (cols[iName]  ?? "") : "",
+      post_date:   iDate  !== -1 ? (cols[iDate]  ?? "") : "",
+      platforms:   iPlat  !== -1 ? (cols[iPlat]  ?? "") : "",
       impressions: iImp   !== -1 ? (num(cols[iImp])   ?? 0) : 0,
       engagements: iEng   !== -1 ? (num(cols[iEng])   ?? 0) : 0,
-      url:         iUrl   !== -1 ? cols[iUrl]   : "",
-      notes:       iNotes !== -1 ? cols[iNotes] : "",
+      url:         iUrl   !== -1 ? (cols[iUrl]   ?? "") : "",
+      notes:       iNotes !== -1 ? (cols[iNotes] ?? "") : "",
     };
   }).filter(r => r.post_name);
 }
@@ -81,12 +81,20 @@ const TABS = [
   { id: "insights",  label: "Insights"  },
 ];
 
+// Throws on Supabase error so callers don't have to destructure every response
+const dbOp = async (promise) => {
+  const { error } = await promise;
+  if (error) throw error;
+};
+
 // ─── Main form ───────────────────────────────────────────────────
-export function SocialForm({ agency, quarter }) {
-  const [tab,        setTab]        = useState("overview");
-  const [saving,     setSaving]     = useState(false);
-  const [saveMsg,    setSaveMsg]    = useState("");
-  const [reportId,   setReportId]   = useState(null);
+export function SocialForm({ agency, quarter, onDirtyChange }) {
+  const [tab,       setTab]      = useState("overview");
+  const [saving,    setSaving]   = useState(false);
+  const [saveMsg,   setSaveMsg]  = useState("");
+  const [reportId,  setReportId] = useState(null);
+  const [loading,   setLoading]  = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const [editorsNote, setEditorsNote] = useState("");
   const [kpis,        setKpis]        = useState(BLANK_KPI);
@@ -95,37 +103,55 @@ export function SocialForm({ agency, quarter }) {
   const [allPosts,    setAllPosts]    = useState([]);
   const [insights,    setInsights]    = useState(BLANK_INSIGHTS);
   const [topTab,      setTopTab]      = useState("linkedin");
-  const csvRef = useRef();
+  const csvRef   = useRef();
+  // Gate that prevents the initial data load from marking the form dirty
+  const canDirty = useRef(false);
+
+  const dirty = useCallback(() => {
+    if (canDirty.current) onDirtyChange?.(true);
+  }, [onDirtyChange]);
 
   // Load existing data
   useEffect(() => {
+    canDirty.current = false;
+    setLoading(true);
+    setLoadError("");
     (async () => {
-      const { data } = await supabase
-        .from("social_reports")
-        .select("id, editors_note, social_kpis(*), social_platforms(*), social_top_posts(*), social_posts(*), social_insights(*)")
-        .eq("agency", agency)
-        .eq("quarter", quarter)
-        .maybeSingle();
-      if (!data) return;
-      setReportId(data.id);
-      setEditorsNote(data.editors_note || "");
-      const k = data.social_kpis?.[0] || {};
-      setKpis(Object.fromEntries(KPI_FIELDS.map(f => [f.key, k[f.key] ?? ""])));
-      setPlatforms([...(data.social_platforms || [])].sort((a, b) => a.sort_order - b.sort_order).map(p => ({
-        name: p.name, followers: str(p.followers), engagement_rate: str(p.engagement_rate),
-        page_reach: str(p.page_reach), page_clicks: str(p.page_clicks), note: p.note || "",
-      })));
-      const tp = { linkedin: [], facebook: [], instagram: [] };
-      for (const p of (data.social_top_posts || [])) {
-        tp[p.platform]?.push({ title: p.title, impressions: str(p.impressions), likes: str(p.likes), shares: str(p.shares) });
+      try {
+        const { data, error } = await supabase
+          .from("social_reports")
+          .select("id, editors_note, social_kpis(*), social_platforms(*), social_top_posts(*), social_posts(*), social_insights(*)")
+          .eq("agency", agency)
+          .eq("quarter", quarter)
+          .maybeSingle();
+        if (error) throw error;
+        if (data) {
+          setReportId(data.id);
+          setEditorsNote(data.editors_note || "");
+          const k = data.social_kpis?.[0] || {};
+          setKpis(Object.fromEntries(KPI_FIELDS.map(f => [f.key, k[f.key] ?? ""])));
+          setPlatforms([...(data.social_platforms || [])].sort((a, b) => a.sort_order - b.sort_order).map(p => ({
+            name: p.name, followers: str(p.followers), engagement_rate: str(p.engagement_rate),
+            page_reach: str(p.page_reach), page_clicks: str(p.page_clicks), note: p.note || "",
+          })));
+          const tp = { linkedin: [], facebook: [], instagram: [] };
+          for (const p of (data.social_top_posts || [])) {
+            tp[p.platform]?.push({ title: p.title, impressions: str(p.impressions), likes: str(p.likes), shares: str(p.shares) });
+          }
+          setTopPosts(tp);
+          setAllPosts((data.social_posts || []).map(p => ({
+            post_name: p.post_name || "", post_date: p.post_date || "", platforms: p.platforms || "",
+            impressions: str(p.impressions), engagements: str(p.engagements), url: p.url || "", notes: p.notes || "",
+          })));
+          const ins = data.social_insights?.[0] || {};
+          setInsights({ working: ins.working || "", not_working: ins.not_working || "", actions: ins.actions || "", next_quarter: ins.next_quarter || "" });
+        }
+      } catch (err) {
+        setLoadError("Failed to load report data. Please refresh and try again.");
+      } finally {
+        setLoading(false);
+        canDirty.current = true;
       }
-      setTopPosts(tp);
-      setAllPosts((data.social_posts || []).map(p => ({
-        post_name: p.post_name || "", post_date: p.post_date || "", platforms: p.platforms || "",
-        impressions: str(p.impressions), engagements: str(p.engagements), url: p.url || "", notes: p.notes || "",
-      })));
-      const ins = data.social_insights?.[0] || {};
-      setInsights({ working: ins.working || "", not_working: ins.not_working || "", actions: ins.actions || "", next_quarter: ins.next_quarter || "" });
     })();
   }, [agency, quarter]);
 
@@ -145,43 +171,44 @@ export function SocialForm({ agency, quarter }) {
       setReportId(rid);
 
       // KPIs
-      await supabase.from("social_kpis").delete().eq("report_id", rid);
-      await supabase.from("social_kpis").insert({
+      await dbOp(supabase.from("social_kpis").delete().eq("report_id", rid));
+      await dbOp(supabase.from("social_kpis").insert({
         report_id: rid,
         ...Object.fromEntries(KPI_FIELDS.map(f => [f.key, num(kpis[f.key])])),
-      });
+      }));
 
       // Platforms
-      await supabase.from("social_platforms").delete().eq("report_id", rid);
+      await dbOp(supabase.from("social_platforms").delete().eq("report_id", rid));
       if (platforms.length) {
-        await supabase.from("social_platforms").insert(platforms.map((p, i) => ({
+        await dbOp(supabase.from("social_platforms").insert(platforms.map((p, i) => ({
           report_id: rid, sort_order: i, name: p.name,
           followers: num(p.followers), engagement_rate: num(p.engagement_rate),
           page_reach: num(p.page_reach), page_clicks: num(p.page_clicks), note: p.note,
-        })));
+        }))));
       }
 
       // Top posts
-      await supabase.from("social_top_posts").delete().eq("report_id", rid);
+      await dbOp(supabase.from("social_top_posts").delete().eq("report_id", rid));
       const allTop = Object.entries(topPosts).flatMap(([plat, posts]) =>
         posts.map(p => ({ report_id: rid, platform: plat, title: p.title, impressions: num(p.impressions), likes: num(p.likes), shares: num(p.shares) }))
       );
-      if (allTop.length) await supabase.from("social_top_posts").insert(allTop);
+      if (allTop.length) await dbOp(supabase.from("social_top_posts").insert(allTop));
 
       // All posts
-      await supabase.from("social_posts").delete().eq("report_id", rid);
+      await dbOp(supabase.from("social_posts").delete().eq("report_id", rid));
       if (allPosts.length) {
-        await supabase.from("social_posts").insert(allPosts.map(p => ({
+        await dbOp(supabase.from("social_posts").insert(allPosts.map(p => ({
           report_id: rid, post_name: p.post_name, post_date: p.post_date || null,
           platforms: p.platforms, impressions: num(p.impressions), engagements: num(p.engagements),
           url: p.url, notes: p.notes,
-        })));
+        }))));
       }
 
       // Insights
-      await supabase.from("social_insights").delete().eq("report_id", rid);
-      await supabase.from("social_insights").insert({ report_id: rid, ...insights });
+      await dbOp(supabase.from("social_insights").delete().eq("report_id", rid));
+      await dbOp(supabase.from("social_insights").insert({ report_id: rid, ...insights }));
 
+      onDirtyChange?.(false);
       flash("Saved ✓");
     } catch (err) {
       flash("Error: " + err.message);
@@ -189,6 +216,9 @@ export function SocialForm({ agency, quarter }) {
       setSaving(false);
     }
   };
+
+  if (loading)   return <div className="admin-form-status">Loading report data…</div>;
+  if (loadError) return <div className="admin-form-status admin-form-status--error">{loadError}</div>;
 
   // ── Render ──
   return (
@@ -207,14 +237,16 @@ export function SocialForm({ agency, quarter }) {
       {tab === "overview" && (
         <div className="admin-form-section">
           <Field label="Editor's Note / Summary">
-            <textarea className="admin-textarea" rows={3} value={editorsNote} onChange={e => setEditorsNote(e.target.value)} placeholder="Brief summary shown at the top of the report…" />
+            <textarea className="admin-textarea" rows={3} value={editorsNote}
+              onChange={e => { setEditorsNote(e.target.value); dirty(); }}
+              placeholder="Brief summary shown at the top of the report…" />
           </Field>
           <div className="admin-kpi-grid">
             {KPI_FIELDS.map(f => (
               <Field key={f.key} label={f.label}>
                 <input type="number" className="admin-input" value={kpis[f.key]}
                   step={f.isDecimal ? "0.001" : "1"}
-                  onChange={e => setKpis(k => ({ ...k, [f.key]: e.target.value }))} />
+                  onChange={e => { setKpis(k => ({ ...k, [f.key]: e.target.value })); dirty(); }} />
               </Field>
             ))}
           </div>
@@ -229,23 +261,42 @@ export function SocialForm({ agency, quarter }) {
             <div key={i} className="admin-list-row">
               <div className="admin-list-row-grid admin-platform-grid">
                 <Field label="Platform name">
-                  <select className="admin-input" value={p.name} onChange={e => setPlatforms(ps => ps.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}>
+                  <select className="admin-input" value={p.name}
+                    onChange={e => { setPlatforms(ps => ps.map((x, j) => j === i ? { ...x, name: e.target.value } : x)); dirty(); }}>
                     <option value="">Select…</option>
                     {PLATFORMS_LIST.map(n => <option key={n} value={n}>{n}</option>)}
                   </select>
                 </Field>
-                <Field label="Followers"><input type="number" className="admin-input" value={p.followers} onChange={e => setPlatforms(ps => ps.map((x, j) => j === i ? { ...x, followers: e.target.value } : x))} /></Field>
-                <Field label="Engagement Rate (%)"><input type="number" step="0.001" className="admin-input" value={p.engagement_rate} onChange={e => setPlatforms(ps => ps.map((x, j) => j === i ? { ...x, engagement_rate: e.target.value } : x))} /></Field>
-                <Field label="Page Reach"><input type="number" className="admin-input" value={p.page_reach} onChange={e => setPlatforms(ps => ps.map((x, j) => j === i ? { ...x, page_reach: e.target.value } : x))} /></Field>
-                <Field label="Page Clicks"><input type="number" className="admin-input" value={p.page_clicks} onChange={e => setPlatforms(ps => ps.map((x, j) => j === i ? { ...x, page_clicks: e.target.value } : x))} /></Field>
+                <Field label="Followers">
+                  <input type="number" className="admin-input" value={p.followers}
+                    onChange={e => { setPlatforms(ps => ps.map((x, j) => j === i ? { ...x, followers: e.target.value } : x)); dirty(); }} />
+                </Field>
+                <Field label="Engagement Rate (%)">
+                  <input type="number" step="0.001" className="admin-input" value={p.engagement_rate}
+                    onChange={e => { setPlatforms(ps => ps.map((x, j) => j === i ? { ...x, engagement_rate: e.target.value } : x)); dirty(); }} />
+                </Field>
+                <Field label="Page Reach">
+                  <input type="number" className="admin-input" value={p.page_reach}
+                    onChange={e => { setPlatforms(ps => ps.map((x, j) => j === i ? { ...x, page_reach: e.target.value } : x)); dirty(); }} />
+                </Field>
+                <Field label="Page Clicks">
+                  <input type="number" className="admin-input" value={p.page_clicks}
+                    onChange={e => { setPlatforms(ps => ps.map((x, j) => j === i ? { ...x, page_clicks: e.target.value } : x)); dirty(); }} />
+                </Field>
                 <Field label="Note">
-                  <input type="text" className="admin-input" value={p.note} onChange={e => setPlatforms(ps => ps.map((x, j) => j === i ? { ...x, note: e.target.value } : x))} />
+                  <input type="text" className="admin-input" value={p.note}
+                    onChange={e => { setPlatforms(ps => ps.map((x, j) => j === i ? { ...x, note: e.target.value } : x)); dirty(); }} />
                 </Field>
               </div>
-              <button className="admin-btn-remove" onClick={() => setPlatforms(ps => ps.filter((_, j) => j !== i))} aria-label="Remove platform">✕</button>
+              <button className="admin-btn-remove"
+                onClick={() => { setPlatforms(ps => ps.filter((_, j) => j !== i)); dirty(); }}
+                aria-label="Remove platform">✕</button>
             </div>
           ))}
-          <button className="admin-btn-add" onClick={() => setPlatforms(ps => [...ps, { ...BLANK_PLATFORM }])}>+ Add platform</button>
+          <button className="admin-btn-add"
+            onClick={() => { setPlatforms(ps => [...ps, { ...BLANK_PLATFORM }]); dirty(); }}>
+            + Add platform
+          </button>
         </div>
       )}
 
@@ -266,16 +317,31 @@ export function SocialForm({ agency, quarter }) {
             <div key={i} className="admin-list-row">
               <div className="admin-list-row-grid admin-toppost-grid">
                 <Field label="Post title / headline">
-                  <input type="text" className="admin-input" value={p.title} onChange={e => setTopPosts(tp => ({ ...tp, [topTab]: tp[topTab].map((x, j) => j === i ? { ...x, title: e.target.value } : x) }))} />
+                  <input type="text" className="admin-input" value={p.title}
+                    onChange={e => { setTopPosts(tp => ({ ...tp, [topTab]: tp[topTab].map((x, j) => j === i ? { ...x, title: e.target.value } : x) })); dirty(); }} />
                 </Field>
-                <Field label="Impressions"><input type="number" className="admin-input" value={p.impressions} onChange={e => setTopPosts(tp => ({ ...tp, [topTab]: tp[topTab].map((x, j) => j === i ? { ...x, impressions: e.target.value } : x) }))} /></Field>
-                <Field label="Likes / Reactions"><input type="number" className="admin-input" value={p.likes} onChange={e => setTopPosts(tp => ({ ...tp, [topTab]: tp[topTab].map((x, j) => j === i ? { ...x, likes: e.target.value } : x) }))} /></Field>
-                <Field label="Shares"><input type="number" className="admin-input" value={p.shares} onChange={e => setTopPosts(tp => ({ ...tp, [topTab]: tp[topTab].map((x, j) => j === i ? { ...x, shares: e.target.value } : x) }))} /></Field>
+                <Field label="Impressions">
+                  <input type="number" className="admin-input" value={p.impressions}
+                    onChange={e => { setTopPosts(tp => ({ ...tp, [topTab]: tp[topTab].map((x, j) => j === i ? { ...x, impressions: e.target.value } : x) })); dirty(); }} />
+                </Field>
+                <Field label="Likes / Reactions">
+                  <input type="number" className="admin-input" value={p.likes}
+                    onChange={e => { setTopPosts(tp => ({ ...tp, [topTab]: tp[topTab].map((x, j) => j === i ? { ...x, likes: e.target.value } : x) })); dirty(); }} />
+                </Field>
+                <Field label="Shares">
+                  <input type="number" className="admin-input" value={p.shares}
+                    onChange={e => { setTopPosts(tp => ({ ...tp, [topTab]: tp[topTab].map((x, j) => j === i ? { ...x, shares: e.target.value } : x) })); dirty(); }} />
+                </Field>
               </div>
-              <button className="admin-btn-remove" onClick={() => setTopPosts(tp => ({ ...tp, [topTab]: tp[topTab].filter((_, j) => j !== i) }))} aria-label="Remove post">✕</button>
+              <button className="admin-btn-remove"
+                onClick={() => { setTopPosts(tp => ({ ...tp, [topTab]: tp[topTab].filter((_, j) => j !== i) })); dirty(); }}
+                aria-label="Remove post">✕</button>
             </div>
           ))}
-          <button className="admin-btn-add" onClick={() => setTopPosts(tp => ({ ...tp, [topTab]: [...tp[topTab], { ...BLANK_POST }] }))}>+ Add post</button>
+          <button className="admin-btn-add"
+            onClick={() => { setTopPosts(tp => ({ ...tp, [topTab]: [...tp[topTab], { ...BLANK_POST }] })); dirty(); }}>
+            + Add post
+          </button>
         </div>
       )}
 
@@ -295,12 +361,20 @@ export function SocialForm({ agency, quarter }) {
                   reader.onload = ev => {
                     const rows = parseCsv(ev.target.result);
                     setAllPosts(p => [...p, ...rows]);
+                    dirty();
                   };
+                  reader.onerror = () => flash("Error: Could not read the CSV file.");
                   reader.readAsText(file);
                   e.target.value = "";
                 }} />
               <button className="admin-btn-secondary" onClick={() => csvRef.current?.click()}>Import CSV</button>
-              <button className="admin-btn-secondary" onClick={() => setAllPosts([])}>Clear all</button>
+              <button className="admin-btn-secondary" onClick={() => {
+                if (!allPosts.length) return;
+                if (window.confirm("Clear all posts? This cannot be undone unless you save first.")) {
+                  setAllPosts([]);
+                  dirty();
+                }
+              }}>Clear all</button>
             </div>
           </div>
           <p className="admin-csv-hint">CSV columns: <code>Post Name, Date, Platforms, Impressions, Engagements, URL, Notes</code></p>
@@ -316,20 +390,20 @@ export function SocialForm({ agency, quarter }) {
               <tbody>
                 {allPosts.map((p, i) => (
                   <tr key={i}>
-                    <td><input className="admin-input admin-input--cell" value={p.post_name} onChange={e => setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, post_name: e.target.value } : x))} /></td>
-                    <td><input type="date" className="admin-input admin-input--cell" value={p.post_date} onChange={e => setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, post_date: e.target.value } : x))} /></td>
-                    <td><input className="admin-input admin-input--cell" value={p.platforms} placeholder="LinkedIn, Facebook…" onChange={e => setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, platforms: e.target.value } : x))} /></td>
-                    <td><input type="number" className="admin-input admin-input--cell r" value={p.impressions} onChange={e => setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, impressions: e.target.value } : x))} /></td>
-                    <td><input type="number" className="admin-input admin-input--cell r" value={p.engagements} onChange={e => setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, engagements: e.target.value } : x))} /></td>
-                    <td><input className="admin-input admin-input--cell" value={p.url} placeholder="https://…" onChange={e => setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, url: e.target.value } : x))} /></td>
-                    <td><input className="admin-input admin-input--cell" value={p.notes} onChange={e => setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, notes: e.target.value } : x))} /></td>
-                    <td><button className="admin-btn-remove" onClick={() => setAllPosts(ps => ps.filter((_, j) => j !== i))} aria-label="Remove">✕</button></td>
+                    <td><input className="admin-input admin-input--cell" value={p.post_name} onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, post_name: e.target.value } : x)); dirty(); }} /></td>
+                    <td><input type="date" className="admin-input admin-input--cell" value={p.post_date} onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, post_date: e.target.value } : x)); dirty(); }} /></td>
+                    <td><input className="admin-input admin-input--cell" value={p.platforms} placeholder="LinkedIn, Facebook…" onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, platforms: e.target.value } : x)); dirty(); }} /></td>
+                    <td><input type="number" className="admin-input admin-input--cell r" value={p.impressions} onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, impressions: e.target.value } : x)); dirty(); }} /></td>
+                    <td><input type="number" className="admin-input admin-input--cell r" value={p.engagements} onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, engagements: e.target.value } : x)); dirty(); }} /></td>
+                    <td><input className="admin-input admin-input--cell" value={p.url} placeholder="https://…" onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, url: e.target.value } : x)); dirty(); }} /></td>
+                    <td><input className="admin-input admin-input--cell" value={p.notes} onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, notes: e.target.value } : x)); dirty(); }} /></td>
+                    <td><button className="admin-btn-remove" onClick={() => { setAllPosts(ps => ps.filter((_, j) => j !== i)); dirty(); }} aria-label="Remove">✕</button></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <button className="admin-btn-add" onClick={() => setAllPosts(ps => [...ps, { ...BLANK_ALL_POST }])}>+ Add row</button>
+          <button className="admin-btn-add" onClick={() => { setAllPosts(ps => [...ps, { ...BLANK_ALL_POST }]); dirty(); }}>+ Add row</button>
           <p className="admin-list-hint" style={{ marginTop: 8 }}>{allPosts.length} post{allPosts.length !== 1 ? "s" : ""}</p>
         </div>
       )}
@@ -345,7 +419,7 @@ export function SocialForm({ agency, quarter }) {
           ].map(s => (
             <Field key={s.key} label={s.label}>
               <textarea className="admin-textarea" rows={6} value={insights[s.key]}
-                onChange={e => setInsights(ins => ({ ...ins, [s.key]: e.target.value }))} />
+                onChange={e => { setInsights(ins => ({ ...ins, [s.key]: e.target.value })); dirty(); }} />
             </Field>
           ))}
         </div>
