@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useSocialReport } from "../hooks/useSocialReport.js";
+import { useSocialKpiHistory } from "../hooks/useSocialKpiHistory.js";
 import { Delta } from "../components/Delta.jsx";
 import { PageLoader } from "../components/PageLoader.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
@@ -61,6 +62,132 @@ function Numbers({ data }) {
             </div>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+// ─── KPI history (quarter-by-quarter line chart) ──────────────────
+function KpiHistoryChart({ history, kpiDef }) {
+  const W = 880, H = 260, pL = 68, pR = 24, pT = 28, pB = 56;
+  const vals = history.map(q => (q.kpis ? q.kpis[kpiDef.key] : null));
+  const defined = vals.filter(v => v != null);
+  if (defined.length === 0) {
+    return <div className="kpi-history-empty">No data recorded yet</div>;
+  }
+  const rawMax = Math.max(...defined);
+  const max    = rawMax > 0 ? rawMax * 1.15 : 1;
+  const n      = history.length;
+  const xStep  = (W - pL - pR) / Math.max(n - 1, 1);
+  const pts    = history.map((q, i) => {
+    const v = q.kpis ? q.kpis[kpiDef.key] : null;
+    return { x: pL + i * xStep, y: v != null ? pT + (H - pT - pB) * (1 - v / max) : null, v, q };
+  });
+
+  let pathSegs = "", inSeg = false;
+  pts.forEach(p => {
+    if (p.v != null) {
+      pathSegs += inSeg
+        ? ` L${p.x.toFixed(1)},${p.y.toFixed(1)}`
+        : `M${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+      inSeg = true;
+    } else {
+      inSeg = false;
+    }
+  });
+
+  const allPresent = vals.every(v => v != null);
+  const areaPath   = allPresent && pts.length > 0
+    ? pathSegs
+        + ` L${pts[pts.length - 1].x.toFixed(1)},${(H - pB).toFixed(1)}`
+        + ` L${pts[0].x.toFixed(1)},${(H - pB).toFixed(1)} Z`
+    : "";
+
+  const peakIdx = vals.indexOf(rawMax);
+  const avg     = defined.reduce((a, b) => a + b, 0) / defined.length;
+  const avgY    = pT + (H - pT - pB) * (1 - avg / max);
+  const ticks   = [0, 0.25, 0.5, 0.75, 1].map(t => ({ v: max * t, y: pT + (H - pT - pB) * (1 - t) }));
+
+  const fmtAxis = v => {
+    if (kpiDef.key === "avgengagementrate") return v.toFixed(1) + "%";
+    return fmt(v);
+  };
+  const fmtAvg = v => {
+    if (kpiDef.key === "avgengagementrate") return v.toFixed(2) + "%";
+    return fmt(v);
+  };
+
+  return (
+    <svg className="kpi-history-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
+         role="img" aria-label={`${kpiDef.label} — quarter by quarter`}>
+      {ticks.map((t, i) => (
+        <g key={i}>
+          <line x1={pL} x2={W - pR} y1={t.y} y2={t.y} stroke="var(--rule-soft)" strokeWidth="1" />
+          <text x={pL - 8} y={t.y + 4} textAnchor="end" fontSize="11" fill="var(--ink-4)" fontFamily="var(--sans)">
+            {fmtAxis(t.v)}
+          </text>
+        </g>
+      ))}
+      <line x1={pL} x2={W - pR} y1={H - pB} y2={H - pB} stroke="var(--ink)" strokeWidth="1" />
+      {areaPath && <path d={areaPath} fill="var(--accent)" opacity="0.06" />}
+      {pathSegs && <path d={pathSegs} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />}
+      {pts.map((p, i) =>
+        p.v != null ? (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r={i === peakIdx ? 5 : 3.5} fill="var(--paper)" stroke="var(--accent)" strokeWidth="2" />
+            {i === peakIdx && (
+              <text x={p.x} y={p.y - 14} textAnchor="middle" fontFamily="var(--serif)" fontStyle="italic" fontSize="13" fill="var(--accent)">
+                peak — {kpiDef.fmt(p.v)}
+              </text>
+            )}
+          </g>
+        ) : null
+      )}
+      {pts.map((p, i) => (
+        <g key={i}>
+          <text x={p.x} y={H - pB + 18} textAnchor="middle" fontSize="12" fontFamily="var(--serif)" fill="var(--ink-2)" fontWeight="600">
+            {p.q.label}
+          </text>
+          <text x={p.x} y={H - pB + 34} textAnchor="middle" fontSize="10" fontFamily="var(--sans)" fill="var(--ink-4)">
+            {p.q.rangeLabel}
+          </text>
+        </g>
+      ))}
+      <line x1={pL} x2={W - pR} y1={avgY} y2={avgY} stroke="var(--ink-4)" strokeWidth="1" strokeDasharray="2 4" />
+      <text x={W - pR} y={avgY - 6} textAnchor="end" fontSize="11" fill="var(--ink-4)" fontFamily="var(--sans)">
+        avg {fmtAvg(avg)}
+      </text>
+    </svg>
+  );
+}
+
+function KpiHistory({ agency }) {
+  const history   = useSocialKpiHistory(agency);
+  const [activeKey, setActiveKey] = useState(KPI_DEFS[1].key); // default: Impressions
+  if (!history) return null;
+  if (!history.some(q => q.kpis !== null)) return null;
+  const activeDef = KPI_DEFS.find(k => k.key === activeKey) || KPI_DEFS[1];
+  return (
+    <section className="section wrap">
+      <header className="section-head">
+        <h2 className="section-title serif">Quarter by Quarter</h2>
+      </header>
+      <div className="kpi-history-body">
+        <nav className="kpi-history-nav" aria-label="Select metric">
+          {KPI_DEFS.map(k => (
+            <button
+              key={k.key}
+              className={"kpi-history-nav-item" + (activeKey === k.key ? " is-active" : "")}
+              onClick={() => setActiveKey(k.key)}
+              aria-pressed={activeKey === k.key}
+            >
+              {k.label}
+            </button>
+          ))}
+        </nav>
+        <div className="kpi-history-chart-wrap">
+          <KpiHistoryChart history={history} kpiDef={activeDef} />
+        </div>
       </div>
     </section>
   );
@@ -569,6 +696,7 @@ export function SocialPage({ agency, quarter, onReady }) {
     <main className="report-wrap">
       <ErrorBoundary><Hero data={data} /></ErrorBoundary>
       <ErrorBoundary><Numbers data={data} /></ErrorBoundary>
+      <ErrorBoundary><KpiHistory agency={agency} /></ErrorBoundary>
       <ErrorBoundary><Trend data={data} /></ErrorBoundary>
       <ErrorBoundary><Platforms data={data} /></ErrorBoundary>
       <ErrorBoundary><TopPosts data={data} /></ErrorBoundary>
