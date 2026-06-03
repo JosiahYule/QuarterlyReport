@@ -680,6 +680,90 @@
 }
 
 /* ================================================================
+   KPI history (quarter-by-quarter chart)
+   ================================================================ */
+
+.kpi-history-body {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  align-items: start;
+}
+
+.kpi-history-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-right: 1px solid var(--rule);
+  padding: 4px 0;
+}
+
+.kpi-history-nav-item {
+  all: unset;
+  cursor: pointer;
+  display: block;
+  padding: 9px 20px 9px 12px;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--ink-3);
+  border-left: 2px solid transparent;
+  margin-left: -1px;
+  transition: color .12s, border-color .12s;
+}
+.kpi-history-nav-item:hover   { color: var(--ink); }
+.kpi-history-nav-item.is-active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  font-weight: 600;
+}
+
+.kpi-history-chart-wrap {
+  padding-left: 28px;
+  overflow: hidden;
+}
+
+.kpi-history-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.kpi-history-empty {
+  color: var(--ink-4);
+  font-size: 13px;
+  padding: 48px 0;
+  text-align: center;
+}
+
+@media (max-width: 680px) {
+  .kpi-history-body {
+    grid-template-columns: 1fr;
+  }
+  .kpi-history-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: none;
+    border-bottom: 1px solid var(--rule);
+    padding: 0 0 12px;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+  .kpi-history-nav-item {
+    padding: 6px 12px;
+    border-left: none;
+    border-bottom: 2px solid transparent;
+    font-size: 12px;
+    margin-left: 0;
+  }
+  .kpi-history-nav-item.is-active {
+    border-left-color: transparent;
+    border-bottom-color: var(--accent);
+  }
+  .kpi-history-chart-wrap {
+    padding-left: 0;
+  }
+}
+
+/* ================================================================
    Admin UI
    ================================================================ */
 
