@@ -58,7 +58,7 @@ export function AdminDashboard({ onSignOut }) {
       <main className="admin-main">
         {type === "social"
           ? <SocialForm key={agency + quarter} agency={agency} quarter={quarter} onDirtyChange={setIsDirty} />
-          : <WebForm    key={quarter}           quarter={quarter}                 onDirtyChange={setIsDirty} />
+          : <WebForm    key={agency + quarter}   agency={agency} quarter={quarter} onDirtyChange={setIsDirty} />
         }
       </main>
     </div>

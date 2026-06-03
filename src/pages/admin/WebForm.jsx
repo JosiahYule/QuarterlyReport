@@ -50,7 +50,7 @@ const dbOp = async (promise) => {
   if (error) throw error;
 };
 
-export function WebForm({ quarter, onDirtyChange }) {
+export function WebForm({ agency, quarter, onDirtyChange }) {
   const [tab,       setTab]      = useState("overview");
   const [saving,    setSaving]   = useState(false);
   const [saveMsg,   setSaveMsg]  = useState("");
@@ -79,6 +79,7 @@ export function WebForm({ quarter, onDirtyChange }) {
         const { data, error } = await supabase
           .from("web_reports")
           .select("id, summary_bullet, web_kpis(*), web_channels(*), web_pages(*), web_insights(*)")
+          .eq("agency", agency)
           .eq("quarter", quarter)
           .maybeSingle();
         if (error) throw error;
@@ -102,7 +103,7 @@ export function WebForm({ quarter, onDirtyChange }) {
         canDirty.current = true;
       }
     })();
-  }, [quarter]);
+  }, [agency, quarter]);
 
   const flash = msg => { setSaveMsg(msg); setTimeout(() => setSaveMsg(""), 4000); };
 
@@ -112,7 +113,7 @@ export function WebForm({ quarter, onDirtyChange }) {
     try {
       const { data: rep, error: e1 } = await supabase
         .from("web_reports")
-        .upsert({ quarter, summary_bullet: summaryBullet }, { onConflict: "quarter" })
+        .upsert({ agency, quarter, summary_bullet: summaryBullet }, { onConflict: "agency,quarter" })
         .select("id").single();
       if (e1) throw e1;
       const rid = rep.id;

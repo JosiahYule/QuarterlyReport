@@ -7,7 +7,7 @@ function getPrevSuffix(suffix) {
   return idx >= 0 && idx < QUARTERS.length - 1 ? QUARTERS[idx + 1].suffix : null;
 }
 
-async function fetchReport(quarter) {
+async function fetchReport(agency, quarter) {
   const { data, error } = await supabase
     .from("web_reports")
     .select(`
@@ -17,6 +17,7 @@ async function fetchReport(quarter) {
       web_pages(*),
       web_insights(*)
     `)
+    .eq("agency", agency)
     .eq("quarter", quarter)
     .maybeSingle();
   if (error) throw error;
@@ -63,7 +64,7 @@ function normalize(report) {
   };
 }
 
-export function useWebReport(quarter) {
+export function useWebReport(agency, quarter) {
   const [state, setState] = useState({ data: null, prevData: null, status: "loading", error: null });
 
   useEffect(() => {
@@ -74,8 +75,8 @@ export function useWebReport(quarter) {
       try {
         const prevSuffix = getPrevSuffix(quarter);
         const [report, prevReport] = await Promise.all([
-          fetchReport(quarter),
-          prevSuffix ? fetchReport(prevSuffix) : Promise.resolve(null),
+          fetchReport(agency, quarter),
+          prevSuffix ? fetchReport(agency, prevSuffix) : Promise.resolve(null),
         ]);
         if (!cancelled) {
           setState({ data: normalize(report), prevData: normalize(prevReport), status: "ready", error: null });
@@ -86,7 +87,7 @@ export function useWebReport(quarter) {
     })();
 
     return () => { cancelled = true; };
-  }, [quarter]);
+  }, [agency, quarter]);
 
   return state;
 }
