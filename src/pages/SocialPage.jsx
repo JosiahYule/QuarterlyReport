@@ -69,7 +69,7 @@ function Numbers({ data }) {
 
 // ─── KPI history (quarter-by-quarter line chart) ──────────────────
 function KpiHistoryChart({ history, kpiDef }) {
-  const W = 880, H = 260, pL = 68, pR = 24, pT = 28, pB = 56;
+  const W = 880, H = 260, pL = 68, pR = 64, pT = 28, pB = 56;
   const vals = history.map(q => (q.kpis ? q.kpis[kpiDef.key] : null));
   const defined = vals.filter(v => v != null);
   if (defined.length === 0) {
@@ -161,12 +161,28 @@ function KpiHistoryChart({ history, kpiDef }) {
   );
 }
 
+function toNetNewFollowers(history) {
+  return history.map((q, i) => {
+    if (!q.kpis) return q;
+    const prev = history.slice(0, i).reverse().find(p => p.kpis?.followers != null);
+    return {
+      ...q,
+      kpis: { ...q.kpis, followers: prev != null ? q.kpis.followers - prev.kpis.followers : null },
+    };
+  });
+}
+
 function KpiHistory({ agency }) {
   const history   = useSocialKpiHistory(agency);
   const [activeKey, setActiveKey] = useState(KPI_DEFS[1].key); // default: Impressions
   if (!history) return null;
   if (!history.some(q => q.kpis !== null)) return null;
-  const activeDef = KPI_DEFS.find(k => k.key === activeKey) || KPI_DEFS[1];
+
+  const isFollowers = activeKey === "followers";
+  const chartHistory = isFollowers ? toNetNewFollowers(history) : history;
+  const baseDef      = KPI_DEFS.find(k => k.key === activeKey) || KPI_DEFS[1];
+  const activeDef    = isFollowers ? { ...baseDef, label: "Net New Followers" } : baseDef;
+
   return (
     <section className="section wrap">
       <header className="section-head">
@@ -181,12 +197,12 @@ function KpiHistory({ agency }) {
               onClick={() => setActiveKey(k.key)}
               aria-pressed={activeKey === k.key}
             >
-              {k.label}
+              {k.key === "followers" ? "Net New Followers" : k.label}
             </button>
           ))}
         </nav>
         <div className="kpi-history-chart-wrap">
-          <KpiHistoryChart history={history} kpiDef={activeDef} />
+          <KpiHistoryChart history={chartHistory} kpiDef={activeDef} />
         </div>
       </div>
     </section>
