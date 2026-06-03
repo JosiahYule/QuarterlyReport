@@ -165,9 +165,10 @@ function toNetNewFollowers(history) {
   return history.map((q, i) => {
     if (!q.kpis) return q;
     const prev = history.slice(0, i).reverse().find(p => p.kpis?.followers != null);
+    let baseline = prev != null ? prev.kpis.followers : q.kpis.followersStart;
     return {
       ...q,
-      kpis: { ...q.kpis, followers: prev != null ? q.kpis.followers - prev.kpis.followers : null },
+      kpis: { ...q.kpis, followers: baseline != null ? q.kpis.followers - baseline : null },
     };
   });
 }

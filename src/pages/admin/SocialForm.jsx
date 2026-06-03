@@ -9,8 +9,9 @@ const KPI_FIELDS = [
   { key: "impressions",        label: "Impressions",          isDecimal: false },
   { key: "reactions",          label: "Reactions",            isDecimal: false },
   { key: "shares",             label: "Shares",               isDecimal: false },
-  { key: "followers",          label: "Followers",            isDecimal: false },
-  { key: "link_clicks",        label: "Link Clicks",          isDecimal: false },
+  { key: "followers",          label: "Followers (end of quarter)", isDecimal: false },
+  { key: "followers_start",    label: "Followers at Period Start",  isDecimal: false },
+  { key: "link_clicks",        label: "Link Clicks",                isDecimal: false },
   { key: "comments",           label: "Comments",             isDecimal: false },
   { key: "avg_engagement_rate",label: "Avg Engagement Rate (%)", isDecimal: true },
 ];

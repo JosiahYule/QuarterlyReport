@@ -10,6 +10,7 @@ function mapKpis(row) {
     shares:            row.shares,
     reactions:         row.reactions,
     followers:         row.followers,
+    followersStart:    row.followers_start,
     linkclicks:        row.link_clicks,
     comments:          row.comments,
     avgengagementrate: row.avg_engagement_rate,
