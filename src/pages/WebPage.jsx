@@ -39,7 +39,7 @@ const KPI_DEFS = [
   { key: "users",                label: "Unique Users",      fmt: fmtInt,  note: "distinct visitors" },
   { key: "engagementRate",       label: "Engagement Rate",   fmt: fmtPct,  note: "meaningful sessions" },
   { key: "avgEngagementTimeSec", label: "Avg Time on Site",  fmt: fmtTime, note: "active engagement per visit" },
-  { key: "actions",              label: "Candidate Actions", fmt: fmtInt,  note: "high-intent interactions" },
+  { key: "actions",              label: "Campaign Clicks",   fmt: fmtInt,  note: "high-intent interactions" },
   { key: "formSubmissions",      label: "Form Submissions",  fmt: fmtInt,  note: "completed contact forms" },
 ];
 
