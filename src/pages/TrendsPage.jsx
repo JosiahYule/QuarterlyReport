@@ -389,7 +389,7 @@ export function TrendsPage({ agency, onReady }) {
       <ErrorBoundary>
         <section className="section wrap">
           <header className="section-head">
-            <h2 className="section-title serif">{TRENDS_QUARTERS[2].label} Projected Finals</h2>
+            <h2 className="section-title serif">{TRENDS_QUARTERS[2].label} Projected <em>Finals</em></h2>
             <p className="section-sub">Estimated end-of-quarter totals based on observed daily rate × total quarter days.</p>
           </header>
           <div className="proj-grid">
@@ -403,7 +403,7 @@ export function TrendsPage({ agency, onReady }) {
       <ErrorBoundary>
         <section className="section wrap">
           <header className="section-head">
-            <h2 className="section-title serif">Quarterly Trends</h2>
+            <h2 className="section-title serif">Quarterly <em>Trends</em></h2>
             <p className="section-sub">Quarter-over-quarter trajectory with {TRENDS_QUARTERS[2].label} pace projections.</p>
           </header>
           <div className="charts-grid">

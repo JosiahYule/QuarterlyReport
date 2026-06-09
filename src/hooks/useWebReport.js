@@ -64,7 +64,7 @@ function normalize(report) {
   };
 }
 
-export function useWebReport(agency, quarter) {
+export function useWebReport(agency, quarter, retryKey = 0) {
   const [state, setState] = useState({ data: null, prevData: null, status: "loading", error: null });
 
   useEffect(() => {
@@ -87,7 +87,7 @@ export function useWebReport(agency, quarter) {
     })();
 
     return () => { cancelled = true; };
-  }, [agency, quarter]);
+  }, [agency, quarter, retryKey]);
 
   return state;
 }
