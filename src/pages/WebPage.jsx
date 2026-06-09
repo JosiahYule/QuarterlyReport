@@ -186,7 +186,7 @@ function Notes({ data }) {
   return (
     <section className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">Editor's <em>Notes</em></h2>
+        <h2 className="section-title serif"><em>Insights</em></h2>
       </header>
       <div className="notes">
         {sections.map(s => {
