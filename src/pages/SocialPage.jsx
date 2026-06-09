@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useSocialReport } from "../hooks/useSocialReport.js";
 import { useSocialKpiHistory } from "../hooks/useSocialKpiHistory.js";
 import { Delta } from "../components/Delta.jsx";
@@ -45,7 +45,7 @@ function Numbers({ data }) {
   return (
     <section className="section wrap kpi-section" aria-label="Key performance indicators">
       <header className="section-head">
-        <h2 className="section-title serif">The Numbers</h2>
+        <h2 className="section-title serif">The <em>Numbers</em></h2>
       </header>
       <div className="kpi-grid">
         {KPI_DEFS.map(k => {
@@ -186,7 +186,7 @@ function KpiHistory({ agency }) {
   return (
     <section className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">Quarter by Quarter</h2>
+        <h2 className="section-title serif">Quarter by <em>Quarter</em></h2>
       </header>
       <div className="kpi-history-body">
         <nav className="kpi-history-nav" aria-label="Select metric">
@@ -316,7 +316,7 @@ function Platforms({ data }) {
   return (
     <section className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">By Platform</h2>
+        <h2 className="section-title serif">By <em>Platform</em></h2>
       </header>
       <div className="channels" role="grid" aria-label="Platform breakdown">
         <div className="channel-row is-head" role="row">
@@ -359,18 +359,20 @@ function Platforms({ data }) {
 
 // ─── Top Posts ────────────────────────────────────────────────────
 function TopPosts({ data }) {
-  const [platform, setPlatform] = useState("linkedin");
-  const posts = data.topPostsByPlatform[platform] || [];
-  const PLATFORMS = [
+  const ALL_PLATFORMS = [
     { key: "linkedin",  label: "LinkedIn" },
     { key: "facebook",  label: "Facebook" },
     { key: "instagram", label: "Instagram" },
   ];
+  const PLATFORMS = ALL_PLATFORMS.filter(pt => (data.topPostsByPlatform[pt.key] || []).length > 0);
+  const defaultPlatform = (PLATFORMS[0] || ALL_PLATFORMS[0]).key;
+  const [platform, setPlatform] = useState(defaultPlatform);
+  const posts = data.topPostsByPlatform[platform] || [];
 
   return (
     <section className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">Top Posts</h2>
+        <h2 className="section-title serif">Top <em>Posts</em></h2>
       </header>
       <div className="platform-tabs" role="tablist" aria-label="Platform">
         {PLATFORMS.map(pt => (
@@ -488,7 +490,7 @@ function AllPosts({ data }) {
   return (
     <section className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">All Posts</h2>
+        <h2 className="section-title serif">All <em>Posts</em></h2>
       </header>
 
       <div className="all-posts-controls">
@@ -665,14 +667,14 @@ function AllPosts({ data }) {
 function NoteList({ items }) {
   if (!items.length) return <EmptyNote />;
   const paras = items.flatMap(n => n.split(/\n+/).filter(s => s.trim()));
-  return <div>{paras.map((n, i) => <p key={i}>{n}</p>)}</div>;
+  return <ul>{paras.map((n, i) => <li key={i}>{n}</li>)}</ul>;
 }
 
 function Notes({ data }) {
   return (
     <section className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">Insights</h2>
+        <h2 className="section-title serif"><em>Insights</em></h2>
       </header>
       <div className="notes">
         <div className="note working">    <h4>Working</h4>      <NoteList items={data.notes.working} /></div>
@@ -686,7 +688,8 @@ function Notes({ data }) {
 
 // ─── Page ─────────────────────────────────────────────────────────
 export function SocialPage({ agency, quarter, onReady }) {
-  const { data, status, error } = useSocialReport(agency, quarter);
+  const [retryKey, setRetryKey] = useState(0);
+  const { data, status, error } = useSocialReport(agency, quarter, retryKey);
 
   useEffect(() => {
     if (status === "ready" || status === "error") onReady?.();
@@ -696,10 +699,10 @@ export function SocialPage({ agency, quarter, onReady }) {
     return (
       <main className="report-wrap">
         <section className="section wrap">
-          <header className="section-head"><h2 className="section-title serif">Unable to load report</h2></header>
+          <header className="section-head"><h2 className="section-title serif">Unable to load <em>report</em></h2></header>
           <div className="error-section" role="alert">
             <p>{error}</p>
-            <button className="error-retry-btn" onClick={() => window.location.reload()}>Try again</button>
+            <button className="error-retry-btn" onClick={() => setRetryKey(k => k + 1)}>Try again</button>
           </div>
         </section>
       </main>

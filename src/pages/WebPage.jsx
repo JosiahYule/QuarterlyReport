@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useWebReport } from "../hooks/useWebReport.js";
 import { Delta } from "../components/Delta.jsx";
 import { PageLoader } from "../components/PageLoader.jsx";
@@ -49,7 +49,7 @@ function Numbers({ data, prevData }) {
   return (
     <section className="section wrap kpi-section" aria-label="Key performance indicators">
       <header className="section-head">
-        <h2 className="section-title serif">The Numbers</h2>
+        <h2 className="section-title serif">The <em>Numbers</em></h2>
       </header>
       <div className="kpi-grid">
         {KPI_DEFS.map(k => {
@@ -82,7 +82,7 @@ function Channels({ data, prevData }) {
   return (
     <section className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">Traffic Channels</h2>
+        <h2 className="section-title serif">Traffic <em>Channels</em></h2>
       </header>
       <div className="channels" role="grid" aria-label="Traffic channels breakdown">
         <div className="channel-row-web is-head" role="row">
@@ -135,7 +135,7 @@ function TopPages({ data, prevData }) {
   return (
     <section className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">Top Pages</h2>
+        <h2 className="section-title serif">Top <em>Pages</em></h2>
       </header>
       <div className="pages-grid">
         {pages.map(p => {
@@ -186,7 +186,7 @@ function Notes({ data }) {
   return (
     <section className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">Editor's Notes</h2>
+        <h2 className="section-title serif">Editor's <em>Notes</em></h2>
       </header>
       <div className="notes">
         {sections.map(s => {
@@ -195,7 +195,7 @@ function Notes({ data }) {
             <div className={"note " + s.cls} key={s.key}>
               <h4>{s.label}</h4>
               {items.length
-                ? <div>{items.map((n, i) => <p key={i}>{n}</p>)}</div>
+                ? <ul>{items.map((n, i) => <li key={i}>{n}</li>)}</ul>
                 : <EmptyNote />}
             </div>
           );
@@ -207,7 +207,8 @@ function Notes({ data }) {
 
 // ─── Page ─────────────────────────────────────────────────────────
 export function WebPage({ agency, quarter, onReady }) {
-  const { data, prevData, status, error } = useWebReport(agency, quarter);
+  const [retryKey, setRetryKey] = useState(0);
+  const { data, prevData, status, error } = useWebReport(agency, quarter, retryKey);
 
   useEffect(() => {
     if (status === "ready" || status === "error") onReady?.();
@@ -217,10 +218,10 @@ export function WebPage({ agency, quarter, onReady }) {
     return (
       <main className="report-wrap">
         <section className="section wrap">
-          <header className="section-head"><h2 className="section-title serif">Unable to load report</h2></header>
+          <header className="section-head"><h2 className="section-title serif">Unable to load <em>report</em></h2></header>
           <div className="error-section" role="alert">
             <p>{error}</p>
-            <button className="error-retry-btn" onClick={() => window.location.reload()}>Try again</button>
+            <button className="error-retry-btn" onClick={() => setRetryKey(k => k + 1)}>Try again</button>
           </div>
         </section>
       </main>

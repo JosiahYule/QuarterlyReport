@@ -3,21 +3,50 @@ import { AGENCIES, QUARTERS } from "../../config.js";
 import { SocialForm } from "./SocialForm.jsx";
 import { WebForm } from "./WebForm.jsx";
 
-export function AdminDashboard({ onSignOut }) {
-  const [agency,  setAgency]  = useState("isl");
-  const [quarter, setQuarter] = useState(QUARTERS[0].suffix);
-  const [type,    setType]    = useState("social");
-  const [isDirty, setIsDirty] = useState(false);
+function ConfirmModal({ onConfirm, onCancel }) {
+  return (
+    <div className="admin-confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div className="admin-confirm-box">
+        <p className="admin-confirm-message" id="confirm-title">
+          You have unsaved changes. Discard them and continue?
+        </p>
+        <div className="admin-confirm-actions">
+          <button className="admin-btn-primary" onClick={onConfirm} autoFocus>Discard &amp; continue</button>
+          <button className="admin-btn-ghost" onClick={onCancel}>Keep editing</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  // Wraps any navigation action with an unsaved-changes confirmation
+export function AdminDashboard({ onSignOut }) {
+  const [agency,        setAgency]        = useState("isl");
+  const [quarter,       setQuarter]       = useState(QUARTERS[0].suffix);
+  const [type,          setType]          = useState("social");
+  const [isDirty,       setIsDirty]       = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+
   const guard = useCallback((action) => {
-    if (isDirty && !window.confirm("You have unsaved changes. Discard them and continue?")) return;
-    setIsDirty(false);
-    action();
+    if (isDirty) {
+      setPendingAction(() => action);
+    } else {
+      action();
+    }
   }, [isDirty]);
+
+  const confirmDiscard = useCallback(() => {
+    setIsDirty(false);
+    pendingAction?.();
+    setPendingAction(null);
+  }, [pendingAction]);
+
+  const cancelDiscard = useCallback(() => setPendingAction(null), []);
 
   return (
     <div className="admin-wrap">
+      {pendingAction && (
+        <ConfirmModal onConfirm={confirmDiscard} onCancel={cancelDiscard} />
+      )}
       <header className="admin-header">
         <div className="admin-header-inner">
           <div className="admin-header-left">

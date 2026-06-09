@@ -58,6 +58,7 @@
     max-width: var(--col);
     margin: 0 auto;
     padding: 48px 40px 0;
+    animation: fadeUp 0.35s ease both;
   }
   .report-wrap > .wrap { max-width: none; padding-left: 0; padding-right: 0; }
 
@@ -209,7 +210,11 @@
   .menu .menu-item.active  { color: var(--accent); font-weight: 500; }
 
   /* Colophon */
-  .colophon { border-top: 1px solid var(--rule); padding-top: 24px; padding-bottom: 56px; color: var(--ink-3); font-size: 13px; text-align: center; }
+  .colophon { border-top: 1px solid var(--rule); padding-top: 24px; padding-bottom: 56px; color: var(--ink-4); font-size: 13px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: wrap; }
+  .colophon-author { color: var(--ink-3); }
+  .colophon-sep    { padding: 0 6px; }
+  .colophon-year,
+  .colophon-agency { color: var(--ink-3); }
 }
 
 /* ─── Layer: components ─────────────────────────────────────────── */
@@ -262,7 +267,8 @@
     grid-template-columns: repeat(4, 1fr);
     column-gap: 36px; row-gap: 56px;
   }
-  .kpi { display: flex; flex-direction: column; gap: 12px; padding-top: 16px; border-top: 1px solid var(--ink); }
+  .kpi { display: flex; flex-direction: column; gap: 12px; padding-top: 16px; border-top: 1px solid var(--ink); transition: border-top-color 0.2s ease; }
+  .kpi:hover { border-top-color: var(--accent); }
   .kpi-label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
   .kpi-value { font-family: var(--serif); font-size: clamp(42px, 4.6vw, 64px); line-height: 1; letter-spacing: -0.025em; color: var(--ink); font-variant-numeric: tabular-nums lining-nums; font-weight: 300; }
   .kpi-foot  { display: flex; align-items: baseline; gap: 10px; font-size: 13px; color: var(--ink-3); }
@@ -565,7 +571,7 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
+  .report-wrap { animation: none; }
 
 /* ================================================================
    Responsive — outside all layers, always wins over component defaults
@@ -1006,4 +1012,85 @@
   .admin-kpi-grid       { grid-template-columns: repeat(2, 1fr); }
   .admin-header-inner   { padding: 0 16px; }
   .admin-main           { padding: 20px 16px 80px; }
+}
+
+/* ================================================================
+   Admin — Confirm modal
+   ================================================================ */
+
+.admin-confirm-overlay {
+  position: fixed; inset: 0;
+  background: rgba(20, 17, 13, 0.5);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 600; padding: 16px;
+}
+
+.admin-confirm-box {
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  padding: 36px 40px;
+  max-width: 420px; width: 100%;
+  display: flex; flex-direction: column; gap: 28px;
+}
+
+.admin-confirm-message {
+  font-family: var(--serif);
+  font-size: 19px; line-height: 1.45; color: var(--ink-2);
+  margin: 0;
+}
+
+.admin-confirm-actions {
+  display: flex; gap: 12px;
+}
+
+/* ================================================================
+   Page entrance animation
+   ================================================================ */
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ================================================================
+   Print / PDF
+   ================================================================ */
+
+@media print {
+  .app-nav,
+  .all-posts-controls,
+  .view-toggle,
+  .error-retry-btn,
+  .platform-tabs,
+  .page-loader       { display: none !important; }
+
+  .colophon { padding-bottom: 16px; }
+
+  .report-wrap {
+    padding-top: 8px;
+    animation: none;
+  }
+
+  .section {
+    padding-top: 32px;
+    padding-bottom: 32px;
+    break-inside: avoid;
+  }
+
+  .kpi-value { font-size: 36px; }
+
+  .section-title { font-size: 28px; }
+
+  .notes { grid-template-columns: 1fr 1fr; }
+
+  .pages-grid { grid-template-columns: repeat(2, 1fr); }
+
+  .all-posts-list-wrap { max-height: none; overflow: visible; }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }

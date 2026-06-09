@@ -5,7 +5,7 @@ import { useUrlState } from "./hooks/useUrlState.js";
 import { AppNav } from "./components/Nav.jsx";
 import { LoadingScreen } from "./components/LoadingScreen.jsx";
 import { PageSkeleton } from "./components/Skeleton.jsx";
-import { AGENCIES, QUARTERS } from "./config.js";
+import { AGENCIES, QUARTERS, CURRENT_QUARTER } from "./config.js";
 
 const SocialPage = lazy(() => import("./pages/SocialPage.jsx").then(m => ({ default: m.SocialPage })));
 const WebPage    = lazy(() => import("./pages/WebPage.jsx").then(m => ({ default: m.WebPage })));
@@ -67,7 +67,13 @@ function App() {
         )}
       </Suspense>
 
-      <footer className="wrap colophon">Prepared by Josiah Yule</footer>
+      <footer className="wrap colophon">
+        Prepared by <span className="colophon-author">Josiah Yule</span>
+        <span className="colophon-sep" aria-hidden="true"> · </span>
+        <span className="colophon-year">{CURRENT_QUARTER.year}</span>
+        <span className="colophon-sep" aria-hidden="true"> · </span>
+        <span className="colophon-agency">{(AGENCIES[agency] || AGENCIES.isl).name}</span>
+      </footer>
     </>
   );
 }

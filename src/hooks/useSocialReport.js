@@ -133,7 +133,7 @@ function normalize(report, agency, quarter, prev) {
   };
 }
 
-export function useSocialReport(agency, quarter) {
+export function useSocialReport(agency, quarter, retryKey = 0) {
   const [state, setState] = useState({ data: null, status: "loading", error: null });
 
   useEffect(() => {
@@ -156,7 +156,7 @@ export function useSocialReport(agency, quarter) {
     })();
 
     return () => { cancelled = true; };
-  }, [agency, quarter]);
+  }, [agency, quarter, retryKey]);
 
   return state;
 }
