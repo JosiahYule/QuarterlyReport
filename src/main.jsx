@@ -36,6 +36,11 @@ function App() {
     document.title = `${cfg.name} ${q.label} ${q.year} — ${viewLabel}`;
   }, [agency, quarter, view]);
 
+  // Agency-keyed accent colour (see editorial.css body[data-agency] rules)
+  useEffect(() => {
+    document.body.dataset.agency = AGENCIES[agency] ? agency : "isl";
+  }, [agency]);
+
   useEffect(() => () => clearTimeout(announcementTimer.current), []);
 
   const skelView = view === "web" ? "web" : view === "trends" ? "trends" : "social";

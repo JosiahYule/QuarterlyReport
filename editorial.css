@@ -24,13 +24,18 @@
     --down:       #8a1f18;   /* darkened from #9a2820 for 11px sub-text safety */
     --flat:       #6a655d;
 
-    --serif: "Inter Tight", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --serif: "Newsreader", Georgia, "Times New Roman", serif;
     --sans:  "Inter Tight", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
 
     --col:   1180px;
     --gap:   28px;
     --pad-y: 88px;
   }
+
+  /* Agency-keyed accent — main.jsx sets data-agency on <body>.
+     Values match the agency badge colours; all pass WCAG 4.5:1 on paper. */
+  body[data-agency="as"]  { --accent: #7a5c00; }
+  body[data-agency="ads"] { --accent: #0f5b78; }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { background: var(--paper); color: var(--ink); }
@@ -140,7 +145,7 @@
   .app-nav-agency-btn:hover { opacity: 0.7; }
   .app-nav-agency-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
   .app-nav-caret {
-    font-family: var(--sans); font-size: 10px; color: var(--ink-4);
+    display: inline-flex; font-size: 11px; color: var(--ink-4);
     margin-left: 1px; transition: transform .15s ease; align-self: center;
   }
   .app-nav-agency-btn[aria-expanded="true"] .app-nav-caret { transform: rotate(180deg); }
@@ -166,7 +171,7 @@
   .agency-badge-as   { background: #7a5c00; }
   .agency-badge-ads  { background: #0F5B78; }
   .agency-option-name  { flex: 1; }
-  .agency-option-check { font-size: 12px; color: var(--accent); flex-shrink: 0; }
+  .agency-option-check { display: inline-flex; font-size: 12px; color: var(--accent); flex-shrink: 0; }
 
   .app-nav-divider { width: 1px; height: 18px; background: var(--rule); flex-shrink: 0; }
 
@@ -191,7 +196,7 @@
   }
   .qchooser:hover { border-color: var(--ink); }
   .qchooser:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-color: var(--ink); }
-  .qchooser .caret { font-size: 10px; opacity: .6; }
+  .qchooser .caret { display: inline-flex; font-size: 11px; opacity: .6; align-self: center; }
 
   .menu {
     position: absolute; top: calc(100% + 6px); right: 0;
@@ -281,8 +286,9 @@
   }
 
   /* Delta badge */
-  .delta { display: inline-flex; align-items: baseline; gap: 6px; font-weight: 500; font-variant-numeric: tabular-nums; }
-  .delta .arrow { font-family: var(--serif); font-style: italic; font-size: 1.1em; line-height: 1; }
+  .delta { display: inline-flex; align-items: baseline; gap: 5px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .delta .arrow { display: inline-flex; align-self: center; font-size: 0.9em; }
+  .delta .arrow svg { display: block; }
   .delta.up   { color: var(--up); }
   .delta.down { color: var(--down); }
   .delta.flat { color: var(--flat); }
@@ -518,6 +524,56 @@
     vertical-align: middle;
   }
 
+  /* Section index rail — wide viewports only */
+  .section-rail {
+    position: fixed; left: 28px; top: 50%; transform: translateY(-50%);
+    z-index: 30; display: none; flex-direction: column; gap: 2px; max-width: 150px;
+  }
+  .section-rail-item {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-4); padding: 6px 10px; text-align: left;
+    border-left: 2px solid var(--rule-soft); margin-left: 0;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .section-rail-item:hover { color: var(--ink); }
+  .section-rail-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .section-rail-item.is-active { color: var(--accent); border-left-color: var(--accent); }
+  .section[id] { scroll-margin-top: 72px; }
+
+  /* Sort indicator (clickable table headers) */
+  .sort-icon { display: inline-flex; vertical-align: -2px; margin-left: 4px; font-size: 12px; }
+  .sort-icon.is-idle { opacity: 0.3; }
+
+  /* Direction icon inside projection stats */
+  .proj-stat-dir { display: inline-flex; vertical-align: -2px; margin-right: 3px; font-size: 12px; }
+
+  /* Tinted full-bleed section — breaks up the white column rhythm */
+  .section-tint {
+    background: var(--paper-2);
+    box-shadow: 0 0 0 100vmax var(--paper-2);
+    clip-path: inset(0 -100vmax);
+  }
+
+  /* Slim scrollbars on scrolling tables, matching the hairline chrome */
+  .all-posts-list-wrap,
+  .table-wrap,
+  .admin-posts-table-wrap {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ink-4) transparent;
+  }
+  .all-posts-list-wrap::-webkit-scrollbar,
+  .table-wrap::-webkit-scrollbar,
+  .admin-posts-table-wrap::-webkit-scrollbar { width: 8px; height: 8px; }
+  .all-posts-list-wrap::-webkit-scrollbar-thumb,
+  .table-wrap::-webkit-scrollbar-thumb,
+  .admin-posts-table-wrap::-webkit-scrollbar-thumb {
+    background: var(--ink-4); border-radius: 4px;
+    border: 2px solid var(--paper); background-clip: padding-box;
+  }
+  .all-posts-list-wrap::-webkit-scrollbar-track,
+  .table-wrap::-webkit-scrollbar-track,
+  .admin-posts-table-wrap::-webkit-scrollbar-track { background: transparent; }
+
   /* Error / empty states */
   .error-section  { display: flex; flex-direction: column; gap: 20px; }
   .error-retry-btn {
@@ -557,6 +613,9 @@
    ================================================================ */
 
 @media (prefers-reduced-motion: no-preference) {
+  /* KPI cards enter with a slight stagger (--i set per card in JSX) */
+  .kpi { animation: fadeUp 0.45s ease both; animation-delay: calc(var(--i, 0) * 55ms); }
+
   .loading-wordmark { animation: loadPulse 2s ease-in-out infinite; }
   .loading-fill     { animation: loadScan  1.4s ease-in-out infinite; }
   .loading-label    { animation: loadPulse 2s ease-in-out infinite; }
@@ -577,6 +636,11 @@
 /* ================================================================
    Responsive — outside all layers, always wins over component defaults
    ================================================================ */
+
+/* ── Wide desktop — show the section rail ────────────────────── */
+@media (min-width: 1480px) {
+  .section-rail { display: flex; }
+}
 
 /* ── Tablet (≤880px) ─────────────────────────────────────────── */
 @media (max-width: 880px) {

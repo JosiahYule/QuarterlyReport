@@ -6,6 +6,9 @@ import { PageLoader } from "../components/PageLoader.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { EmptyNote, EmptyData } from "../components/EmptyState.jsx";
 import { fmt, fmtExact, FLAT } from "../utils.js";
+import { IconSort, IconArrowUp, IconArrowDown } from "../components/Icons.jsx";
+import { CountUp } from "../components/CountUp.jsx";
+import { SectionRail } from "../components/SectionRail.jsx";
 
 // ─── Hero ─────────────────────────────────────────────────────────
 function Hero({ data }) {
@@ -43,18 +46,18 @@ const KPI_DEFS = [
 
 function Numbers({ data }) {
   return (
-    <section className="section wrap kpi-section" aria-label="Key performance indicators">
+    <section id="numbers" className="section wrap kpi-section" aria-label="Key performance indicators">
       <header className="section-head">
         <h2 className="section-title serif">The <em>Numbers</em></h2>
       </header>
       <div className="kpi-grid">
-        {KPI_DEFS.map(k => {
+        {KPI_DEFS.map((k, i) => {
           const v = data.overall[k.key];
           const d = data.deltas?.[k.key] || FLAT;
           return (
-            <div className="kpi" key={k.key}>
+            <div className="kpi" key={k.key} style={{ "--i": i }}>
               <div className="kpi-label">{k.label}</div>
-              <div className="kpi-value num">{k.fmt(v)}</div>
+              <div className="kpi-value num"><CountUp value={v} format={k.fmt} /></div>
               <div className="kpi-foot">
                 <Delta d={d} />
                 <span className="delta-note">{k.note}</span>
@@ -184,7 +187,7 @@ function KpiHistory({ agency }) {
   const activeDef    = isFollowers ? { ...baseDef, label: "Net New Followers" } : baseDef;
 
   return (
-    <section className="section wrap">
+    <section id="quarter-by-quarter" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Quarter by <em>Quarter</em></h2>
       </header>
@@ -279,7 +282,7 @@ function Trend({ data }) {
   };
 
   return (
-    <section className="section wrap">
+    <section id="week-by-week" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Week by Week</h2>
       </header>
@@ -314,7 +317,7 @@ function Trend({ data }) {
 // ─── Platforms ────────────────────────────────────────────────────
 function Platforms({ data }) {
   return (
-    <section className="section wrap">
+    <section id="platforms" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">By <em>Platform</em></h2>
       </header>
@@ -370,7 +373,7 @@ function TopPosts({ data }) {
   const posts = data.topPostsByPlatform[platform] || [];
 
   return (
-    <section className="section wrap">
+    <section id="top-posts" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Top <em>Posts</em></h2>
       </header>
@@ -449,8 +452,8 @@ function AllPosts({ data }) {
 
   const sortIcon = (key) =>
     sort.key !== key
-      ? <span style={{ opacity: 0.3, marginLeft: 4 }} aria-hidden="true">↕</span>
-      : <span style={{ marginLeft: 4 }} aria-label={sort.dir === "desc" ? "sorted descending" : "sorted ascending"}>{sort.dir === "desc" ? "↓" : "↑"}</span>;
+      ? <span className="sort-icon is-idle" aria-hidden="true"><IconSort /></span>
+      : <span className="sort-icon" aria-label={sort.dir === "desc" ? "sorted descending" : "sorted ascending"}>{sort.dir === "desc" ? <IconArrowDown /> : <IconArrowUp />}</span>;
 
   const posts = useMemo(() => {
     return (data.allPosts || [])
@@ -488,7 +491,7 @@ function AllPosts({ data }) {
   const thStyle = { cursor: "pointer", userSelect: "none" };
 
   return (
-    <section className="section wrap">
+    <section id="all-posts" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">All <em>Posts</em></h2>
       </header>
@@ -645,7 +648,7 @@ function AllPosts({ data }) {
                             return (
                               <article key={i} className="calendar-post" style={{ "--health-color": color }} title={`${healthLabel} · ER ${er.toFixed(2)}%`}>
                                 <div className="calendar-post-title">{p["Post Name"] || "—"}</div>
-                                <div className="calendar-post-meta">{p.Platforms || "—"} · {er.toFixed(2)}%</div>
+                                <div className="calendar-post-meta">{p.Platforms || "—"} · {er.toFixed(2)}% · {healthLabel}</div>
                               </article>
                             );
                           })}
@@ -672,7 +675,7 @@ function NoteList({ items }) {
 
 function Notes({ data }) {
   return (
-    <section className="section wrap">
+    <section id="insights" className="section wrap section-tint">
       <header className="section-head">
         <h2 className="section-title serif"><em>Insights</em></h2>
       </header>
@@ -685,6 +688,16 @@ function Notes({ data }) {
     </section>
   );
 }
+
+const SOCIAL_SECTIONS = [
+  { id: "numbers",            label: "The Numbers" },
+  { id: "quarter-by-quarter", label: "Quarterly" },
+  { id: "week-by-week",       label: "Weekly" },
+  { id: "platforms",          label: "Platforms" },
+  { id: "top-posts",          label: "Top Posts" },
+  { id: "all-posts",          label: "All Posts" },
+  { id: "insights",           label: "Insights" },
+];
 
 // ─── Page ─────────────────────────────────────────────────────────
 export function SocialPage({ agency, quarter, onReady }) {
@@ -713,6 +726,7 @@ export function SocialPage({ agency, quarter, onReady }) {
 
   return (
     <main className="report-wrap">
+      <SectionRail sections={SOCIAL_SECTIONS} />
       <ErrorBoundary><Hero data={data} /></ErrorBoundary>
       <ErrorBoundary><Numbers data={data} /></ErrorBoundary>
       <ErrorBoundary><KpiHistory agency={agency} /></ErrorBoundary>
