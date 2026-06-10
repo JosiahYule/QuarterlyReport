@@ -372,7 +372,7 @@ export function TrendsPage({ agency, onReady }) {
       <ErrorBoundary><Hero agency={agency} q3comp={q3comp} q3done={q3done} /></ErrorBoundary>
 
       <ErrorBoundary>
-        <section id="projections" className="section wrap section-tint">
+        <section id="projections" className="section wrap">
           <header className="section-head">
             <h2 className="section-title serif">{TRENDS_QUARTERS[2].label} Projected <em>Finals</em></h2>
             <p className="section-sub">Estimated end-of-quarter totals based on observed daily rate × total quarter days.</p>

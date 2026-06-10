@@ -262,7 +262,7 @@
     font-family: var(--serif); font-size: clamp(28px, 3.4vw, 42px);
     line-height: 1.05; letter-spacing: -0.02em; color: var(--ink);
   }
-  .section-title em { font-style: italic; color: var(--accent); }
+  .section-title em { font-style: normal; color: inherit; }
   .section-sub   { font-size: 14px; color: var(--ink-3); margin-top: 8px; }
 
   /* KPI grid — container queries handle reflow */
@@ -277,7 +277,6 @@
   .kpi-label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
   .kpi-value { font-family: var(--serif); font-size: clamp(42px, 4.6vw, 64px); line-height: 1; letter-spacing: -0.025em; color: var(--ink); font-variant-numeric: tabular-nums lining-nums; font-weight: 300; }
   .kpi-foot  { display: flex; align-items: baseline; gap: 10px; font-size: 13px; color: var(--ink-3); }
-  .kpi-spark { margin-left: auto; align-self: center; opacity: 0.45; flex-shrink: 0; }
 
   @container (max-width: 700px) {
     .kpi-grid { grid-template-columns: repeat(2, 1fr); column-gap: 24px; }
@@ -545,13 +544,6 @@
   /* Sort indicator (clickable table headers) */
   .sort-icon { display: inline-flex; vertical-align: -2px; margin-left: 4px; font-size: 12px; }
   .sort-icon.is-idle { opacity: 0.3; }
-
-  /* Tinted full-bleed section — breaks up the white column rhythm */
-  .section-tint {
-    background: var(--paper-2);
-    box-shadow: 0 0 0 100vmax var(--paper-2);
-    clip-path: inset(0 -100vmax);
-  }
 
   /* Slim scrollbars on scrolling tables, matching the hairline chrome */
   .all-posts-list-wrap,
