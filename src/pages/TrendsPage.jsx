@@ -5,7 +5,6 @@ import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { fmt, fmtApprox } from "../utils.js";
 import { PageLoader } from "../components/PageLoader.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
-import { DirIcon } from "../components/Icons.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
 
 // Chart colours — q2/q3 follow the agency accent; proj stays visually
@@ -204,28 +203,20 @@ function ProjSparkline({ timeline }) {
   }).join(" ");
 
   const last = timeline[timeline.length - 1].projected;
-  const first = timeline[0].projected;
-  const up = last >= first;
-  const color = up ? "var(--up)" : "var(--down)";
-
   const labelY = H - ((last - minV) / range) * H;
 
   return (
-    <div className="proj-sparkline-wrap" aria-hidden="true">
+    <div className="proj-sparkline-wrap" aria-hidden="true" title="Projection over the quarter so far">
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: "block", overflow: "visible" }}>
-        <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" opacity=".7" />
-        <circle cx={pts.split(" ").pop().split(",")[0]} cy={labelY.toFixed(1)} r="3" fill={color} />
+        <polyline points={pts} fill="none" stroke="var(--ink-4)" strokeWidth="1.25" strokeLinejoin="round" strokeLinecap="round" opacity=".8" />
+        <circle cx={pts.split(" ").pop().split(",")[0]} cy={labelY.toFixed(1)} r="2.5" fill="var(--accent)" />
       </svg>
-      <div className="proj-sparkline-label" style={{ color }}>
-        <span className="proj-stat-dir" aria-hidden="true"><DirIcon dir={up ? "up" : "down"} /></span>
-        {" "}Projection trending {up ? "up" : "down"} this quarter
-      </div>
     </div>
   );
 }
 
 // ─── Projection card ──────────────────────────────────────────────
-function ProjCard({ metric, qdata, snaps, q3comp, q3done, calibrationFactor = 1 }) {
+function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1 }) {
   const [d1, d2, d3] = qdata;
   const [, tq2, tq3] = TRENDS_QUARTERS;
 
@@ -252,10 +243,6 @@ function ProjCard({ metric, qdata, snaps, q3comp, q3done, calibrationFactor = 1 
     ? (q3done ? `${ql} Final` : `Projected Final · ${ql}`)
     : (metric.baselineFromQ2 ? `${ql} Current Total` : `${ql} Current`);
 
-  const dElapsed = pace ? Math.round(pace.dElapsed) : 0;
-  const dTotal   = pace ? Math.round(pace.dTotal)   : 92;
-  const pct      = (q3comp * 100).toFixed(1);
-
   const stat1Label = metric.baselineFromQ2 ? `${ql} Net New` : `${ql} to Date`;
   const stat1Val   = metric.baselineFromQ2 && q3v !== null && q2v !== null ? fmt(q3v - q2v, metric.isPercent) : fmt(q3v, metric.isPercent);
 
@@ -263,10 +250,9 @@ function ProjCard({ metric, qdata, snaps, q3comp, q3done, calibrationFactor = 1 
     ? (metric.isPercent ? `${pace.dailyRate.toFixed(3)}%/day` : `${pace.dailyRate.toFixed(1)}/day`)
     : "—";
 
-  let stat3Val = "—", stat3Cls = "na", stat3Dir = null;
+  let stat3Val = "—", stat3Cls = "na";
   if (rateVsQ2 !== null) {
-    stat3Dir = rateVsQ2 >= 0 ? "up" : "down";
-    stat3Val = `${rateVsQ2 >= 0 ? "+" : ""}${Math.abs(rateVsQ2).toFixed(1)}%`;
+    stat3Val = `${rateVsQ2 >= 0 ? "+" : "−"}${Math.abs(rateVsQ2).toFixed(1)}%`;
     stat3Cls = rateVsQ2 >= 0 ? "pos" : "neg";
   } else if (!metric.isPace) {
     stat3Val = "n/a";
@@ -276,11 +262,10 @@ function ProjCard({ metric, qdata, snaps, q3comp, q3done, calibrationFactor = 1 
   const weekAgoProj = projected !== null && !q3done
     ? getWeekAgoProjection(snaps, metric, tq3, q2Rate, histBaseline)
     : null;
-  let wowVal = "—", wowCls = "na", wowDir = null;
+  let wowVal = "—", wowCls = "na";
   if (weekAgoProj !== null && projected !== null) {
     const delta = projected - weekAgoProj;
-    wowDir = delta >= 0 ? "up" : "down";
-    wowVal = `${delta >= 0 ? "+" : ""}${fmtApprox(Math.abs(delta), metric.isPercent)}`;
+    wowVal = `${delta >= 0 ? "+" : "−"}${fmtApprox(Math.abs(delta), metric.isPercent)}`;
     wowCls = delta >= 0 ? "pos" : "neg";
   }
 
@@ -294,15 +279,6 @@ function ProjCard({ metric, qdata, snaps, q3comp, q3done, calibrationFactor = 1 
       <div className="proj-card-label">{metric.label}</div>
       <div className="proj-number serif">{headline}</div>
       <div className="proj-number-sub">{headlineSub}</div>
-      <div className="proj-progress-wrap">
-        <div className="proj-progress-track" role="progressbar" aria-valuenow={Math.round(q3comp * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={`${tq3.label} ${Math.round(q3comp * 100)}% elapsed`}>
-          <div className="proj-progress-fill" style={{ width: `${Math.min(100, q3comp * 100).toFixed(1)}%` }} />
-        </div>
-        <div className="proj-progress-labels" aria-hidden="true">
-          <span>Day {dElapsed} of {dTotal}{q3done ? " · complete" : ""}</span>
-          <span>{pct}%</span>
-        </div>
-      </div>
       <div className="proj-stats-grid">
         <div className="proj-stat">
           <div className="proj-stat-label">{stat1Label}</div>
@@ -314,17 +290,11 @@ function ProjCard({ metric, qdata, snaps, q3comp, q3done, calibrationFactor = 1 
         </div>
         <div className="proj-stat">
           <div className="proj-stat-label">Rate vs {tq2.label}</div>
-          <div className={"proj-stat-value " + stat3Cls}>
-            {stat3Dir && <span className="proj-stat-dir" aria-hidden="true"><DirIcon dir={stat3Dir} /></span>}
-            {stat3Val}
-          </div>
+          <div className={"proj-stat-value " + stat3Cls}>{stat3Val}</div>
         </div>
         <div className="proj-stat">
           <div className="proj-stat-label">vs Last Week</div>
-          <div className={"proj-stat-value " + wowCls}>
-            {wowDir && <span className="proj-stat-dir" aria-hidden="true"><DirIcon dir={wowDir} /></span>}
-            {wowVal}
-          </div>
+          <div className={"proj-stat-value " + wowCls}>{wowVal}</div>
         </div>
       </div>
       <ProjSparkline timeline={timeline} />
@@ -409,7 +379,7 @@ export function TrendsPage({ agency, onReady }) {
           </header>
           <div className="proj-grid">
             {METRICS.map(m => (
-              <ProjCard key={m.id} metric={m} qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} q3comp={q3comp} q3done={q3done} calibrationFactor={projectionAudits[m.id]?.calibrationFactor ?? 1} />
+              <ProjCard key={m.id} metric={m} qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} q3done={q3done} calibrationFactor={projectionAudits[m.id]?.calibrationFactor ?? 1} />
             ))}
           </div>
         </section>

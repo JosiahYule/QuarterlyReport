@@ -28,7 +28,7 @@ Any combination of agency and quarter is a URL. You can switch between them inst
 | Charts | [Chart.js 4](https://www.chartjs.org) + hand-built SVG charts |
 | Data + auth | [Supabase](https://supabase.com) (Postgres + RLS + magic-link auth) |
 | Styling | Custom CSS design system (`editorial.css`) |
-| Typography | [Newsreader](https://fonts.google.com/specimen/Newsreader) (display serif) + [Inter Tight](https://fonts.google.com/specimen/Inter+Tight) via Google Fonts |
+| Typography | [Inter Tight](https://fonts.google.com/specimen/Inter+Tight) via Google Fonts |
 | Routing | Custom URL-param hook (no router library) |
 | Lint / format / test | ESLint 9, Prettier, Vitest |
 | Hosting | Cloudflare Pages |
