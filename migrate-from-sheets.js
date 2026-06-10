@@ -38,7 +38,7 @@ function num(v) {
   return isFinite(n) ? n : null;
 }
 
-function parseDelta(d) {
+function _parseDelta(d) {
   if (!d || typeof d !== "string") return null;
   const dir = /[▲↑]|up/i.test(d) ? "up" : /[▼↓]|down/i.test(d) ? "down" : "flat";
   const m = d.match(/[\d.]+/);
@@ -196,7 +196,6 @@ async function migrateWeb(quarter) {
   console.log(`  ${reportKey}: found data, migrating…`);
 
   const o    = raw.overall   || {};
-  const d    = raw.deltas    || {};
   const ins  = raw.insights  || {};
   const summ = typeof raw.execSummary === "string" ? raw.execSummary
     : Array.isArray(raw.execSummary) ? raw.execSummary[0] || ""

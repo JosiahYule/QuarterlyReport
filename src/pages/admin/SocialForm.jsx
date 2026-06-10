@@ -93,7 +93,6 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
   const [tab,       setTab]      = useState("overview");
   const [saving,    setSaving]   = useState(false);
   const [saveMsg,   setSaveMsg]  = useState("");
-  const [reportId,  setReportId] = useState(null);
   const [loading,   setLoading]  = useState(true);
   const [loadError, setLoadError] = useState("");
 
@@ -127,7 +126,6 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
           .maybeSingle();
         if (error) throw error;
         if (data) {
-          setReportId(data.id);
           setEditorsNote(data.editors_note || "");
           const k = data.social_kpis?.[0] || {};
           setKpis(Object.fromEntries(KPI_FIELDS.map(f => [f.key, k[f.key] ?? ""])));
@@ -169,7 +167,6 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
         .select("id").single();
       if (e1) throw e1;
       const rid = rep.id;
-      setReportId(rid);
 
       // KPIs
       await dbOp(supabase.from("social_kpis").delete().eq("report_id", rid));

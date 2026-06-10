@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useSocialReport } from "../hooks/useSocialReport.js";
 import { useSocialKpiHistory } from "../hooks/useSocialKpiHistory.js";
 import { Delta } from "../components/Delta.jsx";

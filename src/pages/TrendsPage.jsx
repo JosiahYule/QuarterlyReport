@@ -41,8 +41,6 @@ function makeTooltipHandler(isPercent) {
       `<div class="ctt-title">${title}</div>` +
       `<div class="ctt-body">${body}${isProj ? '<span class="ctt-tag">projected</span>' : ""}</div>`;
 
-    const canvasRect = chart.canvas.getBoundingClientRect();
-    const containerRect = chart.canvas.parentNode.getBoundingClientRect();
     const x = tooltip.caretX;
     const y = tooltip.caretY;
 
@@ -158,7 +156,9 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
     chart.data.datasets[0].data = values;
     chart.data.datasets[0].backgroundColor = colors;
     chart.update();
-  }, [values[0], values[1], values[2], labels[2]]); // labels[2] changes when projected status flips
+    // labels[2] changes when projected status flips
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values[0], values[1], values[2], labels[2]]);
 
   const legendItems = [
     { color: C.q1, label: `${tq1.label} Actual` },
@@ -188,7 +188,7 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
 }
 
 // ─── Projection sparkline ─────────────────────────────────────────
-function ProjSparkline({ timeline, isPercent }) {
+function ProjSparkline({ timeline }) {
   if (!timeline || timeline.length < 2) return null;
   const W = 160, H = 36;
   const vals = timeline.map(p => p.projected);
@@ -209,8 +209,6 @@ function ProjSparkline({ timeline, isPercent }) {
   const color = up ? "var(--up)" : "var(--down)";
 
   const labelY = H - ((last - minV) / range) * H;
-  const labelAnchor = labelY > H * 0.6 ? "end" : "start";
-  const labelDy = labelY > H * 0.6 ? -4 : 12;
 
   return (
     <div className="proj-sparkline-wrap" aria-hidden="true">
@@ -227,7 +225,7 @@ function ProjSparkline({ timeline, isPercent }) {
 }
 
 // ─── Projection card ──────────────────────────────────────────────
-function ProjCard({ metric, agency, qdata, snaps, q3comp, q3done, calibrationFactor = 1 }) {
+function ProjCard({ metric, qdata, snaps, q3comp, q3done, calibrationFactor = 1 }) {
   const [d1, d2, d3] = qdata;
   const [, tq2, tq3] = TRENDS_QUARTERS;
 
@@ -329,7 +327,7 @@ function ProjCard({ metric, agency, qdata, snaps, q3comp, q3done, calibrationFac
           </div>
         </div>
       </div>
-      <ProjSparkline timeline={timeline} isPercent={metric.isPercent} />
+      <ProjSparkline timeline={timeline} />
     </div>
   );
 }
@@ -411,7 +409,7 @@ export function TrendsPage({ agency, onReady }) {
           </header>
           <div className="proj-grid">
             {METRICS.map(m => (
-              <ProjCard key={m.id} metric={m} agency={agency} qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} q3comp={q3comp} q3done={q3done} calibrationFactor={projectionAudits[m.id]?.calibrationFactor ?? 1} />
+              <ProjCard key={m.id} metric={m} qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} q3comp={q3comp} q3done={q3done} calibrationFactor={projectionAudits[m.id]?.calibrationFactor ?? 1} />
             ))}
           </div>
         </section>
