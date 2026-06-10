@@ -572,6 +572,7 @@
     scroll-behavior: auto !important;
   }
   .report-wrap { animation: none; }
+}
 
 /* ================================================================
    Responsive — outside all layers, always wins over component defaults
