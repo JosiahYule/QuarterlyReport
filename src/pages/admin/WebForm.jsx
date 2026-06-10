@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../lib/supabase.js";
+import { IconClose } from "../../components/Icons.jsx";
 
 const num = v => (v === "" || v === null || v === undefined) ? null : (isFinite(Number(v)) ? Number(v) : null);
 const str = v => (v == null ? "" : String(v));
@@ -213,7 +214,7 @@ export function WebForm({ agency, quarter, onDirtyChange }) {
               </div>
               <button className="admin-btn-remove"
                 onClick={() => { setChannels(cs => cs.filter((_, j) => j !== i)); dirty(); }}
-                aria-label="Remove">✕</button>
+                aria-label="Remove"><IconClose /></button>
             </div>
           ))}
           <button className="admin-btn-add"
@@ -249,7 +250,7 @@ export function WebForm({ agency, quarter, onDirtyChange }) {
               </div>
               <button className="admin-btn-remove"
                 onClick={() => { setPages(ps => ps.filter((_, j) => j !== i)); dirty(); }}
-                aria-label="Remove">✕</button>
+                aria-label="Remove"><IconClose /></button>
             </div>
           ))}
           <button className="admin-btn-add"

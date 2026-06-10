@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { AGENCIES, QUARTERS } from "../../config.js";
 import { SocialForm } from "./SocialForm.jsx";
 import { WebForm } from "./WebForm.jsx";
@@ -42,6 +42,14 @@ export function AdminDashboard({ onSignOut }) {
 
   const cancelDiscard = useCallback(() => setPendingAction(null), []);
 
+  // Warn before the tab closes with unsaved changes
+  useEffect(() => {
+    if (!isDirty) return;
+    const warn = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [isDirty]);
+
   return (
     <div className="admin-wrap">
       {pendingAction && (
@@ -51,6 +59,7 @@ export function AdminDashboard({ onSignOut }) {
         <div className="admin-header-inner">
           <div className="admin-header-left">
             <span className="admin-wordmark serif">Report Admin</span>
+            {isDirty && <span className="admin-dirty-chip">Unsaved changes</span>}
             <div className="admin-header-selects">
               <select className="admin-select" value={agency}
                 onChange={e => guard(() => setAgency(e.target.value))}>

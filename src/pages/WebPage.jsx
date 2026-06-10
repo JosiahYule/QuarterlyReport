@@ -6,6 +6,8 @@ import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { EmptyNote } from "../components/EmptyState.jsx";
 import { fmtInt, fmtPct, fmtTime, calcAutoDelta, parseDelta, FLAT } from "../utils.js";
 import { AGENCIES, QUARTERS } from "../config.js";
+import { CountUp } from "../components/CountUp.jsx";
+import { SectionRail } from "../components/SectionRail.jsx";
 
 // ─── Hero ─────────────────────────────────────────────────────────
 function Hero({ agency, quarter, data }) {
@@ -47,20 +49,20 @@ function Numbers({ data, prevData }) {
   const o = data.overall || {};
   const prev = prevData?.overall || {};
   return (
-    <section className="section wrap kpi-section" aria-label="Key performance indicators">
+    <section id="numbers" className="section wrap kpi-section" aria-label="Key performance indicators">
       <header className="section-head">
         <h2 className="section-title serif">The <em>Numbers</em></h2>
       </header>
       <div className="kpi-grid">
-        {KPI_DEFS.map(k => {
+        {KPI_DEFS.map((k, i) => {
           const v = o[k.key];
           const d = data.deltas?.[k.key]
             ? parseDelta(data.deltas[k.key])
             : calcAutoDelta(v, prev[k.key]) || FLAT;
           return (
-            <div className="kpi" key={k.key}>
+            <div className="kpi" key={k.key} style={{ "--i": i }}>
               <div className="kpi-label">{k.label}</div>
-              <div className="kpi-value num">{k.fmt(v)}</div>
+              <div className="kpi-value num"><CountUp value={v} format={k.fmt} /></div>
               <div className="kpi-foot">
                 <Delta d={d} />
                 <span className="delta-note">{k.note}</span>
@@ -80,7 +82,7 @@ function Channels({ data, prevData }) {
   (prevData?.channels || []).forEach(c => { prevMap[c.name?.toLowerCase()] = c; });
 
   return (
-    <section className="section wrap">
+    <section id="channels" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Traffic <em>Channels</em></h2>
       </header>
@@ -133,7 +135,7 @@ function TopPages({ data, prevData }) {
   (prevData?.topPages || []).forEach(p => { prevMap[(p.key || p.name || "").toLowerCase()] = p; });
 
   return (
-    <section className="section wrap">
+    <section id="top-pages" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Top <em>Pages</em></h2>
       </header>
@@ -184,7 +186,7 @@ function Notes({ data }) {
     { key: "next",       label: "Next quarter", cls: "" },
   ];
   return (
-    <section className="section wrap">
+    <section id="insights" className="section wrap section-tint">
       <header className="section-head">
         <h2 className="section-title serif"><em>Insights</em></h2>
       </header>
@@ -204,6 +206,13 @@ function Notes({ data }) {
     </section>
   );
 }
+
+const WEB_SECTIONS = [
+  { id: "numbers",   label: "The Numbers" },
+  { id: "channels",  label: "Channels" },
+  { id: "top-pages", label: "Top Pages" },
+  { id: "insights",  label: "Insights" },
+];
 
 // ─── Page ─────────────────────────────────────────────────────────
 export function WebPage({ agency, quarter, onReady }) {
@@ -228,10 +237,24 @@ export function WebPage({ agency, quarter, onReady }) {
     );
   }
 
+  if (status === "ready" && !data) {
+    return (
+      <main className="report-wrap">
+        <section className="section wrap">
+          <header className="section-head"><h2 className="section-title serif">Nothing here <em>yet</em></h2></header>
+          <div className="error-section">
+            <p>This report hasn’t been published for the selected quarter. Choose another quarter from the menu above, or check back soon.</p>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   if (!data) return <PageLoader view="web" />;
 
   return (
     <main className="report-wrap">
+      <SectionRail sections={WEB_SECTIONS} />
       <ErrorBoundary><Hero agency={agency} quarter={quarter} data={data} /></ErrorBoundary>
       <ErrorBoundary><Numbers data={data} prevData={prevData} /></ErrorBoundary>
       <ErrorBoundary><Channels data={data} prevData={prevData} /></ErrorBoundary>

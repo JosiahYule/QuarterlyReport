@@ -5,14 +5,17 @@ import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { fmt, fmtApprox } from "../utils.js";
 import { PageLoader } from "../components/PageLoader.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
+import { DirIcon } from "../components/Icons.jsx";
+import { SectionRail } from "../components/SectionRail.jsx";
 
-// Chart colours
-const C = {
-  q1:   "rgba(100,116,139,.7)",
-  q2:   "rgba(0,61,114,.8)",
-  q3:   "rgba(0,84,154,.85)",
-  proj: "rgba(180,130,0,.85)",
+// Chart colours — q2/q3 follow the agency accent; proj stays visually
+// distinct from q3 for every palette.
+const CHART_PALETTES = {
+  isl: { q1: "rgba(100,116,139,.7)", q2: "rgba(0,61,114,.8)",  q3: "rgba(0,84,154,.85)",   proj: "rgba(180,130,0,.85)" },
+  as:  { q1: "rgba(100,116,139,.7)", q2: "rgba(92,69,0,.8)",   q3: "rgba(122,92,0,.85)",   proj: "rgba(10,77,140,.85)" },
+  ads: { q1: "rgba(100,116,139,.7)", q2: "rgba(10,67,89,.8)",  q3: "rgba(15,91,120,.85)",  proj: "rgba(180,130,0,.85)" },
 };
+const paletteFor = (agency) => CHART_PALETTES[agency] || CHART_PALETTES.isl;
 
 // ─── Custom tooltip handler (editorial style) ──────────────────────
 function makeTooltipHandler(isPercent) {
@@ -38,8 +41,6 @@ function makeTooltipHandler(isPercent) {
       `<div class="ctt-title">${title}</div>` +
       `<div class="ctt-body">${body}${isProj ? '<span class="ctt-tag">projected</span>' : ""}</div>`;
 
-    const canvasRect = chart.canvas.getBoundingClientRect();
-    const containerRect = chart.canvas.parentNode.getBoundingClientRect();
     const x = tooltip.caretX;
     const y = tooltip.caretY;
 
@@ -57,6 +58,7 @@ function makeTooltipHandler(isPercent) {
 function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
   const canvasRef = useRef(null);
   const chartRef  = useRef(null);
+  const C = paletteFor(agency);
   const [d1, d2, d3] = qdata;
   const [tq1, tq2, tq3] = TRENDS_QUARTERS;
   const q3 = tq3;
@@ -154,7 +156,9 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
     chart.data.datasets[0].data = values;
     chart.data.datasets[0].backgroundColor = colors;
     chart.update();
-  }, [values[0], values[1], values[2], labels[2]]); // labels[2] changes when projected status flips
+    // labels[2] changes when projected status flips
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values[0], values[1], values[2], labels[2]]);
 
   const legendItems = [
     { color: C.q1, label: `${tq1.label} Actual` },
@@ -184,7 +188,7 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
 }
 
 // ─── Projection sparkline ─────────────────────────────────────────
-function ProjSparkline({ timeline, isPercent }) {
+function ProjSparkline({ timeline }) {
   if (!timeline || timeline.length < 2) return null;
   const W = 160, H = 36;
   const vals = timeline.map(p => p.projected);
@@ -205,8 +209,6 @@ function ProjSparkline({ timeline, isPercent }) {
   const color = up ? "var(--up)" : "var(--down)";
 
   const labelY = H - ((last - minV) / range) * H;
-  const labelAnchor = labelY > H * 0.6 ? "end" : "start";
-  const labelDy = labelY > H * 0.6 ? -4 : 12;
 
   return (
     <div className="proj-sparkline-wrap" aria-hidden="true">
@@ -215,14 +217,15 @@ function ProjSparkline({ timeline, isPercent }) {
         <circle cx={pts.split(" ").pop().split(",")[0]} cy={labelY.toFixed(1)} r="3" fill={color} />
       </svg>
       <div className="proj-sparkline-label" style={{ color }}>
-        {up ? "▲" : "▼"} Projection trending {up ? "up" : "down"} this quarter
+        <span className="proj-stat-dir" aria-hidden="true"><DirIcon dir={up ? "up" : "down"} /></span>
+        {" "}Projection trending {up ? "up" : "down"} this quarter
       </div>
     </div>
   );
 }
 
 // ─── Projection card ──────────────────────────────────────────────
-function ProjCard({ metric, agency, qdata, snaps, q3comp, q3done, calibrationFactor = 1 }) {
+function ProjCard({ metric, qdata, snaps, q3comp, q3done, calibrationFactor = 1 }) {
   const [d1, d2, d3] = qdata;
   const [, tq2, tq3] = TRENDS_QUARTERS;
 
@@ -260,10 +263,10 @@ function ProjCard({ metric, agency, qdata, snaps, q3comp, q3done, calibrationFac
     ? (metric.isPercent ? `${pace.dailyRate.toFixed(3)}%/day` : `${pace.dailyRate.toFixed(1)}/day`)
     : "—";
 
-  let stat3Val = "—", stat3Cls = "na";
+  let stat3Val = "—", stat3Cls = "na", stat3Dir = null;
   if (rateVsQ2 !== null) {
-    const sign = rateVsQ2 >= 0 ? "▲ +" : "▼ ";
-    stat3Val = `${sign}${Math.abs(rateVsQ2).toFixed(1)}%`;
+    stat3Dir = rateVsQ2 >= 0 ? "up" : "down";
+    stat3Val = `${rateVsQ2 >= 0 ? "+" : ""}${Math.abs(rateVsQ2).toFixed(1)}%`;
     stat3Cls = rateVsQ2 >= 0 ? "pos" : "neg";
   } else if (!metric.isPace) {
     stat3Val = "n/a";
@@ -273,11 +276,11 @@ function ProjCard({ metric, agency, qdata, snaps, q3comp, q3done, calibrationFac
   const weekAgoProj = projected !== null && !q3done
     ? getWeekAgoProjection(snaps, metric, tq3, q2Rate, histBaseline)
     : null;
-  let wowVal = "—", wowCls = "na";
+  let wowVal = "—", wowCls = "na", wowDir = null;
   if (weekAgoProj !== null && projected !== null) {
     const delta = projected - weekAgoProj;
-    const sign = delta >= 0 ? "▲ +" : "▼ ";
-    wowVal = `${sign}${fmtApprox(Math.abs(delta), metric.isPercent)}`;
+    wowDir = delta >= 0 ? "up" : "down";
+    wowVal = `${delta >= 0 ? "+" : ""}${fmtApprox(Math.abs(delta), metric.isPercent)}`;
     wowCls = delta >= 0 ? "pos" : "neg";
   }
 
@@ -311,14 +314,20 @@ function ProjCard({ metric, agency, qdata, snaps, q3comp, q3done, calibrationFac
         </div>
         <div className="proj-stat">
           <div className="proj-stat-label">Rate vs {tq2.label}</div>
-          <div className={"proj-stat-value " + stat3Cls}>{stat3Val}</div>
+          <div className={"proj-stat-value " + stat3Cls}>
+            {stat3Dir && <span className="proj-stat-dir" aria-hidden="true"><DirIcon dir={stat3Dir} /></span>}
+            {stat3Val}
+          </div>
         </div>
         <div className="proj-stat">
           <div className="proj-stat-label">vs Last Week</div>
-          <div className={"proj-stat-value " + wowCls}>{wowVal}</div>
+          <div className={"proj-stat-value " + wowCls}>
+            {wowDir && <span className="proj-stat-dir" aria-hidden="true"><DirIcon dir={wowDir} /></span>}
+            {wowVal}
+          </div>
         </div>
       </div>
-      <ProjSparkline timeline={timeline} isPercent={metric.isPercent} />
+      <ProjSparkline timeline={timeline} />
     </div>
   );
 }
@@ -348,6 +357,11 @@ function Hero({ agency, q3comp, q3done }) {
     </section>
   );
 }
+
+const TRENDS_SECTIONS = [
+  { id: "projections",      label: "Projections" },
+  { id: "quarterly-trends", label: "Trends" },
+];
 
 // ─── Page ─────────────────────────────────────────────────────────
 export function TrendsPage({ agency, onReady }) {
@@ -384,24 +398,25 @@ export function TrendsPage({ agency, onReady }) {
 
   return (
     <main className="report-wrap">
+      <SectionRail sections={TRENDS_SECTIONS} />
       <ErrorBoundary><Hero agency={agency} q3comp={q3comp} q3done={q3done} /></ErrorBoundary>
 
       <ErrorBoundary>
-        <section className="section wrap">
+        <section id="projections" className="section wrap section-tint">
           <header className="section-head">
             <h2 className="section-title serif">{TRENDS_QUARTERS[2].label} Projected <em>Finals</em></h2>
             <p className="section-sub">Estimated end-of-quarter totals based on observed daily rate × total quarter days.</p>
           </header>
           <div className="proj-grid">
             {METRICS.map(m => (
-              <ProjCard key={m.id} metric={m} agency={agency} qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} q3comp={q3comp} q3done={q3done} calibrationFactor={projectionAudits[m.id]?.calibrationFactor ?? 1} />
+              <ProjCard key={m.id} metric={m} qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} q3comp={q3comp} q3done={q3done} calibrationFactor={projectionAudits[m.id]?.calibrationFactor ?? 1} />
             ))}
           </div>
         </section>
       </ErrorBoundary>
 
       <ErrorBoundary>
-        <section className="section wrap">
+        <section id="quarterly-trends" className="section wrap">
           <header className="section-head">
             <h2 className="section-title serif">Quarterly <em>Trends</em></h2>
             <p className="section-sub">Quarter-over-quarter trajectory with {TRENDS_QUARTERS[2].label} pace projections.</p>

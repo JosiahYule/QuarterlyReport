@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { AGENCIES, QUARTERS } from "../config.js";
+import { IconCaret, IconCheck } from "./Icons.jsx";
 
 const TABS = [
   { id: "social",  label: "Social Media" },
@@ -72,7 +73,7 @@ function AgencyMenu({ current, onSelect, onClose }) {
             {cfg.label}
           </span>
           <span className="agency-option-name">{cfg.name}</span>
-          {key === current && <span className="agency-option-check" aria-hidden="true">✓</span>}
+          {key === current && <span className="agency-option-check" aria-hidden="true"><IconCheck /></span>}
         </button>
       ))}
     </div>
@@ -175,7 +176,7 @@ export function AppNav({ agency, view, quarter, onNavigate }) {
               aria-label={`Current agency: ${cfg.name}. Activate to switch.`}
             >
               {cfg.name}
-              <span className="app-nav-caret" aria-hidden="true">▾</span>
+              <span className="app-nav-caret" aria-hidden="true"><IconCaret /></span>
             </button>
             {agencyOpen && (
               <AgencyMenu
@@ -214,7 +215,7 @@ export function AppNav({ agency, view, quarter, onNavigate }) {
               onClick={() => setQuarterOpen(o => !o)}
             >
               <span>{q.label}</span>
-              <span className="caret" aria-hidden="true">▾</span>
+              <span className="caret" aria-hidden="true"><IconCaret /></span>
             </button>
             {quarterOpen && (
               <QuarterMenu

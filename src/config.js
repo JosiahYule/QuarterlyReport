@@ -6,6 +6,28 @@ export const AGENCIES = {
 
 export const VIEWS = ["social", "web", "trends"];
 
+export const REPORT_AUTHOR = "Josiah Yule";
+
+// All "what quarter is it right now" decisions use the agencies' home
+// timezone, so every viewer sees the same default quarter regardless of
+// where (or with what system clock) they open the report.
+export const REPORT_TZ = "America/Halifax";
+
+function nowInReportTZ() {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: REPORT_TZ, year: "numeric", month: "numeric",
+    }).formatToParts(new Date());
+    const get = (type) => Number(parts.find(p => p.type === type)?.value);
+    const y = get("year"), m = get("month");
+    if (Number.isFinite(y) && Number.isFinite(m)) return { y, m: m - 1 };
+  } catch {
+    // Intl timezone data unavailable — fall through to local time
+  }
+  const d = new Date();
+  return { y: d.getFullYear(), m: d.getMonth() };
+}
+
 // ─── Quarter calendar (fiscal year starts September) ──────────────
 // startM / endM are 0-indexed months; endM is the exclusive boundary
 // (first month of the following quarter, same convention as Date math).
@@ -25,8 +47,7 @@ function buildQuarter(def, startYear) {
   return { suffix: def.suffix, label: def.label, rangeLabel: `${def.range} ${year}`, year, start, end };
 }
 
-function quarterForDate(date) {
-  const m = date.getMonth(), y = date.getFullYear();
+export function quarterForMonthYear(m, y) {
   for (const def of Q_DEFS) {
     if (def.startM < def.endM) {
       if (m >= def.startM && m < def.endM) return buildQuarter(def, y);
@@ -38,9 +59,14 @@ function quarterForDate(date) {
   }
 }
 
+function quarterForDate(date) {
+  return quarterForMonthYear(date.getMonth(), date.getFullYear());
+}
+
 function recentQuarters(n) {
   const list = [];
-  let q = quarterForDate(new Date());
+  const { y, m } = nowInReportTZ();
+  let q = quarterForMonthYear(m, y);
   for (let i = 0; i < n; i++) {
     list.push(q);
     q = quarterForDate(new Date(q.start.getTime() - 86400000));
@@ -48,8 +74,8 @@ function recentQuarters(n) {
   return list;
 }
 
-// Auto-detected from today's date — no manual update needed on rollover
-export const CURRENT_QUARTER = quarterForDate(new Date());
+// Auto-detected from today's date (in REPORT_TZ) — no manual update on rollover
+export const CURRENT_QUARTER = recentQuarters(1)[0];
 
 // Navigation list — most-recent-first, for the quarter chooser dropdown
 export const QUARTERS = recentQuarters(4);

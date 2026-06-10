@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 
-export function LoginPage({ onSignIn }) {
+export function LoginPage({ onSignIn, initialError = null }) {
   const [email,   setEmail]   = useState("");
   const [sent,    setSent]    = useState(false);
-  const [error,   setError]   = useState("");
+  const [error,   setError]   = useState(initialError || "");
   const [loading, setLoading] = useState(false);
 
   const submit = async (e) => {

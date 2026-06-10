@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useSocialReport } from "../hooks/useSocialReport.js";
 import { useSocialKpiHistory } from "../hooks/useSocialKpiHistory.js";
 import { Delta } from "../components/Delta.jsx";
@@ -6,6 +6,9 @@ import { PageLoader } from "../components/PageLoader.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { EmptyNote, EmptyData } from "../components/EmptyState.jsx";
 import { fmt, fmtExact, FLAT } from "../utils.js";
+import { IconSort, IconArrowUp, IconArrowDown } from "../components/Icons.jsx";
+import { CountUp } from "../components/CountUp.jsx";
+import { SectionRail } from "../components/SectionRail.jsx";
 
 // ─── Hero ─────────────────────────────────────────────────────────
 function Hero({ data }) {
@@ -41,23 +44,41 @@ const KPI_DEFS = [
   { key: "avgengagementrate", label: "Avg Engagement Rate", fmt: v => v != null ? v.toFixed(2) + "%" : "—", note: "blended across posts" },
 ];
 
-function Numbers({ data }) {
+// Faint quarter-history sparkline inside each KPI card
+function KpiSpark({ history, kpiKey }) {
+  const vals = (history || []).map(q => q.kpis?.[kpiKey]).filter(v => v != null);
+  if (vals.length < 3) return null;
+  const W = 64, H = 18;
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = max - min || 1;
+  const step = W / (vals.length - 1);
+  const pts = vals.map((v, i) => `${(i * step).toFixed(1)},${(H - 2 - (H - 4) * ((v - min) / range)).toFixed(1)}`).join(" ");
   return (
-    <section className="section wrap kpi-section" aria-label="Key performance indicators">
+    <svg className="kpi-spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden="true">
+      <polyline points={pts} fill="none" stroke="var(--accent)" strokeWidth="1.5"
+        strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function Numbers({ data, history }) {
+  return (
+    <section id="numbers" className="section wrap kpi-section" aria-label="Key performance indicators">
       <header className="section-head">
         <h2 className="section-title serif">The <em>Numbers</em></h2>
       </header>
       <div className="kpi-grid">
-        {KPI_DEFS.map(k => {
+        {KPI_DEFS.map((k, i) => {
           const v = data.overall[k.key];
           const d = data.deltas?.[k.key] || FLAT;
           return (
-            <div className="kpi" key={k.key}>
+            <div className="kpi" key={k.key} style={{ "--i": i }}>
               <div className="kpi-label">{k.label}</div>
-              <div className="kpi-value num">{k.fmt(v)}</div>
+              <div className="kpi-value num"><CountUp value={v} format={k.fmt} /></div>
               <div className="kpi-foot">
                 <Delta d={d} />
                 <span className="delta-note">{k.note}</span>
+                <KpiSpark history={history} kpiKey={k.key} />
               </div>
             </div>
           );
@@ -172,8 +193,7 @@ function toNetNewFollowers(history) {
   });
 }
 
-function KpiHistory({ agency }) {
-  const history   = useSocialKpiHistory(agency);
+function KpiHistory({ history }) {
   const [activeKey, setActiveKey] = useState(KPI_DEFS[1].key); // default: Impressions
   if (!history) return null;
   if (!history.some(q => q.kpis !== null)) return null;
@@ -184,7 +204,7 @@ function KpiHistory({ agency }) {
   const activeDef    = isFollowers ? { ...baseDef, label: "Net New Followers" } : baseDef;
 
   return (
-    <section className="section wrap">
+    <section id="quarter-by-quarter" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Quarter by <em>Quarter</em></h2>
       </header>
@@ -279,7 +299,7 @@ function Trend({ data }) {
   };
 
   return (
-    <section className="section wrap">
+    <section id="week-by-week" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Week by Week</h2>
       </header>
@@ -314,7 +334,7 @@ function Trend({ data }) {
 // ─── Platforms ────────────────────────────────────────────────────
 function Platforms({ data }) {
   return (
-    <section className="section wrap">
+    <section id="platforms" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">By <em>Platform</em></h2>
       </header>
@@ -370,7 +390,7 @@ function TopPosts({ data }) {
   const posts = data.topPostsByPlatform[platform] || [];
 
   return (
-    <section className="section wrap">
+    <section id="top-posts" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Top <em>Posts</em></h2>
       </header>
@@ -449,8 +469,8 @@ function AllPosts({ data }) {
 
   const sortIcon = (key) =>
     sort.key !== key
-      ? <span style={{ opacity: 0.3, marginLeft: 4 }} aria-hidden="true">↕</span>
-      : <span style={{ marginLeft: 4 }} aria-label={sort.dir === "desc" ? "sorted descending" : "sorted ascending"}>{sort.dir === "desc" ? "↓" : "↑"}</span>;
+      ? <span className="sort-icon is-idle" aria-hidden="true"><IconSort /></span>
+      : <span className="sort-icon" aria-label={sort.dir === "desc" ? "sorted descending" : "sorted ascending"}>{sort.dir === "desc" ? <IconArrowDown /> : <IconArrowUp />}</span>;
 
   const posts = useMemo(() => {
     return (data.allPosts || [])
@@ -488,7 +508,7 @@ function AllPosts({ data }) {
   const thStyle = { cursor: "pointer", userSelect: "none" };
 
   return (
-    <section className="section wrap">
+    <section id="all-posts" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">All <em>Posts</em></h2>
       </header>
@@ -645,7 +665,7 @@ function AllPosts({ data }) {
                             return (
                               <article key={i} className="calendar-post" style={{ "--health-color": color }} title={`${healthLabel} · ER ${er.toFixed(2)}%`}>
                                 <div className="calendar-post-title">{p["Post Name"] || "—"}</div>
-                                <div className="calendar-post-meta">{p.Platforms || "—"} · {er.toFixed(2)}%</div>
+                                <div className="calendar-post-meta">{p.Platforms || "—"} · {er.toFixed(2)}% · {healthLabel}</div>
                               </article>
                             );
                           })}
@@ -672,7 +692,7 @@ function NoteList({ items }) {
 
 function Notes({ data }) {
   return (
-    <section className="section wrap">
+    <section id="insights" className="section wrap section-tint">
       <header className="section-head">
         <h2 className="section-title serif"><em>Insights</em></h2>
       </header>
@@ -686,10 +706,21 @@ function Notes({ data }) {
   );
 }
 
+const SOCIAL_SECTIONS = [
+  { id: "numbers",            label: "The Numbers" },
+  { id: "quarter-by-quarter", label: "Quarterly" },
+  { id: "week-by-week",       label: "Weekly" },
+  { id: "platforms",          label: "Platforms" },
+  { id: "top-posts",          label: "Top Posts" },
+  { id: "all-posts",          label: "All Posts" },
+  { id: "insights",           label: "Insights" },
+];
+
 // ─── Page ─────────────────────────────────────────────────────────
 export function SocialPage({ agency, quarter, onReady }) {
   const [retryKey, setRetryKey] = useState(0);
   const { data, status, error } = useSocialReport(agency, quarter, retryKey);
+  const history = useSocialKpiHistory(agency);
 
   useEffect(() => {
     if (status === "ready" || status === "error") onReady?.();
@@ -709,13 +740,27 @@ export function SocialPage({ agency, quarter, onReady }) {
     );
   }
 
+  if (status === "ready" && !data) {
+    return (
+      <main className="report-wrap">
+        <section className="section wrap">
+          <header className="section-head"><h2 className="section-title serif">Nothing here <em>yet</em></h2></header>
+          <div className="error-section">
+            <p>This report hasn’t been published for the selected quarter. Choose another quarter from the menu above, or check back soon.</p>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   if (!data) return <PageLoader view="social" />;
 
   return (
     <main className="report-wrap">
+      <SectionRail sections={SOCIAL_SECTIONS} />
       <ErrorBoundary><Hero data={data} /></ErrorBoundary>
-      <ErrorBoundary><Numbers data={data} /></ErrorBoundary>
-      <ErrorBoundary><KpiHistory agency={agency} /></ErrorBoundary>
+      <ErrorBoundary><Numbers data={data} history={history} /></ErrorBoundary>
+      <ErrorBoundary><KpiHistory history={history} /></ErrorBoundary>
       <ErrorBoundary><Trend data={data} /></ErrorBoundary>
       <ErrorBoundary><Platforms data={data} /></ErrorBoundary>
       <ErrorBoundary><TopPosts data={data} /></ErrorBoundary>
