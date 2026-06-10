@@ -186,7 +186,7 @@ function Notes({ data }) {
     { key: "next",       label: "Next quarter", cls: "" },
   ];
   return (
-    <section id="insights" className="section wrap section-tint">
+    <section id="insights" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif"><em>Insights</em></h2>
       </header>

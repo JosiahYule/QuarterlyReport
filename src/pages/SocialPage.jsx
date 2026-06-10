@@ -44,24 +44,7 @@ const KPI_DEFS = [
   { key: "avgengagementrate", label: "Avg Engagement Rate", fmt: v => v != null ? v.toFixed(2) + "%" : "—", note: "blended across posts" },
 ];
 
-// Faint quarter-history sparkline inside each KPI card
-function KpiSpark({ history, kpiKey }) {
-  const vals = (history || []).map(q => q.kpis?.[kpiKey]).filter(v => v != null);
-  if (vals.length < 3) return null;
-  const W = 64, H = 18;
-  const min = Math.min(...vals), max = Math.max(...vals);
-  const range = max - min || 1;
-  const step = W / (vals.length - 1);
-  const pts = vals.map((v, i) => `${(i * step).toFixed(1)},${(H - 2 - (H - 4) * ((v - min) / range)).toFixed(1)}`).join(" ");
-  return (
-    <svg className="kpi-spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden="true">
-      <polyline points={pts} fill="none" stroke="var(--accent)" strokeWidth="1.5"
-        strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function Numbers({ data, history }) {
+function Numbers({ data }) {
   return (
     <section id="numbers" className="section wrap kpi-section" aria-label="Key performance indicators">
       <header className="section-head">
@@ -78,7 +61,6 @@ function Numbers({ data, history }) {
               <div className="kpi-foot">
                 <Delta d={d} />
                 <span className="delta-note">{k.note}</span>
-                <KpiSpark history={history} kpiKey={k.key} />
               </div>
             </div>
           );
@@ -692,7 +674,7 @@ function NoteList({ items }) {
 
 function Notes({ data }) {
   return (
-    <section id="insights" className="section wrap section-tint">
+    <section id="insights" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif"><em>Insights</em></h2>
       </header>
@@ -759,7 +741,7 @@ export function SocialPage({ agency, quarter, onReady }) {
     <main className="report-wrap">
       <SectionRail sections={SOCIAL_SECTIONS} />
       <ErrorBoundary><Hero data={data} /></ErrorBoundary>
-      <ErrorBoundary><Numbers data={data} history={history} /></ErrorBoundary>
+      <ErrorBoundary><Numbers data={data} /></ErrorBoundary>
       <ErrorBoundary><KpiHistory history={history} /></ErrorBoundary>
       <ErrorBoundary><Trend data={data} /></ErrorBoundary>
       <ErrorBoundary><Platforms data={data} /></ErrorBoundary>

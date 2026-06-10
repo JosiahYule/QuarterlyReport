@@ -76,7 +76,7 @@ function App() {
       </Suspense>
 
       <footer className="wrap colophon">
-        Prepared by <span className="colophon-author">{REPORT_AUTHOR}</span>
+        <span>Prepared by <span className="colophon-author">{REPORT_AUTHOR}</span></span>
         <span className="colophon-sep" aria-hidden="true"> · </span>
         <span className="colophon-year">{CURRENT_QUARTER.year}</span>
         <span className="colophon-sep" aria-hidden="true"> · </span>
