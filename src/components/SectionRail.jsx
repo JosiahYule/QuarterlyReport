@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 // Sticky table-of-contents rail shown on wide viewports. Receives the page's
 // section list, keeps only the ones actually rendered, and highlights the
@@ -34,7 +35,10 @@ export function SectionRail({ sections }) {
     el.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
   };
 
-  return (
+  // Portal to <body>: the report wrapper retains a transform from its
+  // entrance animation, which would otherwise become the containing block
+  // for this fixed-position rail and misplace it over the content.
+  return createPortal(
     <nav className="section-rail" aria-label="Report sections">
       {present.map((s) => (
         <button
@@ -46,6 +50,7 @@ export function SectionRail({ sections }) {
           {s.label}
         </button>
       ))}
-    </nav>
+    </nav>,
+    document.body
   );
 }
