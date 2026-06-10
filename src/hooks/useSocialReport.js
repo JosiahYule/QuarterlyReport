@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
 import { AGENCIES, QUARTERS } from "../config.js";
 import { calcAutoDelta, FLAT } from "../utils.js";
+import { withRetry, friendlyError, getCached, setCached } from "../lib/fetching.js";
 
 function getQuarterMeta(suffix) {
   return QUARTERS.find(q => q.suffix === suffix) || QUARTERS[0];
@@ -138,20 +139,29 @@ export function useSocialReport(agency, quarter, retryKey = 0) {
 
   useEffect(() => {
     let cancelled = false;
-    setState({ data: null, status: "loading", error: null });
+    const cacheKey = `social:${agency}:${quarter}`;
+    const cached = getCached(cacheKey);
+
+    // Serve the last good copy instantly, revalidate in the background
+    setState(cached !== undefined
+      ? { data: cached, status: "ready", error: null }
+      : { data: null, status: "loading", error: null });
 
     (async () => {
       try {
         const prevSuffix = getPrevSuffix(quarter);
         const [report, prev] = await Promise.all([
-          fetchReport(agency, quarter),
-          prevSuffix ? fetchReport(agency, prevSuffix) : Promise.resolve(null),
+          withRetry(() => fetchReport(agency, quarter)),
+          prevSuffix ? withRetry(() => fetchReport(agency, prevSuffix)) : Promise.resolve(null),
         ]);
-        if (!cancelled) {
-          setState({ data: normalize(report, agency, quarter, prev), status: "ready", error: null });
-        }
+        const data = normalize(report, agency, quarter, prev);
+        setCached(cacheKey, data);
+        if (!cancelled) setState({ data, status: "ready", error: null });
       } catch (err) {
-        if (!cancelled) setState({ data: null, status: "error", error: err.message || "Failed to load report" });
+        // Keep showing stale data on a failed background refresh
+        if (!cancelled && cached === undefined) {
+          setState({ data: null, status: "error", error: friendlyError(err) });
+        }
       }
     })();
 

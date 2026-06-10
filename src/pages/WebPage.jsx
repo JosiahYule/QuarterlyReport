@@ -237,6 +237,19 @@ export function WebPage({ agency, quarter, onReady }) {
     );
   }
 
+  if (status === "ready" && !data) {
+    return (
+      <main className="report-wrap">
+        <section className="section wrap">
+          <header className="section-head"><h2 className="section-title serif">Nothing here <em>yet</em></h2></header>
+          <div className="error-section">
+            <p>This report hasn’t been published for the selected quarter. Choose another quarter from the menu above, or check back soon.</p>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   if (!data) return <PageLoader view="web" />;
 
   return (

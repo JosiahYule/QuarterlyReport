@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
 import { QUARTERS } from "../config.js";
+import { withRetry, friendlyError, getCached, setCached } from "../lib/fetching.js";
 
 function getPrevSuffix(suffix) {
   const idx = QUARTERS.findIndex(q => q.suffix === suffix);
@@ -69,20 +70,29 @@ export function useWebReport(agency, quarter, retryKey = 0) {
 
   useEffect(() => {
     let cancelled = false;
-    setState({ data: null, prevData: null, status: "loading", error: null });
+    const cacheKey = `web:${agency}:${quarter}`;
+    const cached = getCached(cacheKey);
+
+    // Serve the last good copy instantly, revalidate in the background
+    setState(cached !== undefined
+      ? { ...cached, status: "ready", error: null }
+      : { data: null, prevData: null, status: "loading", error: null });
 
     (async () => {
       try {
         const prevSuffix = getPrevSuffix(quarter);
         const [report, prevReport] = await Promise.all([
-          fetchReport(agency, quarter),
-          prevSuffix ? fetchReport(agency, prevSuffix) : Promise.resolve(null),
+          withRetry(() => fetchReport(agency, quarter)),
+          prevSuffix ? withRetry(() => fetchReport(agency, prevSuffix)) : Promise.resolve(null),
         ]);
-        if (!cancelled) {
-          setState({ data: normalize(report), prevData: normalize(prevReport), status: "ready", error: null });
-        }
+        const payload = { data: normalize(report), prevData: normalize(prevReport) };
+        setCached(cacheKey, payload);
+        if (!cancelled) setState({ ...payload, status: "ready", error: null });
       } catch (err) {
-        if (!cancelled) setState({ data: null, prevData: null, status: "error", error: err.message || "Failed to load report" });
+        // Keep showing stale data on a failed background refresh
+        if (!cancelled && cached === undefined) {
+          setState({ data: null, prevData: null, status: "error", error: friendlyError(err) });
+        }
       }
     })();
 

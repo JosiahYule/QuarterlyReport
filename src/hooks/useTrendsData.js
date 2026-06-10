@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
 import { TRENDS_QUARTERS, CURRENT_QUARTER } from "../config.js";
 import { toNumber, nfk } from "../utils.js";
+import { withRetry, friendlyError } from "../lib/fetching.js";
 
 // ─── Metric definitions ────────────────────────────────────────────
 export const METRICS = [
@@ -277,12 +278,12 @@ export function quarterComplete(q) { return new Date() >= q.end; }
 // ─── Hook ─────────────────────────────────────────────────────────
 async function fetchQuarter(agency, quarter) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await withRetry(() => supabase
       .from("social_reports")
       .select("social_kpis(*)")
       .eq("agency", agency)
       .eq("quarter", quarter)
-      .maybeSingle();
+      .maybeSingle());
     if (error) throw error;
     if (!data) return null;
     const k = data.social_kpis?.[0] || {};
@@ -326,7 +327,7 @@ export function useTrendsData(agency) {
       } catch (err) {
         if (!cancelled) {
           setState(s => s.status === "loading"
-            ? { qdata: null, snapsByQuarter: {}, status: "error", error: err.message }
+            ? { qdata: null, snapsByQuarter: {}, status: "error", error: friendlyError(err) }
             : s);
         }
       }
@@ -334,7 +335,8 @@ export function useTrendsData(agency) {
 
     setState({ qdata: null, snapsByQuarter: {}, status: "loading", error: null });
     run();
-    const id = setInterval(run, 300_000);
+    // Refresh every 5 minutes, but only while the tab is visible
+    const id = setInterval(() => { if (!document.hidden) run(); }, 300_000);
     return () => { cancelled = true; clearInterval(id); };
   }, [agency]);
 

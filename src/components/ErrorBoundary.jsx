@@ -1,4 +1,5 @@
 import React from "react";
+import { reportError } from "../lib/monitor.js";
 
 export class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -11,7 +12,7 @@ export class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    console.error("[Section error]", error, info.componentStack);
+    reportError(error, { source: "ErrorBoundary", componentStack: info.componentStack });
   }
 
   render() {
