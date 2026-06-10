@@ -277,6 +277,7 @@
   .kpi-label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
   .kpi-value { font-family: var(--serif); font-size: clamp(42px, 4.6vw, 64px); line-height: 1; letter-spacing: -0.025em; color: var(--ink); font-variant-numeric: tabular-nums lining-nums; font-weight: 300; }
   .kpi-foot  { display: flex; align-items: baseline; gap: 10px; font-size: 13px; color: var(--ink-3); }
+  .kpi-spark { margin-left: auto; align-self: center; opacity: 0.45; flex-shrink: 0; }
 
   @container (max-width: 700px) {
     .kpi-grid { grid-template-columns: repeat(2, 1fr); column-gap: 24px; }

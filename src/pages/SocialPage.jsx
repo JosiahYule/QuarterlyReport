@@ -44,7 +44,24 @@ const KPI_DEFS = [
   { key: "avgengagementrate", label: "Avg Engagement Rate", fmt: v => v != null ? v.toFixed(2) + "%" : "—", note: "blended across posts" },
 ];
 
-function Numbers({ data }) {
+// Faint quarter-history sparkline inside each KPI card
+function KpiSpark({ history, kpiKey }) {
+  const vals = (history || []).map(q => q.kpis?.[kpiKey]).filter(v => v != null);
+  if (vals.length < 3) return null;
+  const W = 64, H = 18;
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = max - min || 1;
+  const step = W / (vals.length - 1);
+  const pts = vals.map((v, i) => `${(i * step).toFixed(1)},${(H - 2 - (H - 4) * ((v - min) / range)).toFixed(1)}`).join(" ");
+  return (
+    <svg className="kpi-spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden="true">
+      <polyline points={pts} fill="none" stroke="var(--accent)" strokeWidth="1.5"
+        strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function Numbers({ data, history }) {
   return (
     <section id="numbers" className="section wrap kpi-section" aria-label="Key performance indicators">
       <header className="section-head">
@@ -61,6 +78,7 @@ function Numbers({ data }) {
               <div className="kpi-foot">
                 <Delta d={d} />
                 <span className="delta-note">{k.note}</span>
+                <KpiSpark history={history} kpiKey={k.key} />
               </div>
             </div>
           );
@@ -175,8 +193,7 @@ function toNetNewFollowers(history) {
   });
 }
 
-function KpiHistory({ agency }) {
-  const history   = useSocialKpiHistory(agency);
+function KpiHistory({ history }) {
   const [activeKey, setActiveKey] = useState(KPI_DEFS[1].key); // default: Impressions
   if (!history) return null;
   if (!history.some(q => q.kpis !== null)) return null;
@@ -703,6 +720,7 @@ const SOCIAL_SECTIONS = [
 export function SocialPage({ agency, quarter, onReady }) {
   const [retryKey, setRetryKey] = useState(0);
   const { data, status, error } = useSocialReport(agency, quarter, retryKey);
+  const history = useSocialKpiHistory(agency);
 
   useEffect(() => {
     if (status === "ready" || status === "error") onReady?.();
@@ -741,8 +759,8 @@ export function SocialPage({ agency, quarter, onReady }) {
     <main className="report-wrap">
       <SectionRail sections={SOCIAL_SECTIONS} />
       <ErrorBoundary><Hero data={data} /></ErrorBoundary>
-      <ErrorBoundary><Numbers data={data} /></ErrorBoundary>
-      <ErrorBoundary><KpiHistory agency={agency} /></ErrorBoundary>
+      <ErrorBoundary><Numbers data={data} history={history} /></ErrorBoundary>
+      <ErrorBoundary><KpiHistory history={history} /></ErrorBoundary>
       <ErrorBoundary><Trend data={data} /></ErrorBoundary>
       <ErrorBoundary><Platforms data={data} /></ErrorBoundary>
       <ErrorBoundary><TopPosts data={data} /></ErrorBoundary>
