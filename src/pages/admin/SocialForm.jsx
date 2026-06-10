@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../lib/supabase.js";
+import { IconClose } from "../../components/Icons.jsx";
 
 const num = v => (v === "" || v === null || v === undefined) ? null : (isFinite(Number(v)) ? Number(v) : null);
 const str = v => (v == null ? "" : String(v));
@@ -290,7 +291,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
               </div>
               <button className="admin-btn-remove"
                 onClick={() => { setPlatforms(ps => ps.filter((_, j) => j !== i)); dirty(); }}
-                aria-label="Remove platform">✕</button>
+                aria-label="Remove platform"><IconClose /></button>
             </div>
           ))}
           <button className="admin-btn-add"
@@ -335,7 +336,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
               </div>
               <button className="admin-btn-remove"
                 onClick={() => { setTopPosts(tp => ({ ...tp, [topTab]: tp[topTab].filter((_, j) => j !== i) })); dirty(); }}
-                aria-label="Remove post">✕</button>
+                aria-label="Remove post"><IconClose /></button>
             </div>
           ))}
           <button className="admin-btn-add"
@@ -397,7 +398,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
                     <td><input type="number" className="admin-input admin-input--cell r" value={p.engagements} onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, engagements: e.target.value } : x)); dirty(); }} /></td>
                     <td><input className="admin-input admin-input--cell" value={p.url} placeholder="https://…" onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, url: e.target.value } : x)); dirty(); }} /></td>
                     <td><input className="admin-input admin-input--cell" value={p.notes} onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, notes: e.target.value } : x)); dirty(); }} /></td>
-                    <td><button className="admin-btn-remove" onClick={() => { setAllPosts(ps => ps.filter((_, j) => j !== i)); dirty(); }} aria-label="Remove">✕</button></td>
+                    <td><button className="admin-btn-remove" onClick={() => { setAllPosts(ps => ps.filter((_, j) => j !== i)); dirty(); }} aria-label="Remove"><IconClose /></button></td>
                   </tr>
                 ))}
               </tbody>
