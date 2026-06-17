@@ -179,7 +179,7 @@ export function getWeekAgoProjection(snapshots, metric, tq3, q2Rate, histBaselin
   return pace.projected + (metric.baselineFromQ2 ? histBaseline : 0);
 }
 
-export function getProjectionTimeline(snapshots, metric, tq3, q2Rate, histBaseline = 0) {
+export function getProjectionTimeline(snapshots, metric, tq3, q2Rate, histBaseline = 0, calibrationFactor = 1) {
   const allHistory = getMetricHistory(snapshots, metric.id);
   if (allHistory.length < 2) return [];
   const result = [];
@@ -187,7 +187,7 @@ export function getProjectionTimeline(snapshots, metric, tq3, q2Rate, histBaseli
     const pastHistory = allHistory.slice(0, i + 1);
     const snap = allHistory[i];
     const snapInput = snap.val - histBaseline;
-    const pace = computeAdvancedPace(snapInput, tq3.start, tq3.end, q2Rate, pastHistory, histBaseline, new Date(snap.t));
+    const pace = computeAdvancedPace(snapInput, tq3.start, tq3.end, q2Rate, pastHistory, histBaseline, new Date(snap.t), calibrationFactor);
     if (pace?.projected != null) {
       result.push({ t: snap.t, projected: pace.projected + (metric.baselineFromQ2 ? histBaseline : 0) });
     }
