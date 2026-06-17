@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo } from "react";
+import React, { useEffect, useRef, useMemo, useState } from "react";
 import Chart from "chart.js/auto";
 import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, getWeekAgoProjection, getProjectionTimeline } from "../hooks/useTrendsData.js";
 import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
@@ -186,32 +186,122 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
   );
 }
 
-// ─── Projection sparkline ─────────────────────────────────────────
-function ProjSparkline({ timeline }) {
-  if (!timeline || timeline.length < 2) return null;
-  const W = 160, H = 36;
+// ─── Projection trajectory chart (how the projected final has moved) ──
+function ProjTrajectoryChart({ timeline, metric }) {
+  const W = 880, H = 260, pL = 68, pR = 64, pT = 28, pB = 48;
+  if (!timeline || timeline.length < 2) {
+    return (
+      <div className="kpi-history-empty">
+        Projections begin after the first week of the quarter, once a few daily snapshots have accrued.
+      </div>
+    );
+  }
+
   const vals = timeline.map(p => p.projected);
   const minV = Math.min(...vals), maxV = Math.max(...vals);
-  const range = maxV - minV || 1;
+  const span = maxV - minV;
+  const pad  = span > 0 ? span * 0.15 : (maxV || 1) * 0.05;
+  const domMin = Math.max(0, minV - pad);
+  const domMax = maxV + pad;
+  const domRange = domMax - domMin || 1;
+
   const minT = timeline[0].t, maxT = timeline[timeline.length - 1].t;
   const tRange = maxT - minT || 1;
+  const X = t => pL + ((t - minT) / tRange) * (W - pL - pR);
+  const Y = v => pT + (H - pT - pB) * (1 - (v - domMin) / domRange);
 
-  const pts = timeline.map(p => {
-    const x = ((p.t - minT) / tRange) * W;
-    const y = H - ((p.projected - minV) / range) * H;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
+  const pts = timeline.map(p => ({ x: X(p.t), y: Y(p.projected), v: p.projected }));
+  const linePath = pts.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.y.toFixed(1)).join(" ");
+  const areaPath = linePath
+    + ` L${pts[pts.length - 1].x.toFixed(1)},${(H - pB).toFixed(1)}`
+    + ` L${pts[0].x.toFixed(1)},${(H - pB).toFixed(1)} Z`;
 
-  const last = timeline[timeline.length - 1].projected;
-  const labelY = H - ((last - minV) / range) * H;
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => ({ v: domMin + domRange * f, y: pT + (H - pT - pB) * (1 - f) }));
+  const fmtDate = t => new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const nLabels = Math.min(4, timeline.length);
+  const xLabels = Array.from({ length: nLabels }, (_, i) => {
+    const t = minT + tRange * (i / (nLabels - 1));
+    return { x: X(t), label: fmtDate(t) };
+  });
+  const last = pts[pts.length - 1];
 
   return (
-    <div className="proj-sparkline-wrap" aria-hidden="true" title="Projection over the quarter so far">
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: "block", overflow: "visible" }}>
-        <polyline points={pts} fill="none" stroke="var(--ink-4)" strokeWidth="1.25" strokeLinejoin="round" strokeLinecap="round" opacity=".8" />
-        <circle cx={pts.split(" ").pop().split(",")[0]} cy={labelY.toFixed(1)} r="2.5" fill="var(--accent)" />
-      </svg>
-    </div>
+    <svg className="kpi-history-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
+         role="img" aria-label={`${metric.label} — projected final over the quarter so far`}>
+      {ticks.map((t, i) => (
+        <g key={i}>
+          <line x1={pL} x2={W - pR} y1={t.y} y2={t.y} stroke="var(--rule-soft)" strokeWidth="1" />
+          <text x={pL - 8} y={t.y + 4} textAnchor="end" fontSize="11" fill="var(--ink-4)" fontFamily="var(--sans)">
+            {fmt(t.v)}
+          </text>
+        </g>
+      ))}
+      <line x1={pL} x2={W - pR} y1={H - pB} y2={H - pB} stroke="var(--ink)" strokeWidth="1" />
+      <path d={areaPath} fill="var(--accent)" opacity="0.06" />
+      <path d={linePath} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
+      {pts.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r={i === pts.length - 1 ? 5 : 2.5}
+                fill="var(--paper)" stroke="var(--accent)" strokeWidth="2" />
+      ))}
+      <text x={last.x} y={last.y - 14} textAnchor="end" fontFamily="var(--serif)" fontStyle="italic" fontSize="13" fill="var(--accent)">
+        latest — {fmtApprox(last.v, metric.isPercent)}
+      </text>
+      {xLabels.map((l, i) => (
+        <text key={i} x={l.x} y={H - pB + 20} textAnchor="middle" fontSize="11" fill="var(--ink-3)" fontFamily="var(--sans)">
+          {l.label}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
+// ─── Projection trajectory section (click through metrics) ────────────
+function ProjectionTrajectory({ qdata, snaps, projectionAudits }) {
+  const [d1, d2] = qdata;
+  const [, tq2, tq3] = TRENDS_QUARTERS;
+  const [activeKey, setActiveKey] = useState(METRICS[0].id);
+
+  const metric = METRICS.find(m => m.id === activeKey) || METRICS[0];
+
+  const timeline = useMemo(() => {
+    const q1v = extractMetric(d1, metric);
+    const q2v = extractMetric(d2, metric);
+    const histBaseline = metric.baselineFromQ2 && q2v !== null ? q2v : 0;
+    const q2Rate = q2v !== null
+      ? (metric.baselineFromQ2 && q1v !== null ? (q2v - q1v) : q2v) / ((tq2.end - tq2.start) / 86400000)
+      : null;
+    const calibrationFactor = projectionAudits[metric.id]?.calibrationFactor ?? 1;
+    return getProjectionTimeline(snaps, metric, tq3, q2Rate, histBaseline, calibrationFactor);
+  }, [d1, d2, metric, tq2, tq3, snaps, projectionAudits]);
+
+  // Show the section once any metric has enough snapshot history to plot.
+  const hasData = METRICS.some(m => getMetricHistory(snaps, m.id).length >= 2);
+  if (!hasData) return null;
+
+  return (
+    <section id="projection-trajectory" className="section wrap">
+      <header className="section-head">
+        <h2 className="section-title serif">Projection <em>Trajectory</em></h2>
+        <p className="section-sub">How each metric’s projected {tq3.label} final has shifted as the quarter has accrued daily snapshots.</p>
+      </header>
+      <div className="kpi-history-body">
+        <nav className="kpi-history-nav" aria-label="Select metric">
+          {METRICS.map(m => (
+            <button
+              key={m.id}
+              className={"kpi-history-nav-item" + (activeKey === m.id ? " is-active" : "")}
+              onClick={() => setActiveKey(m.id)}
+              aria-pressed={activeKey === m.id}
+            >
+              {m.label}
+            </button>
+          ))}
+        </nav>
+        <div className="kpi-history-chart-wrap">
+          <ProjTrajectoryChart timeline={timeline} metric={metric} />
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -269,11 +359,6 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1 }) {
     wowCls = delta >= 0 ? "pos" : "neg";
   }
 
-  // Projection history sparkline
-  const timeline = projected !== null && !q3done
-    ? getProjectionTimeline(snaps, metric, tq3, q2Rate, histBaseline)
-    : [];
-
   return (
     <div className="proj-card">
       <div className="proj-card-label">{metric.label}</div>
@@ -297,7 +382,6 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1 }) {
           <div className={"proj-stat-value " + wowCls}>{wowVal}</div>
         </div>
       </div>
-      <ProjSparkline timeline={timeline} />
     </div>
   );
 }
@@ -329,8 +413,9 @@ function Hero({ agency, q3comp, q3done }) {
 }
 
 const TRENDS_SECTIONS = [
-  { id: "projections",      label: "Projections" },
-  { id: "quarterly-trends", label: "Trends" },
+  { id: "projections",           label: "Projections" },
+  { id: "projection-trajectory", label: "Trajectory" },
+  { id: "quarterly-trends",      label: "Trends" },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────
@@ -383,6 +468,10 @@ export function TrendsPage({ agency, onReady }) {
             ))}
           </div>
         </section>
+      </ErrorBoundary>
+
+      <ErrorBoundary>
+        <ProjectionTrajectory qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} projectionAudits={projectionAudits} />
       </ErrorBoundary>
 
       <ErrorBoundary>

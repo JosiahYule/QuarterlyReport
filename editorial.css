@@ -481,9 +481,6 @@
   .proj-stat-value.na   { color: var(--ink-4); font-weight: 400; }
   .proj-stat-value.rate { color: var(--accent); }
 
-  /* Projection sparkline */
-  .proj-sparkline-wrap { margin-top: 12px; }
-
   /* Trends — Charts (same open layout) */
   .charts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); column-gap: 48px; row-gap: 56px; }
   .chart-card  { border-top: 1px solid var(--ink); padding-top: 16px; }
