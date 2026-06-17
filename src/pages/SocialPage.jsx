@@ -434,10 +434,86 @@ function TopPosts({ data }) {
 }
 
 // ─── All Posts ────────────────────────────────────────────────────
-function healthForER(er) {
+// Most posts a single calendar day shows before collapsing the rest behind
+// a "+N more" disclosure, so a busy day can't stretch its whole week row.
+const CAL_MAX_PER_DAY = 3;
+
+// Parse a post's date as a *local* calendar day. Postgres `date` columns
+// serialize as "YYYY-MM-DD", which `new Date()` reads as UTC midnight — that
+// shifts the day backwards for any viewer west of UTC (e.g. the report's
+// America/Halifax timezone), landing posts on the wrong day and sometimes the
+// wrong month. Building the Date from local parts keeps it on the posted day.
+function parsePostDate(value) {
+  if (!value) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+// Engagement-rate "health" for a post. A post with no impressions yet has no
+// measurable rate, so it reads as a neutral "No data" rather than a red "Low" —
+// unmeasured posts shouldn't look like failures.
+function healthForPost(p) {
+  const impressions = p.Impressions || 0;
+  const engagements = p.Engagements || 0;
+  if (impressions <= 0) {
+    return { label: "No data", color: "var(--ink-4)", er: null, hasData: false };
+  }
+  const er = (engagements / impressions) * 100;
   const label = er > 10 ? "Very Strong" : er >= 6 ? "Strong" : er >= 4 ? "Moderate" : "Low";
   const color = er > 10 ? "var(--accent)" : er >= 6 ? "var(--up)" : er >= 4 ? "#b87000" : "var(--down)";
-  return { label, color };
+  return { label, color, er, hasData: true };
+}
+
+const PLATFORM_META = {
+  linkedin:  { key: "linkedin",  short: "LI", label: "LinkedIn"  },
+  facebook:  { key: "facebook",  short: "FB", label: "Facebook"  },
+  instagram: { key: "instagram", short: "IG", label: "Instagram" },
+};
+
+// Split the free-text Platforms field ("LinkedIn, Facebook") into compact
+// badges, keeping anything unrecognised as its own labelled chip.
+function parsePlatforms(value) {
+  if (!value) return [];
+  return String(value)
+    .split(/[,/&|]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(token => PLATFORM_META[token.toLowerCase()] || { key: "other", short: token, label: token });
+}
+
+function CalendarPost({ p }) {
+  const { label, color, er, hasData } = healthForPost(p);
+  const platforms = parsePlatforms(p.Platforms);
+  const erText = hasData ? er.toFixed(1) + "%" : "—";
+  const Tag = p.URL ? "a" : "article";
+  const linkProps = p.URL ? { href: p.URL, target: "_blank", rel: "noopener noreferrer" } : {};
+  const aria = `${p["Post Name"] || "Untitled post"} — ${platforms.map(pl => pl.label).join(", ") || "platform unknown"}, engagement ${erText}, ${label}`;
+  return (
+    <Tag
+      className={"calendar-post" + (p.URL ? " is-link" : "")}
+      style={{ "--health-color": color }}
+      aria-label={aria}
+      title={`${label} · ${erText}`}
+      {...linkProps}
+    >
+      <div className="calendar-post-title">{p["Post Name"] || "—"}</div>
+      <div className="calendar-post-meta">
+        {platforms.length > 0 && (
+          <span className="calendar-post-platforms">
+            {platforms.map((pl, i) => (
+              <span key={i} className="platform-badge" data-platform={pl.key} title={pl.label}>{pl.short}</span>
+            ))}
+          </span>
+        )}
+        <span className="calendar-post-health">
+          <span className="health-dot" aria-hidden="true" />
+          <span className="num">{erText}</span>
+          <span className="calendar-post-health-label">{label}</span>
+        </span>
+      </div>
+    </Tag>
+  );
 }
 
 function AllPosts({ data }) {
@@ -464,7 +540,7 @@ function AllPosts({ data }) {
       })
       .sort((a, b) => {
         const dir = sort.dir === "desc" ? -1 : 1;
-        if (sort.key === "Date") return dir * (new Date(a.Date) - new Date(b.Date));
+        if (sort.key === "Date") return dir * ((parsePostDate(a.Date)?.getTime() ?? 0) - (parsePostDate(b.Date)?.getTime() ?? 0));
         if (sort.key === "EngRate") {
           const erA = a.Impressions > 0 ? (a.Engagements / a.Impressions) * 100 : 0;
           const erB = b.Impressions > 0 ? (b.Engagements / b.Impressions) * 100 : 0;
@@ -476,8 +552,8 @@ function AllPosts({ data }) {
 
   const calendarMonths = useMemo(() => {
     return posts.reduce((acc, p) => {
-      const d = p.Date ? new Date(p.Date) : null;
-      const key = d && !Number.isNaN(d.getTime())
+      const d = parsePostDate(p.Date);
+      const key = d
         ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
         : "unknown";
       if (!acc[key]) acc[key] = [];
@@ -486,7 +562,12 @@ function AllPosts({ data }) {
     }, {});
   }, [posts]);
 
-  const calendarKeys = Object.keys(calendarMonths).sort((a, b) => b.localeCompare(a));
+  // Oldest → newest, the way a quarter actually unfolds; undated posts last.
+  const calendarKeys = Object.keys(calendarMonths).sort((a, b) => {
+    if (a === "unknown") return 1;
+    if (b === "unknown") return -1;
+    return a.localeCompare(b);
+  });
   const thStyle = { cursor: "pointer", userSelect: "none" };
 
   return (
@@ -563,9 +644,9 @@ function AllPosts({ data }) {
             </thead>
             <tbody>
               {posts.map((p, i) => {
-                const date = p.Date ? new Date(p.Date).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—";
-                const er = p.Impressions > 0 ? (p.Engagements / p.Impressions) * 100 : 0;
-                const { label, color } = healthForER(er);
+                const d = parsePostDate(p.Date);
+                const date = d ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—";
+                const { label, color, er, hasData } = healthForPost(p);
                 return (
                   <tr key={(p["Post Name"] || "") + (p.Date || "") + i}>
                     <td>
@@ -580,7 +661,7 @@ function AllPosts({ data }) {
                     <td className="all-posts-cell-platform">{p.Platforms || "—"}</td>
                     <td className="r num">{(p.Impressions || 0).toLocaleString()}</td>
                     <td className="r num">{(p.Engagements || 0).toLocaleString()}</td>
-                    <td className="r num">{er.toFixed(2)}%</td>
+                    <td className="r num">{hasData ? er.toFixed(2) + "%" : "—"}</td>
                     <td className="health-col"><span className="health-label" style={{ color }}>{label}</span></td>
                   </tr>
                 );
@@ -590,6 +671,7 @@ function AllPosts({ data }) {
         </div>
       ) : (
         <div className="calendar-view">
+          {calendarKeys.length === 0 && <EmptyData label="No posts match your search or filter." />}
           {calendarKeys.map(monthKey => {
             const monthPosts = calendarMonths[monthKey];
             if (monthKey === "unknown") {
@@ -597,16 +679,7 @@ function AllPosts({ data }) {
                 <div key="unknown" className="calendar-month">
                   <h3 className="calendar-month-title serif">Unknown date</h3>
                   <div className="calendar-grid-unknown">
-                    {monthPosts.map((p, i) => {
-                      const er = p.Impressions > 0 ? (p.Engagements / p.Impressions) * 100 : 0;
-                      const { color } = healthForER(er);
-                      return (
-                        <article key={i} className="calendar-post" style={{ "--health-color": color }}>
-                          <div className="calendar-post-title">{p["Post Name"] || "—"}</div>
-                          <div className="calendar-post-meta">{p.Platforms || "—"} · ER {er.toFixed(2)}%</div>
-                        </article>
-                      );
-                    })}
+                    {monthPosts.map((p, i) => <CalendarPost key={i} p={p} />)}
                   </div>
                 </div>
               );
@@ -619,8 +692,8 @@ function AllPosts({ data }) {
             const label = firstDay.toLocaleDateString(undefined, { month: "long", year: "numeric" });
             const dayToPosts = {};
             monthPosts.forEach(p => {
-              const d = new Date(p.Date);
-              if (!Number.isNaN(d.getTime())) {
+              const d = parsePostDate(p.Date);
+              if (d) {
                 const day = d.getDate();
                 if (!dayToPosts[day]) dayToPosts[day] = [];
                 dayToPosts[day].push(p);
@@ -637,20 +710,21 @@ function AllPosts({ data }) {
                     const dayNumber = idx - startOffset + 1;
                     const inMonth = dayNumber >= 1 && dayNumber <= daysInMonth;
                     const postsForDay = inMonth ? (dayToPosts[dayNumber] || []) : [];
+                    const shown = postsForDay.slice(0, CAL_MAX_PER_DAY);
+                    const hidden = postsForDay.slice(CAL_MAX_PER_DAY);
                     return (
-                      <div key={idx} className={"calendar-day-cell" + (inMonth ? "" : " is-pad")} aria-label={inMonth ? `${label} ${dayNumber}, ${postsForDay.length} post${postsForDay.length !== 1 ? "s" : ""}` : undefined}>
+                      <div key={idx} className={"calendar-day-cell" + (inMonth ? "" : " is-pad") + (postsForDay.length ? " has-posts" : "")} aria-label={inMonth ? `${label} ${dayNumber}, ${postsForDay.length} post${postsForDay.length !== 1 ? "s" : ""}` : undefined}>
                         {inMonth && <div className="calendar-day-number serif" aria-hidden="true">{dayNumber}</div>}
                         <div className="calendar-day-posts">
-                          {postsForDay.map((p, i) => {
-                            const er = p.Impressions > 0 ? (p.Engagements / p.Impressions) * 100 : 0;
-                            const { color, label: healthLabel } = healthForER(er);
-                            return (
-                              <article key={i} className="calendar-post" style={{ "--health-color": color }} title={`${healthLabel} · ER ${er.toFixed(2)}%`}>
-                                <div className="calendar-post-title">{p["Post Name"] || "—"}</div>
-                                <div className="calendar-post-meta">{p.Platforms || "—"} · {er.toFixed(2)}% · {healthLabel}</div>
-                              </article>
-                            );
-                          })}
+                          {shown.map((p, i) => <CalendarPost key={i} p={p} />)}
+                          {hidden.length > 0 && (
+                            <details className="calendar-more">
+                              <summary>+{hidden.length} more</summary>
+                              <div className="calendar-day-posts">
+                                {hidden.map((p, i) => <CalendarPost key={i} p={p} />)}
+                              </div>
+                            </details>
+                          )}
                         </div>
                       </div>
                     );
