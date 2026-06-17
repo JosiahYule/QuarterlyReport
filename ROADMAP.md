@@ -47,7 +47,8 @@ The app is currently **100% static** — no server, no scheduled jobs. You can't
 call the Meta/LinkedIn/GA4 APIs from the browser (secrets would leak, and CORS
 blocks it), and `projection_snapshots` only get written when someone happens to
 open the Trends page (`src/hooks/useTrendsData.js:105`), so the projection
-history has holes.
+history has holes. **(This is not hypothetical — see the live-database reality
+check below: two of the three agencies have *zero* snapshot history right now.)**
 
 **v3 needs a backend job runner.** Best fit for this stack:
 
@@ -67,6 +68,50 @@ jobs hold the API tokens.
 
 ---
 
+## Reality check — verified against the live database (2026-06-17)
+
+Inspected the production project (`tmqotmpacguusianlpcg`) directly. The schema
+matches the table mappings above. A few findings sharpen the priorities:
+
+**1. The snapshot gap is live and severe.** `projection_snapshots` holds **13
+rows total — all of them `isl / q4`** (2026-06-02 → 2026-06-17). **`as` and
+`ads` have zero snapshots.** Because snapshots are written only on Trends-page
+load, two of three agencies have *no* projection history, and even ISL's is
+patchy. → **Phase 0 daily cron isn't a nice-to-have; it's the difference between
+the Trends projection working for one agency and working for all three.**
+
+**2. A public-key write hole the server-side shift closes.** Security advisors
+flag `projection_snapshots` with **`anon insert` and `anon update` policies that
+are `WITH CHECK (true)`** — i.e. the public anon key (shipped in the client
+bundle) can insert *and overwrite any snapshot row*. It's how the page-load
+write works today, but it means anyone can poison the projection history. When
+the Phase 0 cron takes over writes with the service role, **drop the anon
+write policies** (keep public *read*). This is the concrete security upside of
+moving ingestion server-side.
+
+**3. Two features are already half-built in the schema:**
+- `social_kpis.followers_start` exists but **nothing populates it** (it's not in
+  the admin form). It's a ready-made slot for **follower *growth* (start→end of
+  quarter)** — a near-free Phase 2 win once ingestion can fill it.
+- `web_reports.agency` exists (default `'isl'`) but only **2 web rows exist**, so
+  the Web report is effectively ISL-only. **Per-agency web reporting is already
+  modeled** — Phase 1 GA4 ingestion just needs to populate `as`/`ads` too.
+
+**4. Pre-automation hardening (cheap now, matters once data grows).** Performance
+advisors: 9 unindexed `report_id` foreign keys, 11 RLS policies that re-evaluate
+`auth.<fn>()` per row, and 55 duplicate permissive policies. All negligible at
+today's volumes (12–121 rows) — but automated ingestion (daily snapshots, full
+post-log sync) is exactly what grows them. Fold an **RLS/index cleanup migration
+into Phase 0** while you're touching the backend:
+- add covering indexes on every `*_report_id_fkey`;
+- wrap `auth.uid()`/`current_setting()` in `(select …)` so RLS evaluates once per query;
+- collapse the duplicate `public read` / `auth write` policies so writes are scoped to write commands.
+
+*(Minor, unrelated: `set_updated_at` has a mutable `search_path`, and Auth's
+leaked-password protection is off — both one-line fixes, neither blocks v3.)*
+
+---
+
 ## Roadmap by phase
 
 Effort: **S** ≈ days · **M** ≈ 1–2 weeks · **L** ≈ multi-week.
@@ -78,7 +123,13 @@ Impact is relative to *your* time saved + report usefulness.
 - [ ] Scheduled job runner (Supabase Edge Function + `pg_cron`).
 - [ ] `integration_credentials` table, service-role-only RLS; OAuth token storage + refresh.
 - [ ] Move the Trends snapshot write out of the page load into a **daily cron** so
-      `projection_snapshots` is complete regardless of who visits. *(High impact, tiny effort — do this first.)*
+      `projection_snapshots` is complete for *all three* agencies (today `as`/`ads`
+      have none). *(High impact, tiny effort — do this first.)*
+- [ ] Once the cron owns snapshot writes, **drop the `anon insert` / `anon update`
+      policies** on `projection_snapshots` (keep public read) — closes the
+      public-key write hole the advisor flagged.
+- [ ] **RLS/index cleanup migration** (see reality check #4): covering indexes on
+      the `report_id` FKs, `(select auth.…())` wrapping, de-duplicated policies.
 - [ ] A lightweight `ingestion_runs` log table (source, status, row counts, errors) surfaced in the admin.
 
 ### Phase 1 — Automated ingestion · `L` (per source) · **Impact: H**
@@ -119,6 +170,9 @@ override layer.** A synced value can always be hand-corrected; mark rows
 - [ ] **Goals / targets.** A `targets` table (metric, quarter, agency, goal value).
       Render pace-to-goal on KPI cards and Trends — reuse the existing projection
       engine to answer "will we hit it?"
+- [ ] **Follower growth (start→end).** The `social_kpis.followers_start` column
+      already exists but nothing fills it. Populate it (via ingestion or admin) and
+      show net follower *growth* per quarter, not just the end-of-quarter count.
 - [ ] **Year-over-year.** Today it's quarter-over-quarter only. With a few quarters
       of history, add YoY deltas (staffing demand is seasonal — this matters).
 
