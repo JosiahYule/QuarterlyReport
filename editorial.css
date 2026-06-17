@@ -450,12 +450,40 @@
   .calendar-day-number { font-family: var(--serif); font-size: 18px; margin-bottom: 6px; color: var(--ink-2); }
   .calendar-day-posts  { display: flex; flex-direction: column; gap: 6px; }
   .calendar-post {
+    display: block;
     border: 1px solid var(--health-color, var(--rule)); border-left-width: 2px;
     background: color-mix(in srgb, var(--health-color, #bbb) 4%, white);
     padding: 6px 7px;
   }
+  .calendar-post.is-link { cursor: pointer; transition: background .12s, box-shadow .12s; }
+  .calendar-post.is-link:hover { background: color-mix(in srgb, var(--health-color, #bbb) 13%, white); }
+  .calendar-post.is-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent); }
   .calendar-post-title { font-size: 12px; line-height: 1.25; color: var(--ink); }
-  .calendar-post-meta  { font-size: 10px; color: var(--ink-3); margin-top: 2px; }
+  .calendar-post-meta  {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 3px 8px; font-size: 10px; color: var(--ink-3); margin-top: 4px;
+  }
+  .calendar-post-platforms { display: inline-flex; gap: 3px; flex-wrap: wrap; }
+  .platform-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 14px; padding: 0 4px; border-radius: 3px;
+    font-size: 9px; font-weight: 600; letter-spacing: .02em;
+    background: var(--paper-2); color: var(--ink-3); border: 1px solid var(--rule-soft);
+  }
+  .platform-badge[data-platform="linkedin"]  { background: #eaf1f8; color: #0a4d8c; border-color: #cfe0f0; }
+  .platform-badge[data-platform="facebook"]  { background: #edeff7; color: #2c3e76; border-color: #d6dcec; }
+  .platform-badge[data-platform="instagram"] { background: #fbecf2; color: #a3326b; border-color: #f0d3e0; }
+  .calendar-post-health { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .health-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--health-color, #bbb); flex-shrink: 0; }
+  .calendar-post-health-label { color: var(--ink-3); }
+  .calendar-more { margin-top: 2px; }
+  .calendar-more > summary {
+    list-style: none; cursor: pointer; font-size: 10px; color: var(--ink-3);
+    padding: 3px 6px; border: 1px dashed var(--rule); border-radius: 3px; text-align: center;
+  }
+  .calendar-more > summary::-webkit-details-marker { display: none; }
+  .calendar-more > summary:hover { color: var(--ink); border-color: var(--ink-4); }
+  .calendar-more[open] > summary { margin-bottom: 6px; }
   .calendar-grid-unknown { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 
   /* Trends — Projection cards (open editorial layout, like the KPI grid) */
