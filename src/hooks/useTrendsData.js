@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
-import { TRENDS_QUARTERS, CURRENT_QUARTER } from "../config.js";
+import { TRENDS_QUARTERS, CURRENT_QUARTER, AGENCIES } from "../config.js";
 import { METRICS, extractMetric } from "../lib/projection.js";
 import { withRetry, friendlyError } from "../lib/fetching.js";
 
@@ -84,6 +84,19 @@ async function fetchQuarter(agency, quarter) {
   }
 }
 
+// Write today's snapshot for *every* agency's current quarter, not just the
+// one being viewed. Snapshots are only ever recorded from this page, so an
+// agency whose Trends tab nobody opens would otherwise build no projection
+// history. Fire-and-forget: fetchQuarter/storeSnapshot swallow their own
+// errors, and agencies with no current-quarter data are skipped.
+async function snapshotAllAgencies() {
+  await Promise.all(
+    Object.keys(AGENCIES).map((a) =>
+      fetchQuarter(a, CURRENT_QUARTER.suffix).then((d) => storeSnapshot(a, d))
+    )
+  );
+}
+
 export function useTrendsData(agency) {
   const [state, setState] = useState({ qdata: null, snapsByQuarter: {}, status: "loading", error: null });
 
@@ -101,8 +114,9 @@ export function useTrendsData(agency) {
           const snapsByQuarter = Object.fromEntries(
             TRENDS_QUARTERS.map((q, i) => [q.suffix, snapsArrays[i]])
           );
-          // Fire-and-forget: write today's snapshot for the current quarter.
-          storeSnapshot(agency, qdata[2]);
+          // Fire-and-forget: snapshot every agency's current quarter (not just
+          // the one being viewed) so each one accrues projection history.
+          snapshotAllAgencies();
           setState({ qdata, snapsByQuarter, status: "ready", error: null });
         }
       } catch (err) {
