@@ -89,16 +89,59 @@ describe("buildProjectionAudit — stage-weighted calibration", () => {
     const lateStage = buildProjectionAudit({ ...common, targetElapsedFraction: 0.85 });
     expect(equal).not.toBeNull();
     expect(lateStage).not.toBeNull();
+    // Compare the raw (pre-dampening) ratio so this isolates stage-weighting.
     // Equal weighting is dragged down by early over-projection; stage-matching
-    // to a near-complete quarter recovers a factor materially closer to 1.
-    expect(lateStage.calibrationFactor).toBeGreaterThan(equal.calibrationFactor + 0.05);
-    expect(lateStage.calibrationFactor).toBeGreaterThan(0.8);
-    expect(lateStage.calibrationFactor).toBeLessThanOrEqual(1.15);
+    // to a near-complete quarter recovers a ratio materially closer to 1.
+    expect(lateStage.accuracyRatio).toBeGreaterThan(equal.accuracyRatio + 0.05);
+    expect(lateStage.accuracyRatio).toBeGreaterThan(0.8);
   });
 
   it("keeps the calibration factor within sane bounds", () => {
     const audit = buildProjectionAudit({ ...common, targetElapsedFraction: 0.5 });
     expect(audit.calibrationFactor).toBeGreaterThanOrEqual(0.5);
     expect(audit.calibrationFactor).toBeLessThanOrEqual(1.5);
+  });
+});
+
+describe("buildProjectionAudit — self-dampening on poor fit", () => {
+  const lastVal = snaps => snaps[snaps.length - 1].vals.m;
+  const base = {
+    metric,
+    completedQuarter: { start: qStart, end: qEnd },
+    previousQuarter: { start: new Date(2025, 11, 1), end: qStart },
+    previousQuarterValue: 1800,
+    twoBackValue: null,
+    targetElapsedFraction: 0.85,
+  };
+
+  it("keeps near-full confidence on a clean, dense prior quarter", () => {
+    const snapshotHistory = decelSnapshots();
+    const audit = buildProjectionAudit({ ...base, actualValue: lastVal(snapshotHistory), snapshotHistory });
+    expect(audit.calibrationConfidence).toBeGreaterThan(0.8);
+    // A real correction survives — it is not shrunk away to ≈1.
+    expect(audit.calibrationFactor).toBeGreaterThan(0.8);
+    expect(audit.calibrationFactor).toBeLessThan(0.95);
+  });
+
+  it("shrinks the factor toward 1 when the fit was scattered", () => {
+    // Same decelerating trend, but a day-to-day zig-zag so the fit is noisy.
+    const snapshotHistory = decelSnapshots().map((s, i) => ({
+      t: s.t, vals: { m: s.vals.m * (1 + (i % 2 ? -0.06 : 0.06)) },
+    }));
+    const clean = buildProjectionAudit({ ...base, actualValue: lastVal(decelSnapshots()), snapshotHistory: decelSnapshots() });
+    const noisy = buildProjectionAudit({ ...base, actualValue: lastVal(snapshotHistory), snapshotHistory });
+    expect(noisy.calibrationConfidence).toBeLessThan(clean.calibrationConfidence);
+    // The damped factor is at least as close to 1 as the raw clamped ratio.
+    const rawClamped = Math.min(1.5, Math.max(0.5, noisy.accuracyRatio));
+    expect(Math.abs(noisy.calibrationFactor - 1)).toBeLessThanOrEqual(Math.abs(rawClamped - 1) + 1e-9);
+  });
+
+  it("shrinks the factor toward 1 when near-stage support is thin", () => {
+    // Only three snapshots in the whole quarter → little effective support.
+    const all = decelSnapshots();
+    const snapshotHistory = [all[12], all[50], all[85]];
+    const audit = buildProjectionAudit({ ...base, actualValue: lastVal(all), snapshotHistory });
+    expect(audit).not.toBeNull();
+    expect(audit.calibrationConfidence).toBeLessThan(0.7);
   });
 });

@@ -213,6 +213,42 @@ function stageWeight(sampleFraction, targetFraction, bandwidth = 0.35) {
   return Math.max(0.05, 1 - d / bandwidth);
 }
 
+// Confidence ∈ (0,1] that the learned calibration ratio is trustworthy. We
+// shrink the correction toward 1 (i.e. toward "no calibration") in proportion
+// to (1 − confidence), so a prior quarter that doesn't resemble this one can't
+// drag the projection around. Two independent signals, multiplied:
+//   • support     — effective number of samples near the current stage. Thin
+//                   or absent coverage (common while snapshot history is young)
+//                   means the factor rests on little, or distant, data.
+//   • consistency — dispersion of the projection error after removing its
+//                   smooth drift across the quarter, so steady convergence is
+//                   not mistaken for a poor fit; only genuine scatter counts.
+const SUPPORT_FULL = 5;     // effective near-stage samples for full support
+const DISPERSION_K = 0.30;  // de-trended rel-error std at which consistency ≈ 0.5
+function calibrationConfidence(samples, totalWeight, actualInput) {
+  if (!(actualInput > 0) || !(totalWeight > 0)) return 1;
+
+  // Effective sample size (Kish): (Σw)² / Σw².
+  const sumW2 = samples.reduce((a, s) => a + s.weight * s.weight, 0);
+  const nEff = sumW2 > 0 ? (totalWeight * totalWeight) / sumW2 : 0;
+  const support = Math.min(1, nEff / SUPPORT_FULL);
+
+  // De-trend relative error against elapsed fraction (weighted least squares),
+  // then take the weighted residual std — genuine scatter, not smooth drift.
+  const pts = samples.map(s => ({ x: s.fraction, y: (s.projected - actualInput) / actualInput, w: s.weight }));
+  const mx = pts.reduce((a, p) => a + p.w * p.x, 0) / totalWeight;
+  const my = pts.reduce((a, p) => a + p.w * p.y, 0) / totalWeight;
+  const sxx = pts.reduce((a, p) => a + p.w * (p.x - mx) * (p.x - mx), 0);
+  const sxy = pts.reduce((a, p) => a + p.w * (p.x - mx) * (p.y - my), 0);
+  const slope = sxx > 0 ? sxy / sxx : 0;
+  const intercept = my - slope * mx;
+  const resVar = pts.reduce((a, p) => a + p.w * Math.pow(p.y - (intercept + slope * p.x), 2), 0) / totalWeight;
+  const dispersion = Math.sqrt(Math.max(0, resVar));
+  const consistency = 1 / (1 + Math.pow(dispersion / DISPERSION_K, 2));
+
+  return support * consistency;
+}
+
 export function buildProjectionAudit({ metric, actualValue, completedQuarter, previousQuarter, previousQuarterValue, twoBackValue, snapshotHistory, targetElapsedFraction = null }) {
   if (!metric?.isPace || actualValue === null || previousQuarterValue === null) return null;
 
@@ -251,11 +287,17 @@ export function buildProjectionAudit({ metric, actualValue, completedQuarter, pr
   const error = avgProjected - actualInput;
   const percentError = actualInput !== 0 ? error / actualInput * 100 : null;
   const accuracyRatio = avgProjected > 0 ? actualInput / avgProjected : 1;
-  const calibrationFactor = clampCalibrationFactor(accuracyRatio);
+
+  // Self-dampening: trust the correction only as far as the prior quarter's
+  // fit was reliable. A poor fit (scattered, or built from thin near-stage
+  // data) pulls the factor back toward 1.0 — leave the uncorrected blend be.
+  const confidence = calibrationConfidence(samples, totalWeight, actualInput);
+  const dampedRatio = 1 + confidence * (accuracyRatio - 1);
+  const calibrationFactor = clampCalibrationFactor(dampedRatio);
 
   return {
     actual: actualInput, avgProjected, error, percentError,
-    accuracyRatio, calibrationFactor,
+    accuracyRatio, calibrationConfidence: confidence, calibrationFactor,
     sampleCount: samples.length,
     firstDay: samples[0]?.day ?? null,
     lastDay:  samples[samples.length - 1]?.day ?? null,
