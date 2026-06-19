@@ -3,6 +3,7 @@ import { AdminApp } from "./pages/admin/AdminApp.jsx";
 import ReactDOM from "react-dom/client";
 import { useUrlState } from "./hooks/useUrlState.js";
 import { AppNav } from "./components/Nav.jsx";
+import { PresentationMode } from "./components/PresentationMode.jsx";
 import { LoadingScreen } from "./components/LoadingScreen.jsx";
 import { PageSkeleton } from "./components/Skeleton.jsx";
 import { AGENCIES, QUARTERS, CURRENT_QUARTER, REPORT_AUTHOR } from "./config.js";
@@ -18,8 +19,21 @@ function App() {
   const [urlState, navigate] = useUrlState();
   const { agency, quarter, view } = urlState;
   const [appReady, setAppReady] = useState(false);
+  const [presenting, setPresenting] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const announcementTimer = useRef(null);
+
+  const enterPresent = useCallback(() => {
+    setPresenting(true);
+    // Best-effort true fullscreen (needs the button's user gesture). If it's
+    // unsupported or rejected, the in-page clean view still applies.
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  }, []);
+
+  const exitPresent = useCallback(() => {
+    setPresenting(false);
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  }, []);
 
   const handleReady = useCallback(() => {
     setAppReady(true);
@@ -61,7 +75,8 @@ function App() {
       </div>
 
       <LoadingScreen visible={!appReady} />
-      <AppNav agency={agency} view={view} quarter={quarter} onNavigate={navigate} />
+      <AppNav agency={agency} view={view} quarter={quarter} onNavigate={navigate} onPresent={enterPresent} />
+      <PresentationMode active={presenting} onExit={exitPresent} />
 
       <Suspense fallback={<PageSkeleton view={skelView} />}>
         {view === "social" && (

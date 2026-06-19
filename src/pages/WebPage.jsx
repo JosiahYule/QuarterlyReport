@@ -8,6 +8,8 @@ import { fmtInt, fmtPct, fmtTime, calcAutoDelta, parseDelta, FLAT } from "../uti
 import { AGENCIES, QUARTERS } from "../config.js";
 import { CountUp } from "../components/CountUp.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
+import { MetricTip } from "../components/MetricTip.jsx";
+import { METRIC_INFO } from "../metricInfo.js";
 
 // ─── Hero ─────────────────────────────────────────────────────────
 function Hero({ agency, quarter, data }) {
@@ -37,12 +39,12 @@ function Hero({ agency, quarter, data }) {
 
 // ─── KPI grid ─────────────────────────────────────────────────────
 const KPI_DEFS = [
-  { key: "sessions",             label: "Total Visits",      fmt: fmtInt,  note: "all sessions this quarter" },
-  { key: "users",                label: "Unique Users",      fmt: fmtInt,  note: "distinct visitors" },
-  { key: "engagementRate",       label: "Engagement Rate",   fmt: fmtPct,  note: "meaningful sessions" },
-  { key: "avgEngagementTimeSec", label: "Avg Time on Site",  fmt: fmtTime, note: "active engagement per visit" },
-  { key: "actions",              label: "Campaign Clicks",   fmt: fmtInt,  note: "high-intent interactions" },
-  { key: "formSubmissions",      label: "Form Submissions",  fmt: fmtInt,  note: "completed contact forms" },
+  { key: "sessions",             label: "Total Visits",      fmt: fmtInt,  note: "all sessions this quarter",  tip: METRIC_INFO.sessions },
+  { key: "users",                label: "Unique Users",      fmt: fmtInt,  note: "distinct visitors",          tip: METRIC_INFO.users },
+  { key: "engagementRate",       label: "Engagement Rate",   fmt: fmtPct,  note: "meaningful sessions",        tip: METRIC_INFO.engagementRate },
+  { key: "avgEngagementTimeSec", label: "Avg Time on Site",  fmt: fmtTime, note: "active engagement per visit", tip: METRIC_INFO.avgEngagementTime },
+  { key: "actions",              label: "Campaign Clicks",   fmt: fmtInt,  note: "high-intent interactions",   tip: METRIC_INFO.actions },
+  { key: "formSubmissions",      label: "Form Submissions",  fmt: fmtInt,  note: "completed contact forms",    tip: METRIC_INFO.formSubmissions },
 ];
 
 function Numbers({ data, prevData }) {
@@ -60,14 +62,14 @@ function Numbers({ data, prevData }) {
             ? parseDelta(data.deltas[k.key])
             : calcAutoDelta(v, prev[k.key]) || FLAT;
           return (
-            <div className="kpi" key={k.key} style={{ "--i": i }}>
+            <MetricTip as="div" className="kpi" key={k.key} style={{ "--i": i }} definition={k.tip}>
               <div className="kpi-label">{k.label}</div>
               <div className="kpi-value num"><CountUp value={v} format={k.fmt} /></div>
               <div className="kpi-foot">
                 <Delta d={d} />
                 <span className="delta-note">{k.note}</span>
               </div>
-            </div>
+            </MetricTip>
           );
         })}
       </div>
@@ -89,10 +91,10 @@ function Channels({ data, prevData }) {
       <div className="channels" role="grid" aria-label="Traffic channels breakdown">
         <div className="channel-row-web is-head" role="row">
           <div role="columnheader" />
-          <div role="columnheader">Channel</div>
-          <div className="col-num" role="columnheader">Sessions</div>
-          <div className="col-num" role="columnheader">Share</div>
-          <div className="col-num" role="columnheader">Eng. Rate</div>
+          <div role="columnheader"><MetricTip definition={METRIC_INFO.channel}>Channel</MetricTip></div>
+          <div className="col-num" role="columnheader"><MetricTip definition={METRIC_INFO.sessions}>Sessions</MetricTip></div>
+          <div className="col-num" role="columnheader"><MetricTip definition={METRIC_INFO.trafficShare}>Share</MetricTip></div>
+          <div className="col-num" role="columnheader"><MetricTip definition={METRIC_INFO.engagementRate}>Eng. Rate</MetricTip></div>
         </div>
         {channels.map((c, i) => {
           const prev = prevMap[c.name?.toLowerCase()] || null;
@@ -149,17 +151,17 @@ function TopPages({ data, prevData }) {
             <div className="page-tile" key={p.key}>
               <div className="page-tile-name serif">{p.key}</div>
               <div className="page-stat">
-                <div className="page-stat-label">Page Views</div>
+                <MetricTip as="div" className="page-stat-label" definition={METRIC_INFO.pageViews}>Page Views</MetricTip>
                 <div className="page-stat-value serif">{fmtInt(p.pageViews)}</div>
                 {vd && <Delta d={vd} className="page-delta" />}
               </div>
               <div className="page-stat">
-                <div className="page-stat-label">Bounce Rate</div>
+                <MetricTip as="div" className="page-stat-label" definition={METRIC_INFO.bounceRate}>Bounce Rate</MetricTip>
                 <div className="page-stat-value serif">{fmtPct(p.bounceRate)}</div>
                 {bd && <Delta d={bd} className="page-delta" />}
               </div>
               <div className="page-stat">
-                <div className="page-stat-label">Avg Time</div>
+                <MetricTip as="div" className="page-stat-label" definition={METRIC_INFO.avgTimeOnPage}>Avg Time</MetricTip>
                 <div className="page-stat-value serif">{fmtTime(p.avgTimeOnPageSec)}</div>
                 {td && <Delta d={td} className="page-delta" />}
               </div>

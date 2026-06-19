@@ -53,6 +53,11 @@ export const IconSort = (props) => (
   <Svg {...props}><path d="M5 6.5 8 3.5l3 3M5 9.5l3 3 3-3" /></Svg>
 );
 
+// Corner brackets — "expand to present / fullscreen"
+export const IconPresent = (props) => (
+  <Svg {...props}><path d="M6 2.5H3.5V5M10 2.5H12.5V5M6 13.5H3.5V11M10 13.5H12.5V11" /></Svg>
+);
+
 export function DirIcon({ dir, ...props }) {
   if (dir === "up") return <IconArrowUp {...props} />;
   if (dir === "down") return <IconArrowDown {...props} />;

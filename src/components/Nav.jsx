@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { AGENCIES, QUARTERS } from "../config.js";
-import { IconCaret, IconCheck } from "./Icons.jsx";
+import { IconCaret, IconCheck, IconPresent } from "./Icons.jsx";
 
 const TABS = [
   { id: "social",  label: "Social Media" },
@@ -145,7 +145,7 @@ function QuarterMenu({ current, onSelect, onClose }) {
 }
 
 // ─── Single combined nav bar ──────────────────────────────────────
-export function AppNav({ agency, view, quarter, onNavigate }) {
+export function AppNav({ agency, view, quarter, onNavigate, onPresent }) {
   const [agencyOpen,  setAgencyOpen]  = useState(false);
   const [quarterOpen, setQuarterOpen] = useState(false);
 
@@ -205,6 +205,16 @@ export function AppNav({ agency, view, quarter, onNavigate }) {
         </div>
 
         <div className="app-nav-right">
+          {onPresent && (
+            <button
+              className="app-nav-present"
+              onClick={onPresent}
+              aria-label="Enter presentation mode"
+            >
+              <span className="app-nav-present-icon" aria-hidden="true"><IconPresent /></span>
+              <span className="app-nav-present-label">Present</span>
+            </button>
+          )}
           <span className="app-nav-range" aria-hidden="true">{q.rangeLabel}</span>
           <div ref={quarterRef} style={{ position: "relative" }}>
             <button

@@ -9,6 +9,8 @@ import { fmt, fmtExact, FLAT } from "../utils.js";
 import { IconSort, IconArrowUp, IconArrowDown } from "../components/Icons.jsx";
 import { CountUp } from "../components/CountUp.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
+import { MetricTip } from "../components/MetricTip.jsx";
+import { METRIC_INFO } from "../metricInfo.js";
 
 // ─── Hero ─────────────────────────────────────────────────────────
 function Hero({ data }) {
@@ -34,14 +36,14 @@ function Hero({ data }) {
 
 // ─── KPI grid ─────────────────────────────────────────────────────
 const KPI_DEFS = [
-  { key: "posts",             label: "Posts Published",     fmt: fmtExact, note: "across all platforms" },
-  { key: "impressions",       label: "Impressions",         fmt: fmt,      note: "total reach served" },
-  { key: "shares",            label: "Shares",              fmt: fmtExact, note: "amplification by audience" },
-  { key: "reactions",         label: "Reactions",           fmt: fmtExact, note: "likes + reactions" },
-  { key: "followers",         label: "Followers",           fmt: fmtExact, note: "combined audience" },
-  { key: "linkclicks",        label: "Link Clicks",         fmt: fmtExact, note: "engagement with posts" },
-  { key: "comments",          label: "Comments",            fmt: fmtExact, note: "depth of conversation" },
-  { key: "avgengagementrate", label: "Avg Engagement Rate", fmt: v => v != null ? v.toFixed(2) + "%" : "—", note: "blended across posts" },
+  { key: "posts",             label: "Posts Published",     fmt: fmtExact, note: "across all platforms",     tip: METRIC_INFO.posts },
+  { key: "impressions",       label: "Impressions",         fmt: fmt,      note: "total reach served",       tip: METRIC_INFO.impressions },
+  { key: "shares",            label: "Shares",              fmt: fmtExact, note: "amplification by audience", tip: METRIC_INFO.shares },
+  { key: "reactions",         label: "Reactions",           fmt: fmtExact, note: "likes + reactions",         tip: METRIC_INFO.reactions },
+  { key: "followers",         label: "Followers",           fmt: fmtExact, note: "combined audience",         tip: METRIC_INFO.followers },
+  { key: "linkclicks",        label: "Link Clicks",         fmt: fmtExact, note: "engagement with posts",     tip: METRIC_INFO.linkClicks },
+  { key: "comments",          label: "Comments",            fmt: fmtExact, note: "depth of conversation",     tip: METRIC_INFO.comments },
+  { key: "avgengagementrate", label: "Avg Engagement Rate", fmt: v => v != null ? v.toFixed(2) + "%" : "—", note: "blended across posts", tip: METRIC_INFO.engagementRateSocial },
 ];
 
 function Numbers({ data }) {
@@ -55,14 +57,14 @@ function Numbers({ data }) {
           const v = data.overall[k.key];
           const d = data.deltas?.[k.key] || FLAT;
           return (
-            <div className="kpi" key={k.key} style={{ "--i": i }}>
+            <MetricTip as="div" className="kpi" key={k.key} style={{ "--i": i }} definition={k.tip}>
               <div className="kpi-label">{k.label}</div>
               <div className="kpi-value num"><CountUp value={v} format={k.fmt} /></div>
               <div className="kpi-foot">
                 <Delta d={d} />
                 <span className="delta-note">{k.note}</span>
               </div>
-            </div>
+            </MetricTip>
           );
         })}
       </div>
@@ -323,11 +325,11 @@ function Platforms({ data }) {
       <div className="channels" role="grid" aria-label="Platform breakdown">
         <div className="channel-row is-head" role="row">
           <div role="columnheader" />
-          <div role="columnheader">Platform</div>
-          <div className="col-num" role="columnheader">Followers</div>
-          <div className="col-num" role="columnheader">Engagement Rate</div>
-          <div className="col-num" role="columnheader">Page Reach</div>
-          <div className="col-num" role="columnheader">Page Clicks</div>
+          <div role="columnheader"><MetricTip definition={METRIC_INFO.platform}>Platform</MetricTip></div>
+          <div className="col-num" role="columnheader"><MetricTip definition={METRIC_INFO.followers}>Followers</MetricTip></div>
+          <div className="col-num" role="columnheader"><MetricTip definition={METRIC_INFO.engagementRateSocial}>Engagement Rate</MetricTip></div>
+          <div className="col-num" role="columnheader"><MetricTip definition={METRIC_INFO.pageReach}>Page Reach</MetricTip></div>
+          <div className="col-num" role="columnheader"><MetricTip definition={METRIC_INFO.pageClicks}>Page Clicks</MetricTip></div>
         </div>
         {data.platforms.map((p, i) => (
           <div className="channel-row" key={p.key} role="row">
@@ -402,9 +404,9 @@ function TopPosts({ data }) {
             <thead>
               <tr>
                 <th scope="col">Post</th>
-                <th scope="col" className="r">Impressions</th>
-                <th scope="col" className="r">Engagements</th>
-                <th scope="col" className="r">Eng. Rate</th>
+                <th scope="col" className="r"><MetricTip definition={METRIC_INFO.impressions}>Impressions</MetricTip></th>
+                <th scope="col" className="r"><MetricTip definition={METRIC_INFO.engagements}>Engagements</MetricTip></th>
+                <th scope="col" className="r"><MetricTip definition={METRIC_INFO.engagementRateSocial}>Eng. Rate</MetricTip></th>
               </tr>
             </thead>
             <tbody>

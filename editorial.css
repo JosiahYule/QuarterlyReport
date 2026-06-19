@@ -566,6 +566,41 @@
   .section-rail-item.is-active { color: var(--accent); border-left-color: var(--accent); }
   .section[id] { scroll-margin-top: 72px; }
 
+  /* Metric hover tooltips — no visual indicator on the target; the plain-
+     language definition appears on hover/focus. The popover is portaled to
+     <body> (see MetricTip.jsx) so table/section overflow can't clip it. */
+  .metric-tip { outline: none; }
+  .metric-tip:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px;
+  }
+  .metric-tip-pop {
+    position: fixed; z-index: 300; transform: translateX(-50%);
+    max-width: 264px; padding: 10px 13px;
+    background: var(--ink); color: var(--paper);
+    font-family: var(--sans); font-size: 12.5px; line-height: 1.5;
+    font-weight: 400; letter-spacing: 0; text-transform: none; text-align: left;
+    border-radius: 4px; box-shadow: 0 8px 28px rgba(20, 17, 13, 0.22);
+    pointer-events: none;
+  }
+  .metric-tip-pop.is-above { transform: translate(-50%, -100%); }
+  .metric-tip-pop::after {
+    content: ""; position: absolute; left: 50%; transform: translateX(-50%);
+    border: 6px solid transparent;
+  }
+  .metric-tip-pop.is-below::after { bottom: 100%; border-bottom-color: var(--ink); }
+  .metric-tip-pop.is-above::after { top: 100%; border-top-color: var(--ink); }
+
+  /* "Present" button (nav) */
+  .app-nav-present {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--ink-3);
+    padding: 6px 11px; border: 1px solid var(--rule); border-radius: 2px;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .app-nav-present:hover { color: var(--ink); border-color: var(--ink); }
+  .app-nav-present:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .app-nav-present-icon { display: inline-flex; font-size: 14px; }
+
   /* Sort indicator (clickable table headers) */
   .sort-icon { display: inline-flex; vertical-align: -2px; margin-left: 4px; font-size: 12px; }
   .sort-icon.is-idle { opacity: 0.3; }
@@ -1156,4 +1191,48 @@
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ================================================================
+   Presentation mode — "clean reading view"
+   Unlayered + at end of file so it overrides component & responsive
+   rules. Toggled by data-present on <body> (see PresentationMode.jsx):
+   hide the chrome, center the column, enlarge the type for a room.
+   ================================================================ */
+
+/* Slim exit bar pinned to the top while presenting */
+.present-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 400;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  height: 46px; padding: 0 20px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.present-hint {
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-4);
+}
+.present-exit {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; font-size: 15px;
+  border: 1px solid var(--rule); border-radius: 2px; color: var(--ink-2);
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.present-exit:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.present-exit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Hide the everyday chrome */
+body[data-present="true"] .app-nav,
+body[data-present="true"] .section-rail,
+body[data-present="true"] .page-loader,
+body[data-present="true"] .colophon { display: none !important; }
+
+/* Calmer, larger reading layout */
+body[data-present="true"] { font-size: 16.5px; }
+body[data-present="true"] .report-wrap { padding-top: 74px; padding-bottom: 48px; }
+body[data-present="true"] .section-title { font-size: clamp(34px, 4.2vw, 52px); }
+body[data-present="true"] .kpi-label { font-size: 12px; }
+body[data-present="true"] .kpi-value { font-size: clamp(48px, 5.4vw, 76px); }
+body[data-present="true"] .hero-b-q { font-size: clamp(56px, 7vw, 84px); }
+body[data-present="true"] .hero-b-note { font-size: clamp(20px, 2.4vw, 26px); }
 
