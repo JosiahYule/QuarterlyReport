@@ -122,6 +122,40 @@ async function loadCalibrationHistory(agency, metricId, limit = 4) {
   }
 }
 
+// Top post and platform leader/laggard for the viewed agency's current
+// quarter, to auto-surface "what's driving this" without anyone having to
+// curate it. Scoped to the single viewed agency (unlike snapshotAllAgencies/
+// auditAllAgencies above) since this only feeds a display widget, not an
+// accumulating history.
+async function fetchDrivers(agency, quarterSuffix) {
+  try {
+    const { data, error } = await supabase
+      .from("social_reports")
+      .select("social_posts(post_name, post_date, platforms, impressions, engagements, url), social_platforms(name, engagement_rate)")
+      .eq("agency", agency)
+      .eq("quarter", quarterSuffix)
+      .maybeSingle();
+    if (error || !data) return { topPost: null, platformLeader: null, platformLaggard: null };
+
+    const posts = (data.social_posts || []).filter(p => Number.isFinite(p.impressions));
+    const topPost = posts.length
+      ? posts.reduce((best, p) => p.impressions > best.impressions ? p : best)
+      : null;
+
+    const platforms = (data.social_platforms || []).filter(p => Number.isFinite(p.engagement_rate));
+    const platformLeader = platforms.length
+      ? platforms.reduce((best, p) => p.engagement_rate > best.engagement_rate ? p : best)
+      : null;
+    const platformLaggard = platforms.length > 1
+      ? platforms.reduce((worst, p) => p.engagement_rate < worst.engagement_rate ? p : worst)
+      : null;
+
+    return { topPost, platformLeader, platformLaggard };
+  } catch (_) {
+    return { topPost: null, platformLeader: null, platformLaggard: null };
+  }
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────
 async function fetchQuarter(agency, quarter) {
   try {
@@ -164,15 +198,16 @@ async function snapshotAllAgencies() {
 }
 
 export function useTrendsData(agency) {
-  const [state, setState] = useState({ qdata: null, snapsByQuarter: {}, calibrationHistory: {}, status: "loading", error: null });
+  const [state, setState] = useState({ qdata: null, snapsByQuarter: {}, calibrationHistory: {}, drivers: null, status: "loading", error: null });
 
   useEffect(() => {
     let cancelled = false;
 
     const run = async () => {
       try {
-        const [qdata, ...rest] = await Promise.all([
+        const [qdata, drivers, ...rest] = await Promise.all([
           Promise.all(TRENDS_QUARTERS.map(q => fetchQuarter(agency, q.suffix))),
+          fetchDrivers(agency, TRENDS_QUARTERS[2].suffix),
           ...TRENDS_QUARTERS.map(q => loadSnapshots(agency, q.suffix)),
           ...METRICS.map(m => loadCalibrationHistory(agency, m.id)),
         ]);
@@ -192,18 +227,18 @@ export function useTrendsData(agency) {
           // history regardless of whose Trends tab gets opened.
           snapshotAllAgencies();
           auditAllAgencies();
-          setState({ qdata, snapsByQuarter, calibrationHistory, status: "ready", error: null });
+          setState({ qdata, snapsByQuarter, calibrationHistory, drivers, status: "ready", error: null });
         }
       } catch (err) {
         if (!cancelled) {
           setState(s => s.status === "loading"
-            ? { qdata: null, snapsByQuarter: {}, calibrationHistory: {}, status: "error", error: friendlyError(err) }
+            ? { qdata: null, snapsByQuarter: {}, calibrationHistory: {}, drivers: null, status: "error", error: friendlyError(err) }
             : s);
         }
       }
     };
 
-    setState({ qdata: null, snapsByQuarter: {}, calibrationHistory: {}, status: "loading", error: null });
+    setState({ qdata: null, snapsByQuarter: {}, calibrationHistory: {}, drivers: null, status: "loading", error: null });
     run();
     // Refresh every 5 minutes, but only while the tab is visible
     const id = setInterval(() => { if (!document.hidden) run(); }, 300_000);

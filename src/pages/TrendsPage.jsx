@@ -398,6 +398,106 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
   );
 }
 
+// Rate-vs-previous-quarter for one metric, factored out of ProjCard/ChartCard
+// for the Drivers section's cross-metric pacing ranking, so it doesn't grow
+// a fourth copy of those components' inline q2Rate/pace block.
+function computeMetricRateVsQ2(metric, qdata, snaps, tq2, tq3, calibrationFactor) {
+  if (!metric.isPace || quarterComplete(tq3)) return null;
+  const [d1, d2, d3] = qdata;
+  const q1v = extractMetric(d1, metric);
+  const q2v = extractMetric(d2, metric);
+  const q3v = extractMetric(d3, metric);
+  const histBaseline = metric.baselineFromQ2 && q2v !== null ? q2v : 0;
+  const q3input = metric.baselineFromQ2 && q2v !== null && q3v !== null ? q3v - q2v : q3v;
+  const q2Rate = q2v !== null
+    ? (metric.baselineFromQ2 && q1v !== null ? (q2v - q1v) : q2v) / ((tq2.end - tq2.start) / 86400000)
+    : null;
+  if (!q2Rate) return null;
+  const pace = computeAdvancedPace(q3input, tq3.start, tq3.end, q2Rate, getMetricHistory(snaps, metric.id), histBaseline, new Date(), calibrationFactor);
+  if (!pace) return null;
+  return (pace.dailyRate - q2Rate) / q2Rate * 100;
+}
+
+// ─── Drivers (auto-surfaced highlights) ────────────────────────────
+function Drivers({ drivers, pacing, tq3 }) {
+  const post = drivers?.topPost;
+  const leader = drivers?.platformLeader;
+  const laggard = drivers?.platformLaggard;
+  const [pacingLeader, pacingLaggard] = pacing;
+
+  if (!post && !leader && !pacingLeader) return null;
+
+  return (
+    <section id="drivers" className="section wrap">
+      <header className="section-head">
+        <h2 className="section-title serif">What’s <em>Driving This</em></h2>
+        <p className="section-sub">Auto-surfaced highlights from {tq3.label} so far — no curation required.</p>
+      </header>
+      <div className="proj-grid">
+        {post && (
+          <div className="proj-card">
+            <div className="proj-card-label">Top Post</div>
+            <div className="driver-title">
+              {post.url ? <a href={post.url} target="_blank" rel="noreferrer">{post.post_name || "Untitled post"}</a> : (post.post_name || "Untitled post")}
+            </div>
+            <div className="proj-number-sub">{post.platforms || "—"}</div>
+            <div className="proj-stats-grid">
+              <div className="proj-stat">
+                <div className="proj-stat-label">Impressions</div>
+                <div className="proj-stat-value">{fmt(post.impressions)}</div>
+              </div>
+              <div className="proj-stat">
+                <div className="proj-stat-label">Engagements</div>
+                <div className="proj-stat-value">{fmt(post.engagements)}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {leader && (
+          <div className="proj-card">
+            <div className="proj-card-label">Platform Spotlight</div>
+            <div className="driver-title">{leader.name}</div>
+            <div className="proj-number-sub">Highest engagement rate this quarter</div>
+            <div className="proj-stats-grid">
+              <div className="proj-stat">
+                <div className="proj-stat-label">Engagement Rate</div>
+                <div className="proj-stat-value pos">{leader.engagement_rate.toFixed(2)}%</div>
+              </div>
+              {laggard && laggard.name !== leader.name && (
+                <div className="proj-stat">
+                  <div className="proj-stat-label">Lagging — {laggard.name}</div>
+                  <div className="proj-stat-value neg">{laggard.engagement_rate.toFixed(2)}%</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {pacingLeader && (
+          <div className="proj-card">
+            <div className="proj-card-label">Pacing</div>
+            <div className="driver-title">{pacingLeader.metric.label}</div>
+            <div className="proj-number-sub">Accelerating fastest vs last quarter's rate</div>
+            <div className="proj-stats-grid">
+              <div className="proj-stat">
+                <div className="proj-stat-label">Rate vs Last Quarter</div>
+                <div className="proj-stat-value pos">+{pacingLeader.rateVsQ2.toFixed(1)}%</div>
+              </div>
+              {pacingLaggard && pacingLaggard.metric.id !== pacingLeader.metric.id && (
+                <div className="proj-stat">
+                  <div className="proj-stat-label">Slowest — {pacingLaggard.metric.label}</div>
+                  <div className="proj-stat-value neg">{pacingLaggard.rateVsQ2.toFixed(1)}%</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 // ─── Hero ─────────────────────────────────────────────────────────
 function Hero({ agency, q3comp, q3done }) {
   const cfg = AGENCIES[agency] || AGENCIES.isl;
@@ -425,6 +525,7 @@ function Hero({ agency, q3comp, q3done }) {
 }
 
 const TRENDS_SECTIONS = [
+  { id: "drivers",               label: "Drivers" },
   { id: "projections",           label: "Projections" },
   { id: "projection-trajectory", label: "Trajectory" },
   { id: "quarterly-trends",      label: "Trends" },
@@ -432,7 +533,7 @@ const TRENDS_SECTIONS = [
 
 // ─── Page ─────────────────────────────────────────────────────────
 export function TrendsPage({ agency, onReady }) {
-  const { qdata, snapsByQuarter, calibrationHistory, status, error } = useTrendsData(agency);
+  const { qdata, snapsByQuarter, calibrationHistory, drivers, status, error } = useTrendsData(agency);
 
   useEffect(() => {
     if (status === "ready" || status === "error") onReady?.();
@@ -475,10 +576,22 @@ export function TrendsPage({ agency, onReady }) {
   const q3comp = quarterCompletion(q3);
   const q3done = quarterComplete(q3);
 
+  const pacingRanked = METRICS
+    .map(m => ({ metric: m, rateVsQ2: computeMetricRateVsQ2(m, qdata, snapsByQuarter[q3.suffix] ?? [], TRENDS_QUARTERS[1], q3, calibrationFactors[m.id]) }))
+    .filter(r => Number.isFinite(r.rateVsQ2))
+    .sort((a, b) => b.rateVsQ2 - a.rateVsQ2);
+  const pacing = pacingRanked.length
+    ? [pacingRanked[0], pacingRanked[pacingRanked.length - 1]]
+    : [null, null];
+
   return (
     <main className="report-wrap">
       <SectionRail sections={TRENDS_SECTIONS} />
       <ErrorBoundary><Hero agency={agency} q3comp={q3comp} q3done={q3done} /></ErrorBoundary>
+
+      <ErrorBoundary>
+        <Drivers drivers={drivers} pacing={pacing} tq3={q3} />
+      </ErrorBoundary>
 
       <ErrorBoundary>
         <section id="projections" className="section wrap">
