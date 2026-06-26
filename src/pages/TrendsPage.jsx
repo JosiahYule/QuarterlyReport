@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import Chart from "chart.js/auto";
-import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, blendCalibrationHistory, getWeekAgoProjection, getProjectionTimeline } from "../hooks/useTrendsData.js";
+import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, blendCalibrationHistory, getWeekAgoProjection, getProjectionTimeline, annotateTimelineSpikes } from "../hooks/useTrendsData.js";
 import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { fmt, fmtApprox } from "../utils.js";
 import { PageLoader } from "../components/PageLoader.jsx";
@@ -189,6 +189,7 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
 // ─── Projection trajectory chart (how the projected final has moved) ──
 function ProjTrajectoryChart({ timeline, metric }) {
   const W = 880, H = 260, pL = 68, pR = 64, pT = 28, pB = 48;
+  const [hovered, setHovered] = useState(null);
   if (!timeline || timeline.length < 2) {
     return (
       <div className="kpi-history-empty">
@@ -210,7 +211,7 @@ function ProjTrajectoryChart({ timeline, metric }) {
   const X = t => pL + ((t - minT) / tRange) * (W - pL - pR);
   const Y = v => pT + (H - pT - pB) * (1 - (v - domMin) / domRange);
 
-  const pts = timeline.map(p => ({ x: X(p.t), y: Y(p.projected), v: p.projected }));
+  const pts = timeline.map(p => ({ x: X(p.t), y: Y(p.projected), v: p.projected, spike: p.spike }));
   const linePath = pts.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.y.toFixed(1)).join(" ");
   const areaPath = linePath
     + ` L${pts[pts.length - 1].x.toFixed(1)},${(H - pB).toFixed(1)}`
@@ -224,6 +225,27 @@ function ProjTrajectoryChart({ timeline, metric }) {
     return { x: X(t), label: fmtDate(t) };
   });
   const last = pts[pts.length - 1];
+
+  // Tooltip geometry for the hovered spike marker, computed in SVG user-space
+  // so it scales with the responsive viewBox (no DOM-pixel maths). Clamped
+  // horizontally so it never spills past the plot edges.
+  const active = hovered != null ? pts[hovered] : null;
+  const spikePost = active?.spike?.post;
+  let tip = null;
+  if (active && spikePost) {
+    const name = spikePost.post_name || "Untitled post";
+    const tipW = 232, tipH = 52;
+    let tx = active.x - tipW / 2;
+    tx = Math.max(pL, Math.min(tx, W - pR - tipW));
+    const ty = active.y - tipH - 14 < pT ? active.y + 14 : active.y - tipH - 14;
+    tip = {
+      tx, ty, tipW, tipH,
+      title: name.length > 30 ? name.slice(0, 29) + "…" : name,
+      dir: active.spike.direction === "up" ? "▲" : "▼",
+      pctTxt: `${active.spike.deltaPct >= 0 ? "+" : "−"}${Math.abs(active.spike.deltaPct).toFixed(1)}%`,
+      impressions: spikePost.impressions,
+    };
+  }
 
   return (
     <svg className="kpi-history-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
@@ -239,10 +261,29 @@ function ProjTrajectoryChart({ timeline, metric }) {
       <line x1={pL} x2={W - pR} y1={H - pB} y2={H - pB} stroke="var(--ink)" strokeWidth="1" />
       <path d={areaPath} fill="var(--accent)" opacity="0.06" />
       <path d={linePath} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
-      {pts.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r={i === pts.length - 1 ? 5 : 2.5}
-                fill="var(--paper)" stroke="var(--accent)" strokeWidth="2" />
-      ))}
+      {pts.map((p, i) => {
+        const isSpike = !!p.spike?.post;
+        const isLast = i === pts.length - 1;
+        if (!isSpike) {
+          return (
+            <circle key={i} cx={p.x} cy={p.y} r={isLast ? 5 : 2.5}
+                    fill="var(--paper)" stroke="var(--accent)" strokeWidth="2" />
+          );
+        }
+        // Spike points get a larger, filled, focusable marker with a halo and
+        // a hover/focus tooltip naming the post that landed as it jumped.
+        return (
+          <g key={i} tabIndex={0} role="button"
+             aria-label={`Projection jump ${p.spike.deltaPct >= 0 ? "up" : "down"} ${Math.abs(p.spike.deltaPct).toFixed(1)} percent near post ${p.spike.post.post_name || "untitled"}`}
+             style={{ cursor: "pointer", outline: "none" }}
+             onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}
+             onFocus={() => setHovered(i)} onBlur={() => setHovered(null)}>
+            <circle cx={p.x} cy={p.y} r="11" fill="var(--accent)" opacity="0.12" />
+            <circle cx={p.x} cy={p.y} r={isLast ? 6 : 5}
+                    fill="var(--accent)" stroke="var(--paper)" strokeWidth="2" />
+          </g>
+        );
+      })}
       <text x={last.x} y={last.y - 14} textAnchor="end" fontFamily="var(--serif)" fontStyle="italic" fontSize="13" fill="var(--accent)">
         latest — {fmtApprox(last.v, metric.isPercent)}
       </text>
@@ -251,12 +292,23 @@ function ProjTrajectoryChart({ timeline, metric }) {
           {l.label}
         </text>
       ))}
+      {tip && (
+        <g pointerEvents="none">
+          <rect x={tip.tx} y={tip.ty} width={tip.tipW} height={tip.tipH} rx="3" fill="var(--ink)" opacity="0.95" />
+          <text x={tip.tx + 12} y={tip.ty + 20} fontSize="12" fontFamily="var(--serif)" fontStyle="italic" fill="var(--paper)">
+            {tip.title}
+          </text>
+          <text x={tip.tx + 12} y={tip.ty + 38} fontSize="10.5" fontFamily="var(--sans)" fill="var(--paper)" opacity="0.8">
+            {tip.dir} {tip.pctTxt} · {fmt(tip.impressions)} impressions
+          </text>
+        </g>
+      )}
     </svg>
   );
 }
 
 // ─── Projection trajectory section (click through metrics) ────────────
-function ProjectionTrajectory({ qdata, snaps, calibrationFactors }) {
+function ProjectionTrajectory({ qdata, snaps, calibrationFactors, posts }) {
   const [d1, d2] = qdata;
   const [, tq2, tq3] = TRENDS_QUARTERS;
   const [activeKey, setActiveKey] = useState(METRICS[0].id);
@@ -271,8 +323,12 @@ function ProjectionTrajectory({ qdata, snaps, calibrationFactors }) {
       ? (metric.baselineFromQ2 && q1v !== null ? (q2v - q1v) : q2v) / ((tq2.end - tq2.start) / 86400000)
       : null;
     const calibrationFactor = calibrationFactors[metric.id] ?? 1;
-    return getProjectionTimeline(snaps, metric, tq3, q2Rate, histBaseline, calibrationFactor);
-  }, [d1, d2, metric, tq2, tq3, snaps, calibrationFactors]);
+    const raw = getProjectionTimeline(snaps, metric, tq3, q2Rate, histBaseline, calibrationFactor);
+    // Tie sharp jumps to the post that landed as the metric accelerated.
+    return annotateTimelineSpikes(raw, posts);
+  }, [d1, d2, metric, tq2, tq3, snaps, calibrationFactors, posts]);
+
+  const hasSpikes = timeline.some(p => p.spike);
 
   // Show the section once any metric has enough snapshot history to plot.
   const hasData = METRICS.some(m => getMetricHistory(snaps, m.id).length >= 2);
@@ -282,7 +338,10 @@ function ProjectionTrajectory({ qdata, snaps, calibrationFactors }) {
     <section id="projection-trajectory" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Projection <em>Trajectory</em></h2>
-        <p className="section-sub">How each metric’s projected {tq3.label} final has shifted as the quarter has accrued daily snapshots.</p>
+        <p className="section-sub">
+          How each metric’s projected {tq3.label} final has shifted as the quarter has accrued daily snapshots.
+          {hasSpikes ? " Highlighted points mark a sharp jump — hover to see the post published as it moved." : ""}
+        </p>
       </header>
       <div className="kpi-history-body">
         <nav className="kpi-history-nav" aria-label="Select metric">
@@ -608,7 +667,7 @@ export function TrendsPage({ agency, onReady }) {
       </ErrorBoundary>
 
       <ErrorBoundary>
-        <ProjectionTrajectory qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} calibrationFactors={calibrationFactors} />
+        <ProjectionTrajectory qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} calibrationFactors={calibrationFactors} posts={drivers?.posts ?? []} />
       </ErrorBoundary>
 
       <ErrorBoundary>

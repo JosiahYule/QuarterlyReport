@@ -3,6 +3,7 @@ import {
   computeAdvancedPace,
   buildProjectionAudit,
   blendCalibrationHistory,
+  annotateTimelineSpikes,
 } from "./projection.js";
 
 const DAY = 86400000;
@@ -200,5 +201,75 @@ describe("blendCalibrationHistory", () => {
       { calibration_factor: 1.2, calibration_confidence: 1 },
     ]);
     expect(blended).toBeCloseTo(1.2, 5);
+  });
+});
+
+describe("annotateTimelineSpikes", () => {
+  // A mostly-flat projection that drifts ~1/day, then jumps +60 on day 5.
+  // Day 5's window is the only one that contains a post. Snapshots are
+  // captured mid-day (like real captured_at times), so a calendar-dated post
+  // at midnight falls cleanly inside a window rather than on its boundary.
+  const HALF_DAY = DAY / 2;
+  function flatThenSpike() {
+    const t0 = qStart.getTime() + HALF_DAY;
+    const proj = [100, 101, 100.5, 101.5, 102, 162, 163, 162.5];
+    return proj.map((projected, i) => ({ t: t0 + i * DAY, projected }));
+  }
+  const dayStr = i => new Date(qStart.getTime() + i * DAY).toISOString().slice(0, 10);
+
+  it("returns the timeline unchanged when there are no posts", () => {
+    const tl = flatThenSpike();
+    const out = annotateTimelineSpikes(tl, []);
+    expect(out).toHaveLength(tl.length);
+    expect(out.some(p => p.spike)).toBe(false);
+  });
+
+  it("attributes a sharp jump to a post published in that window", () => {
+    const tl = flatThenSpike();
+    // Post is dated day 5 (midnight), landing in the day-5 snapshot's window
+    // → drives the +60 jump.
+    const out = annotateTimelineSpikes(tl, [
+      { post_name: "Big winner", post_date: dayStr(5), impressions: 5000 },
+    ]);
+    const spikes = out.filter(p => p.spike);
+    expect(spikes).toHaveLength(1);
+    expect(spikes[0].spike.post.post_name).toBe("Big winner");
+    expect(spikes[0].spike.direction).toBe("up");
+    expect(spikes[0].spike.deltaPct).toBeGreaterThan(0);
+  });
+
+  it("picks the most-viewed post when several land in the same window", () => {
+    const tl = flatThenSpike();
+    const out = annotateTimelineSpikes(tl, [
+      { post_name: "Small", post_date: dayStr(5), impressions: 200 },
+      { post_name: "Huge",  post_date: dayStr(5), impressions: 9000 },
+    ]);
+    const spike = out.find(p => p.spike);
+    expect(spike.spike.post.post_name).toBe("Huge");
+  });
+
+  it("does not flag a spike whose window has no post", () => {
+    const tl = flatThenSpike();
+    // Post lands far from the jump (day 1), so the day-5 spike is unexplained.
+    const out = annotateTimelineSpikes(tl, [
+      { post_name: "Unrelated", post_date: dayStr(1), impressions: 5000 },
+    ]);
+    // Day-1 movement is tiny, so even with a post there it isn't a spike.
+    expect(out.some(p => p.spike)).toBe(false);
+  });
+
+  it("does not over-flag a steadily drifting projection", () => {
+    const t0 = qStart.getTime();
+    const tl = Array.from({ length: 10 }, (_, i) => ({ t: t0 + i * DAY, projected: 100 + i * 5 }));
+    const posts = tl.map((p, i) => ({ post_name: `p${i}`, post_date: new Date(p.t).toISOString().slice(0, 10), impressions: 100 }));
+    const out = annotateTimelineSpikes(tl, posts);
+    // Uniform +5/day movement: nothing stands out against the median.
+    expect(out.some(p => p.spike)).toBe(false);
+  });
+
+  it("handles short or missing input without throwing", () => {
+    expect(annotateTimelineSpikes([], [])).toEqual([]);
+    expect(annotateTimelineSpikes(null, [])).toEqual([]);
+    expect(annotateTimelineSpikes([{ t: 1, projected: 5 }], [])).toHaveLength(1);
   });
 });
