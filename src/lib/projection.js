@@ -364,6 +364,47 @@ export function detectTrendsAnomalies({ snaps, qdata, currentQuarter, now = new 
   return flags;
 }
 
+// ─── Narrative summary ────────────────────────────────────────────
+// A deterministic, plain-English read of the quarter, stitched from the same
+// signals shown elsewhere on the page (pacing, top post, accuracy, flags). No
+// LLM, no randomness — same inputs always yield the same sentence, so it's safe
+// to put in front of a client. Returns "" when there's nothing worth saying.
+function narrativeCount(n) { return Number.isFinite(n) ? Math.round(n).toLocaleString() : null; }
+export function buildTrendsNarrative({ drivers, pacing, anomalies = [], overallAccuracyPct = null, currentQuarter, elapsedPct = 0, complete = false } = {}) {
+  const parts = [];
+  const ql = currentQuarter?.label ?? "This quarter";
+
+  parts.push(complete ? `${ql} is complete.` : `${ql} is ${Math.round(elapsedPct)}% elapsed.`);
+
+  const [lead, lag] = Array.isArray(pacing) ? pacing : [];
+  if (lead && Number.isFinite(lead.rateVsQ2)) {
+    if (lead.rateVsQ2 >= 0) {
+      const tail = lag && lag.metric.id !== lead.metric.id && Number.isFinite(lag.rateVsQ2) && lag.rateVsQ2 < 0
+        ? `, while ${lag.metric.label} runs ${Math.abs(lag.rateVsQ2).toFixed(0)}% behind`
+        : "";
+      parts.push(`${lead.metric.label} is pacing ${Math.abs(lead.rateVsQ2).toFixed(0)}% ahead of last quarter's rate${tail}.`);
+    } else {
+      parts.push(`Every tracked metric is running below last quarter's rate — ${lead.metric.label} is closest, ${Math.abs(lead.rateVsQ2).toFixed(0)}% behind.`);
+    }
+  }
+
+  const topName = drivers?.topPost?.post_name;
+  if (topName) {
+    const imp = narrativeCount(drivers.topPost.impressions);
+    parts.push(`The most-viewed post so far is “${topName}”${imp ? ` at ${imp} impressions` : ""}.`);
+  }
+
+  if (Number.isFinite(overallAccuracyPct)) {
+    parts.push(`Past projections have landed within ±${overallAccuracyPct.toFixed(1)}% of the final.`);
+  }
+
+  const warns = (anomalies || []).filter(a => a.severity === "warn").length;
+  if (warns) parts.push(`${warns} data-quality ${warns === 1 ? "issue needs" : "issues need"} a look before leaning on the projections.`);
+
+  // A bare elapsed sentence alone isn't worth surfacing.
+  return parts.length > 1 ? parts.join(" ") : "";
+}
+
 // ─── Calibration audit ────────────────────────────────────────────
 export function clampCalibrationFactor(factor) {
   if (!Number.isFinite(factor) || factor <= 0) return 1;

@@ -6,6 +6,7 @@ import {
   annotateTimelineSpikes,
   projectionBand,
   detectTrendsAnomalies,
+  buildTrendsNarrative,
 } from "./projection.js";
 
 const DAY = 86400000;
@@ -375,5 +376,53 @@ describe("detectTrendsAnomalies", () => {
 
   it("returns nothing without a current quarter", () => {
     expect(detectTrendsAnomalies({})).toEqual([]);
+  });
+});
+
+describe("buildTrendsNarrative", () => {
+  const currentQuarter = { label: "Q3" };
+  const pacing = [
+    { metric: { id: "impressions", label: "Impressions" }, rateVsQ2: 22 },
+    { metric: { id: "shares", label: "Shares" }, rateVsQ2: -8 },
+  ];
+  const drivers = { topPost: { post_name: "Big winner", impressions: 9000 } };
+
+  it("returns empty when there's nothing beyond the elapsed line", () => {
+    expect(buildTrendsNarrative({ currentQuarter, elapsedPct: 30 })).toBe("");
+  });
+
+  it("leads with the elapsed quarter and the pacing leader / laggard", () => {
+    const s = buildTrendsNarrative({ currentQuarter, elapsedPct: 30, pacing });
+    expect(s).toContain("Q3 is 30% elapsed");
+    expect(s).toContain("Impressions is pacing 22% ahead");
+    expect(s).toContain("Shares runs 8% behind");
+  });
+
+  it("names the top post and weaves in accuracy and warnings", () => {
+    const s = buildTrendsNarrative({
+      currentQuarter, elapsedPct: 50, pacing, drivers,
+      overallAccuracyPct: 4.2,
+      anomalies: [{ severity: "warn" }, { severity: "info" }],
+    });
+    expect(s).toContain("“Big winner”");
+    expect(s).toContain("9,000 impressions");
+    expect(s).toContain("±4.2%");
+    expect(s).toContain("1 data-quality issue needs");
+  });
+
+  it("handles an all-behind quarter without claiming anyone is ahead", () => {
+    const behind = [
+      { metric: { id: "shares", label: "Shares" }, rateVsQ2: -8 },
+      { metric: { id: "posts", label: "Posts Published" }, rateVsQ2: -40 },
+    ];
+    const s = buildTrendsNarrative({ currentQuarter, elapsedPct: 60, pacing: behind });
+    expect(s).toContain("running below last quarter's rate");
+    expect(s).toContain("Shares is closest");
+    expect(s).not.toContain("ahead");
+  });
+
+  it("says the quarter is complete when it is", () => {
+    const s = buildTrendsNarrative({ currentQuarter, complete: true, pacing });
+    expect(s).toContain("Q3 is complete");
   });
 });

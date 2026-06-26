@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import Chart from "chart.js/auto";
-import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, blendCalibrationHistory, getWeekAgoProjection, getProjectionTimeline, annotateTimelineSpikes, projectionBand, detectTrendsAnomalies } from "../hooks/useTrendsData.js";
+import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, blendCalibrationHistory, getWeekAgoProjection, getProjectionTimeline, annotateTimelineSpikes, projectionBand, detectTrendsAnomalies, buildTrendsNarrative } from "../hooks/useTrendsData.js";
 import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { fmt, fmtApprox } from "../utils.js";
 import { PageLoader } from "../components/PageLoader.jsx";
@@ -703,6 +703,63 @@ function Drivers({ drivers, pacing, tq3 }) {
   );
 }
 
+// ─── Narrative summary (deterministic plain-English read) ─────────────
+function NarrativeSummary({ text }) {
+  if (!text) return null;
+  return (
+    <section className="section wrap" aria-label="Quarter summary">
+      <p className="trends-narrative serif">{text}</p>
+    </section>
+  );
+}
+
+// ─── Platform breakdown (QoQ standings, not a forecast) ───────────────
+const platDeltaCls = d => !Number.isFinite(d) ? "na" : d >= 0 ? "pos" : "neg";
+const platDeltaTxt = d => !Number.isFinite(d) ? "—" : `${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(1)}%`;
+function PlatformBreakdown({ platforms, tq2 }) {
+  const rows = (platforms || []).filter(p => p && p.name);
+  if (!rows.length) return null;
+  return (
+    <section id="platforms" className="section wrap">
+      <header className="section-head">
+        <h2 className="section-title serif">Platform <em>Breakdown</em></h2>
+        <p className="section-sub">Where each platform stands this quarter and how it’s moved since {tq2.label}. Quarter-over-quarter standings — there’s one data point per quarter per platform, so this isn’t a daily-paced forecast like the metrics above.</p>
+      </header>
+      <div className="proj-grid">
+        {rows.map(p => (
+          <div key={p.name} className="proj-card">
+            <div className="proj-card-label">{p.name}</div>
+            <div className="proj-number serif">{p.followers != null ? fmt(p.followers) : "—"}</div>
+            <div className="proj-number-sub">Followers</div>
+            <div className="proj-stats-grid">
+              <div className="proj-stat">
+                <div className="proj-stat-label">Followers vs {tq2.label}</div>
+                <div className={"proj-stat-value " + platDeltaCls(p.followersDelta)}>{platDeltaTxt(p.followersDelta)}</div>
+              </div>
+              <div className="proj-stat">
+                <div className="proj-stat-label">Engagement Rate</div>
+                <div className="proj-stat-value rate">{p.engagementRate != null ? p.engagementRate.toFixed(2) + "%" : "—"}</div>
+              </div>
+              <div className="proj-stat">
+                <div className="proj-stat-label">Engagement vs {tq2.label}</div>
+                <div className={"proj-stat-value " + platDeltaCls(p.engagementDelta)}>{platDeltaTxt(p.engagementDelta)}</div>
+              </div>
+              <div className="proj-stat">
+                <div className="proj-stat-label">Reach</div>
+                <div className="proj-stat-value">{p.pageReach != null ? fmt(p.pageReach) : "—"}</div>
+              </div>
+              <div className="proj-stat">
+                <div className="proj-stat-label">Clicks</div>
+                <div className="proj-stat-value">{p.pageClicks != null ? fmt(p.pageClicks) : "—"}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ─── Anomaly / data-quality flags ─────────────────────────────────
 function AnomalyFlags({ flags }) {
   if (!flags || !flags.length) return null;
@@ -751,12 +808,13 @@ const TRENDS_SECTIONS = [
   { id: "projections",           label: "Projections" },
   { id: "projection-trajectory", label: "Trajectory" },
   { id: "accuracy",              label: "Accuracy" },
+  { id: "platforms",             label: "Platforms" },
   { id: "quarterly-trends",      label: "Trends" },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────
 export function TrendsPage({ agency, onReady }) {
-  const { qdata, snapsByQuarter, calibrationHistory, drivers, status, error } = useTrendsData(agency);
+  const { qdata, snapsByQuarter, calibrationHistory, drivers, platforms, status, error } = useTrendsData(agency);
 
   useEffect(() => {
     if (status === "ready" || status === "error") onReady?.();
@@ -809,10 +867,29 @@ export function TrendsPage({ agency, onReady }) {
 
   const anomalies = detectTrendsAnomalies({ snaps: snapsByQuarter[q3.suffix] ?? [], qdata, currentQuarter: q3 });
 
+  const overallAccuracyPct = (() => {
+    const perMetric = METRICS
+      .map(m => {
+        const errs = (calibrationHistory?.[m.id] ?? []).map(h => h.percent_error).filter(Number.isFinite);
+        return errs.length ? errs.reduce((a, e) => a + Math.abs(e), 0) / errs.length : null;
+      })
+      .filter(Number.isFinite);
+    return perMetric.length ? perMetric.reduce((a, e) => a + e, 0) / perMetric.length : null;
+  })();
+
+  const narrative = buildTrendsNarrative({
+    drivers, pacing, anomalies, overallAccuracyPct,
+    currentQuarter: q3, elapsedPct: q3comp * 100, complete: q3done,
+  });
+
   return (
     <main className="report-wrap">
       <SectionRail sections={TRENDS_SECTIONS} />
       <ErrorBoundary><Hero agency={agency} q3comp={q3comp} q3done={q3done} /></ErrorBoundary>
+
+      <ErrorBoundary>
+        <NarrativeSummary text={narrative} />
+      </ErrorBoundary>
 
       <ErrorBoundary>
         <AnomalyFlags flags={anomalies} />
@@ -842,6 +919,10 @@ export function TrendsPage({ agency, onReady }) {
 
       <ErrorBoundary>
         <CalibrationAccuracy calibrationHistory={calibrationHistory} />
+      </ErrorBoundary>
+
+      <ErrorBoundary>
+        <PlatformBreakdown platforms={platforms} tq2={TRENDS_QUARTERS[1]} />
       </ErrorBoundary>
 
       <ErrorBoundary>
