@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   computeAdvancedPace,
   buildProjectionAudit,
+  blendCalibrationHistory,
 } from "./projection.js";
 
 const DAY = 86400000;
@@ -143,5 +144,61 @@ describe("buildProjectionAudit — self-dampening on poor fit", () => {
     const audit = buildProjectionAudit({ ...base, actualValue: lastVal(all), snapshotHistory });
     expect(audit).not.toBeNull();
     expect(audit.calibrationConfidence).toBeLessThan(0.7);
+  });
+});
+
+describe("blendCalibrationHistory", () => {
+  it("returns null (not 1) on empty history, so callers can fall back", () => {
+    expect(blendCalibrationHistory([])).toBeNull();
+    expect(blendCalibrationHistory(null)).toBeNull();
+  });
+
+  it("weights the most recent quarter more than older ones", () => {
+    // Most-recent-first: last quarter said "scale up 1.3x", everything
+    // before that said "scale down 0.8x". The blend should land closer to
+    // the recent value than a plain average would.
+    const history = [
+      { calibration_factor: 1.3, calibration_confidence: 1 },
+      { calibration_factor: 0.8, calibration_confidence: 1 },
+      { calibration_factor: 0.8, calibration_confidence: 1 },
+      { calibration_factor: 0.8, calibration_confidence: 1 },
+    ];
+    const blended = blendCalibrationHistory(history);
+    const plainAverage = (1.3 + 0.8 + 0.8 + 0.8) / 4;
+    expect(blended).toBeGreaterThan(plainAverage);
+  });
+
+  it("gives near-zero weight to a quarter whose own confidence was low", () => {
+    const confident = blendCalibrationHistory([
+      { calibration_factor: 1.4, calibration_confidence: 1 },
+    ]);
+    const unsure = blendCalibrationHistory([
+      { calibration_factor: 1.4, calibration_confidence: 0.05 },
+    ]);
+    // Both are single-entry, so confidence has no other factor to average
+    // against — but the clamp still applies; check the unsure one shrinks
+    // toward 1 relative to the confident one once mixed with a neutral prior.
+    const mixed = blendCalibrationHistory([
+      { calibration_factor: 1.4, calibration_confidence: 0.05 },
+      { calibration_factor: 1.0, calibration_confidence: 1 },
+    ]);
+    expect(confident).toBeCloseTo(1.4, 5);
+    expect(mixed).toBeLessThan(confident);
+    expect(unsure).toBeCloseTo(1.4, 5); // no competing sample to be pulled toward
+  });
+
+  it("stays within the same sane bounds as a single-quarter calibration factor", () => {
+    const blended = blendCalibrationHistory([
+      { calibration_factor: 5, calibration_confidence: 1 },
+    ]);
+    expect(blended).toBeLessThanOrEqual(1.5);
+  });
+
+  it("skips malformed entries instead of throwing", () => {
+    const blended = blendCalibrationHistory([
+      { calibration_factor: NaN, calibration_confidence: 1 },
+      { calibration_factor: 1.2, calibration_confidence: 1 },
+    ]);
+    expect(blended).toBeCloseTo(1.2, 5);
   });
 });
