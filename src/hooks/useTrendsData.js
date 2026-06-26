@@ -15,6 +15,7 @@ export {
   getMetricHistory,
   getWeekAgoProjection,
   getProjectionTimeline,
+  annotateTimelineSpikes,
   clampCalibrationFactor,
   buildProjectionAudit,
   buildProjectionAudits,
@@ -135,7 +136,7 @@ async function fetchDrivers(agency, quarterSuffix) {
       .eq("agency", agency)
       .eq("quarter", quarterSuffix)
       .maybeSingle();
-    if (error || !data) return { topPost: null, platformLeader: null, platformLaggard: null };
+    if (error || !data) return { topPost: null, platformLeader: null, platformLaggard: null, posts: [] };
 
     const posts = (data.social_posts || []).filter(p => Number.isFinite(p.impressions));
     const topPost = posts.length
@@ -150,9 +151,11 @@ async function fetchDrivers(agency, quarterSuffix) {
       ? platforms.reduce((worst, p) => p.engagement_rate < worst.engagement_rate ? p : worst)
       : null;
 
-    return { topPost, platformLeader, platformLaggard };
+    // Full post list (with dates) so the trajectory chart can tie a projection
+    // spike to whatever post landed as the metric accelerated.
+    return { topPost, platformLeader, platformLaggard, posts };
   } catch (_) {
-    return { topPost: null, platformLeader: null, platformLaggard: null };
+    return { topPost: null, platformLeader: null, platformLaggard: null, posts: [] };
   }
 }
 

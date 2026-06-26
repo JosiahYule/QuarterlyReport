@@ -195,6 +195,57 @@ export function getProjectionTimeline(snapshots, metric, tq3, q2Rate, histBaseli
   return result;
 }
 
+// Flag the points where the projected final jumped sharply and tie each jump
+// to the most-viewed post published in that point's window, so the trajectory
+// chart can answer "what moved this?" on hover. A spike must be both large in
+// absolute percent terms *and* large relative to the quarter's typical daily
+// movement (median |delta|) — the two conditions together suppress both the
+// wild early-quarter swings, where everything looks big, and the steady drift
+// of a quiet metric, where nothing should. Only points with an attributable
+// post are marked; an unexplained jump gets no tooltip. This is temporal
+// association, not proven causation: the post is simply the biggest one
+// published as the metric accelerated, and the caller's copy should say so.
+export function annotateTimelineSpikes(timeline, posts, options = {}) {
+  if (!Array.isArray(timeline) || timeline.length < 2) return timeline || [];
+  const { thresholdPct = 0.04, minMultiple = 1.8 } = options;
+
+  const absDeltas = [];
+  for (let i = 1; i < timeline.length; i++) {
+    absDeltas.push(Math.abs(timeline[i].projected - timeline[i - 1].projected));
+  }
+  const sorted = [...absDeltas].sort((a, b) => a - b);
+  const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+
+  const datedPosts = (posts || [])
+    .map(p => ({ ...p, _t: p && p.post_date ? new Date(p.post_date).getTime() : NaN }))
+    .filter(p => Number.isFinite(p._t));
+
+  return timeline.map((pt, i) => {
+    if (i === 0) return pt;
+    const prev = timeline[i - 1];
+    const delta = pt.projected - prev.projected;
+    const absDelta = Math.abs(delta);
+    const base = Math.abs(prev.projected) || 1;
+    const bigEnough = absDelta >= base * thresholdPct;
+    const standsOut = median <= 0 || absDelta >= median * minMultiple;
+    if (!bigEnough || !standsOut) return pt;
+
+    const inWindow = datedPosts.filter(p => p._t > prev.t && p._t <= pt.t);
+    if (!inWindow.length) return pt;
+    const post = inWindow.reduce((best, p) =>
+      (p.impressions ?? 0) > (best.impressions ?? 0) ? p : best);
+
+    return {
+      ...pt,
+      spike: {
+        direction: delta >= 0 ? "up" : "down",
+        deltaPct: (delta / base) * 100,
+        post,
+      },
+    };
+  });
+}
+
 // ─── Calibration audit ────────────────────────────────────────────
 export function clampCalibrationFactor(factor) {
   if (!Number.isFinite(factor) || factor <= 0) return 1;
