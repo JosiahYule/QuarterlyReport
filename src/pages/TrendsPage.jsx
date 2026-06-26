@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import Chart from "chart.js/auto";
-import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, getWeekAgoProjection, getProjectionTimeline } from "../hooks/useTrendsData.js";
+import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, blendCalibrationHistory, getWeekAgoProjection, getProjectionTimeline } from "../hooks/useTrendsData.js";
 import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { fmt, fmtApprox } from "../utils.js";
 import { PageLoader } from "../components/PageLoader.jsx";
@@ -256,7 +256,7 @@ function ProjTrajectoryChart({ timeline, metric }) {
 }
 
 // ─── Projection trajectory section (click through metrics) ────────────
-function ProjectionTrajectory({ qdata, snaps, projectionAudits }) {
+function ProjectionTrajectory({ qdata, snaps, calibrationFactors }) {
   const [d1, d2] = qdata;
   const [, tq2, tq3] = TRENDS_QUARTERS;
   const [activeKey, setActiveKey] = useState(METRICS[0].id);
@@ -270,9 +270,9 @@ function ProjectionTrajectory({ qdata, snaps, projectionAudits }) {
     const q2Rate = q2v !== null
       ? (metric.baselineFromQ2 && q1v !== null ? (q2v - q1v) : q2v) / ((tq2.end - tq2.start) / 86400000)
       : null;
-    const calibrationFactor = projectionAudits[metric.id]?.calibrationFactor ?? 1;
+    const calibrationFactor = calibrationFactors[metric.id] ?? 1;
     return getProjectionTimeline(snaps, metric, tq3, q2Rate, histBaseline, calibrationFactor);
-  }, [d1, d2, metric, tq2, tq3, snaps, projectionAudits]);
+  }, [d1, d2, metric, tq2, tq3, snaps, calibrationFactors]);
 
   // Show the section once any metric has enough snapshot history to plot.
   const hasData = METRICS.some(m => getMetricHistory(snaps, m.id).length >= 2);
@@ -306,7 +306,7 @@ function ProjectionTrajectory({ qdata, snaps, projectionAudits }) {
 }
 
 // ─── Projection card ──────────────────────────────────────────────
-function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1 }) {
+function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history }) {
   const [d1, d2, d3] = qdata;
   const [, tq2, tq3] = TRENDS_QUARTERS;
 
@@ -359,6 +359,14 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1 }) {
     wowCls = delta >= 0 ? "pos" : "neg";
   }
 
+  // Track record: average absolute miss across persisted past-quarter audits
+  // for this metric, so the calibration correction isn't an invisible
+  // multiplier — you can see how accurate it's actually been.
+  const errors = (history ?? []).map(h => h.percent_error).filter(Number.isFinite);
+  const trackRecordVal = errors.length
+    ? `±${(errors.reduce((a, e) => a + Math.abs(e), 0) / errors.length).toFixed(1)}% · ${errors.length}Q`
+    : "—";
+
   return (
     <div className="proj-card">
       <div className="proj-card-label">{metric.label}</div>
@@ -380,6 +388,10 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1 }) {
         <div className="proj-stat">
           <div className="proj-stat-label">vs Last Week</div>
           <div className={"proj-stat-value " + wowCls}>{wowVal}</div>
+        </div>
+        <div className="proj-stat">
+          <div className="proj-stat-label">Past Accuracy</div>
+          <div className="proj-stat-value">{trackRecordVal}</div>
         </div>
       </div>
     </div>
@@ -420,7 +432,7 @@ const TRENDS_SECTIONS = [
 
 // ─── Page ─────────────────────────────────────────────────────────
 export function TrendsPage({ agency, onReady }) {
-  const { qdata, snapsByQuarter, status, error } = useTrendsData(agency);
+  const { qdata, snapsByQuarter, calibrationHistory, status, error } = useTrendsData(agency);
 
   useEffect(() => {
     if (status === "ready" || status === "error") onReady?.();
@@ -430,6 +442,18 @@ export function TrendsPage({ agency, onReady }) {
     () => qdata ? buildProjectionAudits(qdata, snapsByQuarter) : {},
     [qdata, snapsByQuarter]
   );
+
+  // Multi-quarter calibration: prefer the persisted, recency-weighted blend
+  // across past quarters' audits; fall back to this session's live
+  // one-quarter-back audit when no history has been persisted yet (new
+  // agency, or before this quarter's first run has had a chance to write it).
+  const calibrationFactors = useMemo(() => Object.fromEntries(
+    METRICS.map(m => {
+      const blended = blendCalibrationHistory(calibrationHistory?.[m.id]);
+      const factor = blended ?? projectionAudits[m.id]?.calibrationFactor ?? 1;
+      return [m.id, factor];
+    })
+  ), [calibrationHistory, projectionAudits]);
 
   if (status === "error") {
     return (
@@ -464,14 +488,14 @@ export function TrendsPage({ agency, onReady }) {
           </header>
           <div className="proj-grid">
             {METRICS.map(m => (
-              <ProjCard key={m.id} metric={m} qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} q3done={q3done} calibrationFactor={projectionAudits[m.id]?.calibrationFactor ?? 1} />
+              <ProjCard key={m.id} metric={m} qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} q3done={q3done} calibrationFactor={calibrationFactors[m.id]} history={calibrationHistory?.[m.id]} />
             ))}
           </div>
         </section>
       </ErrorBoundary>
 
       <ErrorBoundary>
-        <ProjectionTrajectory qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} projectionAudits={projectionAudits} />
+        <ProjectionTrajectory qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} calibrationFactors={calibrationFactors} />
       </ErrorBoundary>
 
       <ErrorBoundary>
@@ -482,7 +506,7 @@ export function TrendsPage({ agency, onReady }) {
           </header>
           <div className="charts-grid">
             {METRICS.map(m => (
-              <ChartCard key={m.id} metric={m} agency={agency} qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} calibrationFactor={projectionAudits[m.id]?.calibrationFactor ?? 1} />
+              <ChartCard key={m.id} metric={m} agency={agency} qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} calibrationFactor={calibrationFactors[m.id]} />
             ))}
           </div>
         </section>

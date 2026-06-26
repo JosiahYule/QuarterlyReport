@@ -330,6 +330,32 @@ export function buildProjectionAudits(qdata, snapsByQuarter, quarters = TRENDS_Q
   }));
 }
 
+// ─── Multi-quarter calibration blend ──────────────────────────────
+// Combines several quarters of *persisted* audit results into one
+// calibration factor, so a metric's correction compounds across quarters
+// instead of resetting to a single one-quarter-back comparison each time.
+// `history` must be ordered most-recent-first (e.g. by computed_at desc);
+// each entry needs calibration_factor and calibration_confidence. Weight
+// decays geometrically with age so a stale quarter can't out-vote a recent
+// one, and is scaled by that quarter's own confidence so a poorly-fit
+// quarter still contributes little. Returns null (not 1) on empty history
+// so callers can distinguish "no history yet" from "history says no
+// correction needed."
+export function blendCalibrationHistory(history, decay = 0.6) {
+  if (!Array.isArray(history) || !history.length) return null;
+  let totalWeight = 0, weighted = 0;
+  history.forEach((h, i) => {
+    const factor = h?.calibration_factor;
+    if (!Number.isFinite(factor)) return;
+    const confidence = Number.isFinite(h?.calibration_confidence) ? h.calibration_confidence : 1;
+    const w = confidence * Math.pow(decay, i);
+    totalWeight += w;
+    weighted += w * factor;
+  });
+  if (totalWeight <= 0) return 1;
+  return clampCalibrationFactor(weighted / totalWeight);
+}
+
 // ─── Quarter completion ───────────────────────────────────────────
 export function quarterCompletion(q) {
   const now = new Date();
