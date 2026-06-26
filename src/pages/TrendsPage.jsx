@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import Chart from "chart.js/auto";
-import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, blendCalibrationHistory, getWeekAgoProjection, getProjectionTimeline, annotateTimelineSpikes } from "../hooks/useTrendsData.js";
+import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, blendCalibrationHistory, getWeekAgoProjection, getProjectionTimeline, annotateTimelineSpikes, projectionBand } from "../hooks/useTrendsData.js";
 import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { fmt, fmtApprox } from "../utils.js";
 import { PageLoader } from "../components/PageLoader.jsx";
@@ -198,7 +198,9 @@ function ProjTrajectoryChart({ timeline, metric }) {
     );
   }
 
-  const vals = timeline.map(p => p.projected);
+  // Domain spans the projection line *and* the band, so the shaded range never
+  // clips at the top or bottom of the plot.
+  const vals = timeline.flatMap(p => [p.projected, p.low, p.high].filter(Number.isFinite));
   const minV = Math.min(...vals), maxV = Math.max(...vals);
   const span = maxV - minV;
   const pad  = span > 0 ? span * 0.15 : (maxV || 1) * 0.05;
@@ -211,11 +213,23 @@ function ProjTrajectoryChart({ timeline, metric }) {
   const X = t => pL + ((t - minT) / tRange) * (W - pL - pR);
   const Y = v => pT + (H - pT - pB) * (1 - (v - domMin) / domRange);
 
-  const pts = timeline.map(p => ({ x: X(p.t), y: Y(p.projected), v: p.projected, spike: p.spike }));
+  const pts = timeline.map(p => ({
+    x: X(p.t), y: Y(p.projected), v: p.projected, spike: p.spike,
+    yLow:  Number.isFinite(p.low)  ? Y(p.low)  : null,
+    yHigh: Number.isFinite(p.high) ? Y(p.high) : null,
+  }));
   const linePath = pts.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.y.toFixed(1)).join(" ");
   const areaPath = linePath
     + ` L${pts[pts.length - 1].x.toFixed(1)},${(H - pB).toFixed(1)}`
     + ` L${pts[0].x.toFixed(1)},${(H - pB).toFixed(1)} Z`;
+
+  // Band polygon: high edge left→right, then low edge right→left, closed.
+  const bandPts = pts.filter(p => p.yLow != null && p.yHigh != null);
+  const bandPath = bandPts.length >= 2
+    ? bandPts.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.yHigh.toFixed(1)).join(" ")
+      + " " + [...bandPts].reverse().map(p => "L" + p.x.toFixed(1) + "," + p.yLow.toFixed(1)).join(" ")
+      + " Z"
+    : null;
 
   const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => ({ v: domMin + domRange * f, y: pT + (H - pT - pB) * (1 - f) }));
   const fmtDate = t => new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -259,7 +273,9 @@ function ProjTrajectoryChart({ timeline, metric }) {
         </g>
       ))}
       <line x1={pL} x2={W - pR} y1={H - pB} y2={H - pB} stroke="var(--ink)" strokeWidth="1" />
-      <path d={areaPath} fill="var(--accent)" opacity="0.06" />
+      {bandPath
+        ? <path d={bandPath} fill="var(--accent)" opacity="0.10" />
+        : <path d={areaPath} fill="var(--accent)" opacity="0.06" />}
       <path d={linePath} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
       {pts.map((p, i) => {
         const isSpike = !!p.spike?.post;
@@ -308,7 +324,7 @@ function ProjTrajectoryChart({ timeline, metric }) {
 }
 
 // ─── Projection trajectory section (click through metrics) ────────────
-function ProjectionTrajectory({ qdata, snaps, calibrationFactors, posts }) {
+function ProjectionTrajectory({ qdata, snaps, calibrationFactors, calibrationHistory, posts }) {
   const [d1, d2] = qdata;
   const [, tq2, tq3] = TRENDS_QUARTERS;
   const [activeKey, setActiveKey] = useState(METRICS[0].id);
@@ -323,12 +339,15 @@ function ProjectionTrajectory({ qdata, snaps, calibrationFactors, posts }) {
       ? (metric.baselineFromQ2 && q1v !== null ? (q2v - q1v) : q2v) / ((tq2.end - tq2.start) / 86400000)
       : null;
     const calibrationFactor = calibrationFactors[metric.id] ?? 1;
-    const raw = getProjectionTimeline(snaps, metric, tq3, q2Rate, histBaseline, calibrationFactor);
+    const errs = (calibrationHistory?.[metric.id] ?? []).map(h => h.percent_error).filter(Number.isFinite);
+    const avgAbsErr = errs.length ? errs.reduce((a, e) => a + Math.abs(e), 0) / errs.length : null;
+    const raw = getProjectionTimeline(snaps, metric, tq3, q2Rate, histBaseline, calibrationFactor, avgAbsErr);
     // Tie sharp jumps to the post that landed as the metric accelerated.
     return annotateTimelineSpikes(raw, posts);
-  }, [d1, d2, metric, tq2, tq3, snaps, calibrationFactors, posts]);
+  }, [d1, d2, metric, tq2, tq3, snaps, calibrationFactors, calibrationHistory, posts]);
 
   const hasSpikes = timeline.some(p => p.spike);
+  const hasBand = timeline.some(p => Number.isFinite(p.low) && Number.isFinite(p.high));
 
   // Show the section once any metric has enough snapshot history to plot.
   const hasData = METRICS.some(m => getMetricHistory(snaps, m.id).length >= 2);
@@ -340,6 +359,7 @@ function ProjectionTrajectory({ qdata, snaps, calibrationFactors, posts }) {
         <h2 className="section-title serif">Projection <em>Trajectory</em></h2>
         <p className="section-sub">
           How each metric’s projected {tq3.label} final has shifted as the quarter has accrued daily snapshots.
+          {hasBand ? " The shaded band is the likely range — it narrows as the quarter fills in." : ""}
           {hasSpikes ? " Highlighted points mark a sharp jump — hover to see the post published as it moved." : ""}
         </p>
       </header>
@@ -392,6 +412,17 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
     ? (q3done ? `${ql} Final` : `Projected Final · ${ql}`)
     : (metric.baselineFromQ2 ? `${ql} Current Total` : `${ql} Current`);
 
+  // Empirical miss from persisted audits feeds both the band floor and the
+  // "Past Accuracy" stat below; compute once.
+  const errors = (history ?? []).map(h => h.percent_error).filter(Number.isFinite);
+  const avgAbsErr = errors.length ? errors.reduce((a, e) => a + Math.abs(e), 0) / errors.length : null;
+
+  // Uncertainty range around the projected final. Kept in the same (net) space
+  // as the headline above, so card and range never contradict each other.
+  const band = pace && !q3done
+    ? projectionBand(pace, { elapsedFraction: pace.elapsedFraction, empiricalErrorPct: avgAbsErr, current: q3input })
+    : null;
+
   const stat1Label = metric.baselineFromQ2 ? `${ql} Net New` : `${ql} to Date`;
   const stat1Val   = metric.baselineFromQ2 && q3v !== null && q2v !== null ? fmt(q3v - q2v, metric.isPercent) : fmt(q3v, metric.isPercent);
 
@@ -421,9 +452,8 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
   // Track record: average absolute miss across persisted past-quarter audits
   // for this metric, so the calibration correction isn't an invisible
   // multiplier — you can see how accurate it's actually been.
-  const errors = (history ?? []).map(h => h.percent_error).filter(Number.isFinite);
   const trackRecordVal = errors.length
-    ? `±${(errors.reduce((a, e) => a + Math.abs(e), 0) / errors.length).toFixed(1)}% · ${errors.length}Q`
+    ? `±${avgAbsErr.toFixed(1)}% · ${errors.length}Q`
     : "—";
 
   return (
@@ -431,6 +461,11 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
       <div className="proj-card-label">{metric.label}</div>
       <div className="proj-number serif">{headline}</div>
       <div className="proj-number-sub">{headlineSub}</div>
+      {band && (
+        <div className="proj-range" title="Likely range — widens with method disagreement, time remaining, and past miss">
+          {fmtApprox(band.low, metric.isPercent)} – {fmtApprox(band.high, metric.isPercent)} <span className="proj-range-tag">likely range</span>
+        </div>
+      )}
       <div className="proj-stats-grid">
         <div className="proj-stat">
           <div className="proj-stat-label">{stat1Label}</div>
@@ -667,7 +702,7 @@ export function TrendsPage({ agency, onReady }) {
       </ErrorBoundary>
 
       <ErrorBoundary>
-        <ProjectionTrajectory qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} calibrationFactors={calibrationFactors} posts={drivers?.posts ?? []} />
+        <ProjectionTrajectory qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} calibrationFactors={calibrationFactors} calibrationHistory={calibrationHistory} posts={drivers?.posts ?? []} />
       </ErrorBoundary>
 
       <ErrorBoundary>

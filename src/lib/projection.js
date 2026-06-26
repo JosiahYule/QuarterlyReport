@@ -154,7 +154,16 @@ export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory
   const safeCalibration = Number.isFinite(calibrationFactor) && calibrationFactor > 0 ? calibrationFactor : 1;
   const projected = Math.max(rawProjected * safeCalibration, current);
 
-  return { projected, rawProjected, dailyRate: rollingRate ?? simpleRate, dElapsed, dTotal, calibrationFactor: safeCalibration };
+  // Component sub-projections (each scaled by the same calibration the blend
+  // got) are exposed so projectionBand can read how far the three methods
+  // disagree right now — a direct, data-driven measure of model uncertainty.
+  const components = {
+    simple:  simpleProj  * safeCalibration,
+    rolling: rollingProj !== null ? rollingProj * safeCalibration : null,
+    reg:     regProj     !== null ? regProj     * safeCalibration : null,
+  };
+
+  return { projected, rawProjected, dailyRate: rollingRate ?? simpleRate, dElapsed, dTotal, calibrationFactor: safeCalibration, elapsedFraction, components };
 }
 
 // ─── History: pure helpers (operate on pre-fetched snapshot arrays) ──
@@ -179,7 +188,7 @@ export function getWeekAgoProjection(snapshots, metric, tq3, q2Rate, histBaselin
   return pace.projected + (metric.baselineFromQ2 ? histBaseline : 0);
 }
 
-export function getProjectionTimeline(snapshots, metric, tq3, q2Rate, histBaseline = 0, calibrationFactor = 1) {
+export function getProjectionTimeline(snapshots, metric, tq3, q2Rate, histBaseline = 0, calibrationFactor = 1, empiricalErrorPct = null) {
   const allHistory = getMetricHistory(snapshots, metric.id);
   if (allHistory.length < 2) return [];
   const result = [];
@@ -189,10 +198,58 @@ export function getProjectionTimeline(snapshots, metric, tq3, q2Rate, histBaseli
     const snapInput = snap.val - histBaseline;
     const pace = computeAdvancedPace(snapInput, tq3.start, tq3.end, q2Rate, pastHistory, histBaseline, new Date(snap.t), calibrationFactor);
     if (pace?.projected != null) {
-      result.push({ t: snap.t, projected: pace.projected + (metric.baselineFromQ2 ? histBaseline : 0) });
+      const add = metric.baselineFromQ2 ? histBaseline : 0;
+      const band = projectionBand(pace, { empiricalErrorPct, current: snapInput });
+      result.push({
+        t: snap.t,
+        projected: pace.projected + add,
+        low:  band ? band.low + add : null,
+        high: band ? band.high + add : null,
+      });
     }
   }
   return result;
+}
+
+// ─── Projection uncertainty band ──────────────────────────────────
+// A low/expected/high range around a projected final, built only from
+// observable signals so it stays honest:
+//   • method disagreement — the simple/rolling/regression sub-projections are
+//     three semi-independent estimates of the same final; how far apart they
+//     sit right now is a direct read on present model uncertainty.
+//   • time remaining — even when the methods agree today, the unmeasured rest
+//     of the quarter leaves room to drift, so the band widens with the fraction
+//     of quarter still to come.
+//   • track record — the metric's own average past miss (avg |percent_error|
+//     from persisted audits, if any) sets an empirical floor that fades out as
+//     the quarter completes and there is less left to be wrong about.
+// The band collapses toward the point estimate as elapsedFraction → 1, and its
+// low end is floored at `current` (a cumulative metric can't end below what is
+// already banked). Returns null when there's no projection to bound.
+const BAND_BASE_VOL = 0.12; // per-remaining-quarter drift assumption, ~12%
+export function projectionBand(pace, { elapsedFraction, empiricalErrorPct = null, current = null } = {}) {
+  if (!pace || !Number.isFinite(pace.projected) || pace.projected <= 0) return null;
+  const proj = pace.projected;
+  const ef = Number.isFinite(elapsedFraction) ? elapsedFraction
+           : Number.isFinite(pace.elapsedFraction) ? pace.elapsedFraction : 0;
+  const remaining = clamp(1 - ef, 0, 1);
+
+  const comps = [pace.components?.simple, pace.components?.rolling, pace.components?.reg]
+    .filter(v => Number.isFinite(v) && v > 0);
+  const spread = comps.length >= 2 ? (Math.max(...comps) - Math.min(...comps)) / proj : 0;
+
+  const empirical = Number.isFinite(empiricalErrorPct) ? Math.abs(empiricalErrorPct) / 100 : 0;
+
+  const relHalf = clamp(
+    spread * 0.6 + remaining * BAND_BASE_VOL + empirical * remaining,
+    0.01, 0.6
+  );
+
+  const half = proj * relHalf;
+  let low = proj - half;
+  if (Number.isFinite(current)) low = Math.max(low, current);
+  low = Math.max(0, low);
+  return { low, expected: proj, high: proj + half, relHalf };
 }
 
 // Flag the points where the projected final jumped sharply and tie each jump

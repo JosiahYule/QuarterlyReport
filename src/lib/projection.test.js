@@ -4,6 +4,7 @@ import {
   buildProjectionAudit,
   blendCalibrationHistory,
   annotateTimelineSpikes,
+  projectionBand,
 } from "./projection.js";
 
 const DAY = 86400000;
@@ -271,5 +272,51 @@ describe("annotateTimelineSpikes", () => {
     expect(annotateTimelineSpikes([], [])).toEqual([]);
     expect(annotateTimelineSpikes(null, [])).toEqual([]);
     expect(annotateTimelineSpikes([{ t: 1, projected: 5 }], [])).toHaveLength(1);
+  });
+});
+
+describe("projectionBand", () => {
+  const pace = (projected, components, elapsedFraction) => ({ projected, components, elapsedFraction });
+
+  it("returns null when there is no usable projection", () => {
+    expect(projectionBand(null, {})).toBeNull();
+    expect(projectionBand({ projected: 0 }, {})).toBeNull();
+    expect(projectionBand({ projected: NaN }, {})).toBeNull();
+  });
+
+  it("brackets the point estimate: low ≤ expected ≤ high", () => {
+    const band = projectionBand(pace(1000, { simple: 1100, rolling: 980, reg: 1020 }, 0.5), { elapsedFraction: 0.5 });
+    expect(band.low).toBeLessThanOrEqual(band.expected);
+    expect(band.high).toBeGreaterThanOrEqual(band.expected);
+    expect(band.expected).toBe(1000);
+  });
+
+  it("widens when the three methods disagree", () => {
+    const tight = projectionBand(pace(1000, { simple: 1000, rolling: 1005, reg: 995 }, 0.5), { elapsedFraction: 0.5 });
+    const wide  = projectionBand(pace(1000, { simple: 1300, rolling: 800,  reg: 1000 }, 0.5), { elapsedFraction: 0.5 });
+    expect(wide.relHalf).toBeGreaterThan(tight.relHalf);
+  });
+
+  it("narrows as the quarter completes", () => {
+    const comps = { simple: 1100, rolling: 950, reg: 1010 };
+    const early = projectionBand(pace(1000, comps, 0.2), { elapsedFraction: 0.2 });
+    const late  = projectionBand(pace(1000, comps, 0.9), { elapsedFraction: 0.9 });
+    expect(late.relHalf).toBeLessThan(early.relHalf);
+  });
+
+  it("widens with a worse empirical track record, and the effect fades late", () => {
+    const comps = { simple: 1000, rolling: 1000, reg: 1000 }; // no method spread
+    const clean = projectionBand(pace(1000, comps, 0.4), { elapsedFraction: 0.4, empiricalErrorPct: 2 });
+    const messy = projectionBand(pace(1000, comps, 0.4), { elapsedFraction: 0.4, empiricalErrorPct: 25 });
+    expect(messy.relHalf).toBeGreaterThan(clean.relHalf);
+    // By quarter's end the empirical contribution is gone (remaining → 0).
+    const messyLate = projectionBand(pace(1000, comps, 1), { elapsedFraction: 1, empiricalErrorPct: 25 });
+    expect(messyLate.relHalf).toBeCloseTo(0.01, 5); // clamped floor only
+  });
+
+  it("floors the low end at the value already banked", () => {
+    // Big band, but we've already accrued 990 — the final can't come in below it.
+    const band = projectionBand(pace(1000, { simple: 1400, rolling: 700, reg: 1000 }, 0.3), { elapsedFraction: 0.3, current: 990 });
+    expect(band.low).toBe(990);
   });
 });

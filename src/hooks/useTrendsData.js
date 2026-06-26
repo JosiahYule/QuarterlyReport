@@ -16,6 +16,7 @@ export {
   getWeekAgoProjection,
   getProjectionTimeline,
   annotateTimelineSpikes,
+  projectionBand,
   clampCalibrationFactor,
   buildProjectionAudit,
   buildProjectionAudits,
