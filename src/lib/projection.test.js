@@ -5,6 +5,7 @@ import {
   blendCalibrationHistory,
   annotateTimelineSpikes,
   projectionBand,
+  detectTrendsAnomalies,
 } from "./projection.js";
 
 const DAY = 86400000;
@@ -318,5 +319,61 @@ describe("projectionBand", () => {
     // Big band, but we've already accrued 990 — the final can't come in below it.
     const band = projectionBand(pace(1000, { simple: 1400, rolling: 700, reg: 1000 }, 0.3), { elapsedFraction: 0.3, current: 990 });
     expect(band.low).toBe(990);
+  });
+});
+
+describe("detectTrendsAnomalies", () => {
+  const currentQuarter = { start: new Date(2026, 2, 1), end: new Date(2026, 5, 1), label: "Q3" };
+  const now = new Date(2026, 3, 1); // ~31 days into the quarter
+  // A healthy current quarter: dense, monotonically rising impressions, fresh.
+  function healthySnaps() {
+    const snaps = [];
+    // Up to ~half a day before `now`, so the fixture isn't itself stale.
+    for (let i = 0; i <= 30; i++) {
+      snaps.push({ t: currentQuarter.start.getTime() + i * DAY + DAY / 2, vals: { impressions: 100 + i * 10 } });
+    }
+    return snaps;
+  }
+  const qdata = [
+    { overall: { impressions: 500 } },  // two-back
+    { overall: { impressions: 800 } },  // previous (has a value)
+    { overall: { impressions: 380 } },  // current
+  ];
+
+  it("reports no flags for a fresh, dense, rising quarter", () => {
+    const flags = detectTrendsAnomalies({ snaps: healthySnaps(), qdata, currentQuarter, now });
+    expect(flags).toEqual([]);
+  });
+
+  it("flags stale snapshots when the latest is several days old", () => {
+    const stale = healthySnaps().map(s => ({ ...s, t: s.t - 6 * DAY }));
+    const flags = detectTrendsAnomalies({ snaps: stale, qdata, currentQuarter, now });
+    expect(flags.some(f => f.type === "stale")).toBe(true);
+  });
+
+  it("flags a cumulative metric that moved backward", () => {
+    const snaps = healthySnaps();
+    snaps[20].vals.impressions = 50; // sudden drop below its neighbours
+    const flags = detectTrendsAnomalies({ snaps, qdata, currentQuarter, now });
+    expect(flags.some(f => f.type === "backward" && f.metricId === "impressions")).toBe(true);
+  });
+
+  it("flags a metric present last quarter but missing this quarter", () => {
+    const missing = [qdata[0], qdata[1], { overall: {} }];
+    const flags = detectTrendsAnomalies({ snaps: healthySnaps(), qdata: missing, currentQuarter, now });
+    expect(flags.some(f => f.type === "missing" && f.metricId === "impressions")).toBe(true);
+  });
+
+  it("flags thin history deep into the quarter", () => {
+    const thin = [
+      { t: currentQuarter.start.getTime() + 5 * DAY, vals: { impressions: 120 } },
+      { t: currentQuarter.start.getTime() + 20 * DAY, vals: { impressions: 300 } },
+    ];
+    const flags = detectTrendsAnomalies({ snaps: thin, qdata, currentQuarter, now });
+    expect(flags.some(f => f.type === "thin" && f.metricId === "impressions")).toBe(true);
+  });
+
+  it("returns nothing without a current quarter", () => {
+    expect(detectTrendsAnomalies({})).toEqual([]);
   });
 });

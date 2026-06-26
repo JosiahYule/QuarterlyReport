@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import Chart from "chart.js/auto";
-import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, blendCalibrationHistory, getWeekAgoProjection, getProjectionTimeline, annotateTimelineSpikes, projectionBand } from "../hooks/useTrendsData.js";
+import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, blendCalibrationHistory, getWeekAgoProjection, getProjectionTimeline, annotateTimelineSpikes, projectionBand, detectTrendsAnomalies } from "../hooks/useTrendsData.js";
 import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { fmt, fmtApprox } from "../utils.js";
 import { PageLoader } from "../components/PageLoader.jsx";
@@ -703,6 +703,23 @@ function Drivers({ drivers, pacing, tq3 }) {
   );
 }
 
+// ─── Anomaly / data-quality flags ─────────────────────────────────
+function AnomalyFlags({ flags }) {
+  if (!flags || !flags.length) return null;
+  return (
+    <section className="section wrap" aria-label="Data quality notices">
+      <ul className="flags-strip">
+        {flags.map((f, i) => (
+          <li key={i} className={"flag flag--" + f.severity}>
+            <span className="flag-mark" aria-hidden="true">{f.severity === "warn" ? "!" : "i"}</span>
+            <span className="flag-msg">{f.message}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 // ─── Hero ─────────────────────────────────────────────────────────
 function Hero({ agency, q3comp, q3done }) {
   const cfg = AGENCIES[agency] || AGENCIES.isl;
@@ -790,10 +807,16 @@ export function TrendsPage({ agency, onReady }) {
     ? [pacingRanked[0], pacingRanked[pacingRanked.length - 1]]
     : [null, null];
 
+  const anomalies = detectTrendsAnomalies({ snaps: snapsByQuarter[q3.suffix] ?? [], qdata, currentQuarter: q3 });
+
   return (
     <main className="report-wrap">
       <SectionRail sections={TRENDS_SECTIONS} />
       <ErrorBoundary><Hero agency={agency} q3comp={q3comp} q3done={q3done} /></ErrorBoundary>
+
+      <ErrorBoundary>
+        <AnomalyFlags flags={anomalies} />
+      </ErrorBoundary>
 
       <ErrorBoundary>
         <Drivers drivers={drivers} pacing={pacing} tq3={q3} />

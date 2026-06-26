@@ -303,6 +303,67 @@ export function annotateTimelineSpikes(timeline, posts, options = {}) {
   });
 }
 
+// ─── Data-quality / anomaly flags ─────────────────────────────────
+// Surface the conditions that quietly make a projection untrustworthy, so a
+// broken metric announces itself instead of drawing a confident line over bad
+// data. Pure: takes the current quarter's snapshot array, the three-quarter
+// extracted data, the current-quarter meta, and an injectable `now`. Returns
+// [{ metricId, type, severity, message }] (metricId null = page-level).
+export function detectTrendsAnomalies({ snaps, qdata, currentQuarter, now = new Date() } = {}) {
+  const flags = [];
+  if (!currentQuarter) return flags;
+  const complete = now >= currentQuarter.end;
+  const elapsedDays = Math.max(0, (now - currentQuarter.start) / 86400000);
+  const currentData  = Array.isArray(qdata) && qdata.length ? qdata[qdata.length - 1] : null;
+  const previousData = Array.isArray(qdata) && qdata.length >= 2 ? qdata[qdata.length - 2] : null;
+
+  // Staleness: the newest snapshot across all metrics has gone quiet.
+  const allT = (snaps || []).map(s => s.t).filter(Number.isFinite);
+  if (!complete && elapsedDays >= 7 && allT.length) {
+    const ageDays = (now - Math.max(...allT)) / 86400000;
+    if (ageDays >= 2) {
+      flags.push({ metricId: null, type: "stale", severity: "warn",
+        message: `Daily snapshots have paused — the latest is ${Math.floor(ageDays)} days old, so projections may be drifting from reality.` });
+    }
+  }
+
+  for (const metric of METRICS) {
+    if (!metric.isPace) continue;
+    const hist = getMetricHistory(snaps, metric.id);
+
+    // A cumulative total shouldn't fall mid-quarter. Followers can legitimately
+    // dip (unfollows), so skip the baseline-relative metric. Tolerate a tiny
+    // wiggle to avoid flagging rounding noise.
+    if (!metric.baselineFromQ2) {
+      for (let i = 1; i < hist.length; i++) {
+        if (hist[i - 1].val - hist[i].val > Math.max(1, hist[i - 1].val * 0.02)) {
+          flags.push({ metricId: metric.id, type: "backward", severity: "warn",
+            message: `${metric.label} dropped mid-quarter — a cumulative total shouldn't fall, so this is likely a data-entry correction.` });
+          break;
+        }
+      }
+    }
+
+    const cur  = extractMetric(currentData, metric);
+    const prev = extractMetric(previousData, metric);
+
+    // Present last quarter, absent now → can't be projected.
+    if (cur === null && prev !== null) {
+      flags.push({ metricId: metric.id, type: "missing", severity: "warn",
+        message: `${metric.label} has no ${currentQuarter.label} value yet, so it can't be projected this quarter.` });
+      continue;
+    }
+
+    // Well into the quarter but too few snapshots to lean on.
+    if (!complete && elapsedDays >= 14 && cur !== null && hist.length < 4) {
+      flags.push({ metricId: metric.id, type: "thin", severity: "info",
+        message: `${metric.label} has only ${hist.length} snapshot${hist.length === 1 ? "" : "s"} this quarter — its projection rests on thin data.` });
+    }
+  }
+
+  return flags;
+}
+
 // ─── Calibration audit ────────────────────────────────────────────
 export function clampCalibrationFactor(factor) {
   if (!Number.isFinite(factor) || factor <= 0) return 1;

@@ -17,6 +17,7 @@ export {
   getProjectionTimeline,
   annotateTimelineSpikes,
   projectionBand,
+  detectTrendsAnomalies,
   clampCalibrationFactor,
   buildProjectionAudit,
   buildProjectionAudits,
