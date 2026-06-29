@@ -810,8 +810,17 @@
   .calendar-post-title  { font-size: 11px; }
 }
 
-/* ================================================================
-   KPI history (quarter-by-quarter chart)
+/* ── Restore section rhythm on mobile ───────────────────────────
+   The `.wrap, .report-wrap { padding: 0 Npx }` rules above are a shorthand
+   that also zeroes vertical padding, and because they live outside @layer
+   they outrank the layered `.section { padding-top/bottom: var(--pad-y) }`.
+   The net effect is sections with no vertical padding — they touch. Re-assert
+   it here (after those rules, so source order wins) so sections keep breathing
+   room between them on phones. */
+@media (max-width: 880px) {
+  .section { padding-top: var(--pad-y); padding-bottom: var(--pad-y); }
+  .report-wrap { padding-top: 32px; }
+}
    ================================================================ */
 
 .kpi-history-body {
