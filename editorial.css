@@ -821,6 +821,9 @@
   .section { padding-top: var(--pad-y); padding-bottom: var(--pad-y); }
   .report-wrap { padding-top: 32px; }
 }
+
+/* ================================================================
+   KPI history (quarter-by-quarter chart)
    ================================================================ */
 
 .kpi-history-body {
@@ -1050,6 +1053,8 @@
   cursor: pointer;
 }
 .admin-btn-secondary:hover { border-color: var(--ink); }
+.admin-btn-secondary:disabled { opacity: 0.45; cursor: default; }
+.admin-btn-secondary:disabled:hover { border-color: var(--rule-soft); }
 
 .admin-btn-ghost {
   height: 34px;

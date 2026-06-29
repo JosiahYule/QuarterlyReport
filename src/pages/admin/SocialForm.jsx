@@ -103,6 +103,23 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
   const [allPosts,    setAllPosts]    = useState([]);
   const [insights,    setInsights]    = useState(BLANK_INSIGHTS);
   const [topTab,      setTopTab]      = useState("linkedin");
+  const [postsAsc,    setPostsAsc]    = useState(false);
+
+  // Reorder the All Posts rows by date. Manual, not live, so rows don't jump
+  // while a date is being typed; toggles newest-first / oldest-first on each
+  // click. ISO "YYYY-MM-DD" strings sort chronologically as plain strings, and
+  // undated rows sink to the bottom either way.
+  const sortPostsByDate = () => {
+    setAllPosts(ps => [...ps].sort((a, b) => {
+      const da = a.post_date || "", db = b.post_date || "";
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return postsAsc ? da.localeCompare(db) : db.localeCompare(da);
+    }));
+    setPostsAsc(a => !a);
+    dirty();
+  };
   const csvRef   = useRef();
   // Gate that prevents the initial data load from marking the form dirty
   const canDirty = useRef(false);
@@ -365,6 +382,9 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
                   reader.readAsText(file);
                   e.target.value = "";
                 }} />
+              <button className="admin-btn-secondary" onClick={sortPostsByDate} disabled={allPosts.length < 2}>
+                Sort by date {postsAsc ? "↑" : "↓"}
+              </button>
               <button className="admin-btn-secondary" onClick={() => csvRef.current?.click()}>Import CSV</button>
               <button className="admin-btn-secondary" onClick={() => {
                 if (!allPosts.length) return;
