@@ -263,7 +263,7 @@ function ProjTrajectoryChart({ timeline, metric }) {
 
   return (
     <svg className="kpi-history-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
-         role="img" aria-label={`${metric.label} — projected final over the quarter so far`}>
+         role="img" aria-label={`${metric.label}: projected final over the quarter so far`}>
       {ticks.map((t, i) => (
         <g key={i}>
           <line x1={pL} x2={W - pR} y1={t.y} y2={t.y} stroke="var(--rule-soft)" strokeWidth="1" />
@@ -301,7 +301,7 @@ function ProjTrajectoryChart({ timeline, metric }) {
         );
       })}
       <text x={last.x} y={last.y - 14} textAnchor="end" fontFamily="var(--serif)" fontStyle="italic" fontSize="13" fill="var(--accent)">
-        latest — {fmtApprox(last.v, metric.isPercent)}
+        latest · {fmtApprox(last.v, metric.isPercent)}
       </text>
       {xLabels.map((l, i) => (
         <text key={i} x={l.x} y={H - pB + 20} textAnchor="middle" fontSize="11" fill="var(--ink-3)" fontFamily="var(--sans)">
@@ -359,8 +359,8 @@ function ProjectionTrajectory({ qdata, snaps, calibrationFactors, calibrationHis
         <h2 className="section-title serif">Projection <em>Trajectory</em></h2>
         <p className="section-sub">
           How each metric’s projected {tq3.label} final has shifted as the quarter has accrued daily snapshots.
-          {hasBand ? " The shaded band is the likely range — it narrows as the quarter fills in." : ""}
-          {hasSpikes ? " Highlighted points mark a sharp jump — hover to see the post published as it moved." : ""}
+          {hasBand ? " The shaded band is the likely range; it narrows as the quarter fills in." : ""}
+          {hasSpikes ? " Highlighted points mark a sharp jump. Hover to see the post published as it moved." : ""}
         </p>
       </header>
       <div className="kpi-history-body">
@@ -404,26 +404,18 @@ function CalibrationAccuracy({ calibrationHistory }) {
   });
 
   const withHistory = rows.filter(r => r.quarters > 0);
-  const overallAvg = withHistory.length
-    ? withHistory.reduce((a, r) => a + r.avgAbs, 0) / withHistory.length
-    : null;
+  // Only render once at least one metric has a completed-quarter audit to show.
+  if (!withHistory.length) return null;
+  const overallAvg = withHistory.reduce((a, r) => a + r.avgAbs, 0) / withHistory.length;
 
   return (
     <section id="accuracy" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Projection <em>Accuracy</em></h2>
         <p className="section-sub">
-          {overallAvg !== null
-            ? `Across completed quarters, projections have landed within ±${overallAvg.toFixed(1)}% of the final on average. Each quarter the dashboard re-scores itself and feeds the miss back into the next projection.`
-            : "Each quarter the dashboard re-runs what it would have projected for the prior quarter at this same stage, measures the miss, and feeds it into the next projection. This is the first quarter recording those audits — the track record builds here from next quarter on."}
+          {`Across completed quarters, projections have landed within ±${overallAvg.toFixed(1)}% of the final on average. Each quarter the dashboard re-scores itself and feeds the miss back into the next projection.`}
         </p>
       </header>
-      {overallAvg === null ? (
-        <div className="accuracy-empty">
-          <span className="accuracy-empty-mark">⊹</span>
-          Self-auditing is live — accuracy history will populate as quarters complete.
-        </div>
-      ) : (
         <div className="proj-grid">
           {withHistory.map(({ metric, quarters, avgAbs, latest, trend }) => (
             <div key={metric.id} className="proj-card">
@@ -445,7 +437,6 @@ function CalibrationAccuracy({ calibrationHistory }) {
             </div>
           ))}
         </div>
-      )}
     </section>
   );
 }
@@ -564,7 +555,7 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
       <div className="proj-number serif">{headline}</div>
       <div className="proj-number-sub">{headlineSub}</div>
       {band && (
-        <div className="proj-range" title="Likely range — widens with method disagreement, time remaining, and past miss">
+        <div className="proj-range" title="Likely range, widens with method disagreement, time remaining, and past miss">
           {fmtApprox(band.low, metric.isPercent)} – {fmtApprox(band.high, metric.isPercent)} <span className="proj-range-tag">likely range</span>
         </div>
       )}
@@ -636,7 +627,7 @@ function Drivers({ drivers, pacing, tq3 }) {
     <section id="drivers" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">What’s <em>Driving This</em></h2>
-        <p className="section-sub">Auto-surfaced highlights from {tq3.label} so far — no curation required.</p>
+        <p className="section-sub">Auto-surfaced highlights from {tq3.label} so far, no curation required.</p>
       </header>
       <div className="proj-grid">
         {post && (
@@ -671,7 +662,7 @@ function Drivers({ drivers, pacing, tq3 }) {
               </div>
               {laggard && laggard.name !== leader.name && (
                 <div className="proj-stat">
-                  <div className="proj-stat-label">Lagging — {laggard.name}</div>
+                  <div className="proj-stat-label">Lagging · {laggard.name}</div>
                   <div className="proj-stat-value neg">{laggard.engagement_rate.toFixed(2)}%</div>
                 </div>
               )}
@@ -691,7 +682,7 @@ function Drivers({ drivers, pacing, tq3 }) {
               </div>
               {pacingLaggard && pacingLaggard.metric.id !== pacingLeader.metric.id && (
                 <div className="proj-stat">
-                  <div className="proj-stat-label">Slowest — {pacingLaggard.metric.label}</div>
+                  <div className="proj-stat-label">Slowest · {pacingLaggard.metric.label}</div>
                   <div className="proj-stat-value neg">{pacingLaggard.rateVsQ2.toFixed(1)}%</div>
                 </div>
               )}
@@ -723,7 +714,7 @@ function PlatformBreakdown({ platforms, tq2 }) {
     <section id="platforms" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Platform <em>Breakdown</em></h2>
-        <p className="section-sub">Where each platform stands this quarter and how it’s moved since {tq2.label}. Quarter-over-quarter standings — there’s one data point per quarter per platform, so this isn’t a daily-paced forecast like the metrics above.</p>
+        <p className="section-sub">Where each platform stands this quarter and how it’s moved since {tq2.label}. Quarter-over-quarter standings: there’s one data point per quarter per platform, so this isn’t a daily-paced forecast like the metrics above.</p>
       </header>
       <div className="proj-grid">
         {rows.map(p => (
@@ -882,9 +873,14 @@ export function TrendsPage({ agency, onReady }) {
     currentQuarter: q3, elapsedPct: q3comp * 100, complete: q3done,
   });
 
+  // Drop the Accuracy rail link when the section itself won't render (no
+  // completed-quarter audits yet).
+  const hasAccuracyData = METRICS.some(m => (calibrationHistory?.[m.id] ?? []).some(h => Number.isFinite(h.percent_error)));
+  const sections = hasAccuracyData ? TRENDS_SECTIONS : TRENDS_SECTIONS.filter(s => s.id !== "accuracy");
+
   return (
     <main className="report-wrap">
-      <SectionRail sections={TRENDS_SECTIONS} />
+      <SectionRail sections={sections} />
       <ErrorBoundary><Hero agency={agency} q3comp={q3comp} q3done={q3done} /></ErrorBoundary>
 
       <ErrorBoundary>

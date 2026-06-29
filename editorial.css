@@ -541,14 +541,6 @@
   .flag--warn .flag-mark { background: var(--down); }
   .flag--info .flag-mark { background: var(--accent); }
 
-  /* Trends — Calibration accuracy empty state */
-  .accuracy-empty {
-    display: flex; align-items: center; gap: 12px;
-    border-top: 1px solid var(--rule); padding: 18px 0;
-    font-size: 14px; color: var(--ink-3); font-style: italic; font-family: var(--serif);
-  }
-  .accuracy-empty-mark { font-style: normal; font-size: 18px; color: var(--accent); }
-
   /* Trends — Drivers (auto-surfaced post/platform/pacing highlights) */
   .driver-title     { font-family: var(--serif); font-size: 19px; line-height: 1.3; letter-spacing: -0.01em; color: var(--ink); margin-bottom: 4px; }
   .driver-title a   { color: inherit; text-decoration: none; border-bottom: 1px solid var(--rule); }
