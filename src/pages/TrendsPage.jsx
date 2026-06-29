@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import Chart from "chart.js/auto";
-import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, blendCalibrationHistory, getWeekAgoProjection, getProjectionTimeline, annotateTimelineSpikes } from "../hooks/useTrendsData.js";
+import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, blendCalibrationHistory, getWeekAgoProjection, getProjectionTimeline, annotateTimelineSpikes, projectionBand, detectTrendsAnomalies, buildTrendsNarrative } from "../hooks/useTrendsData.js";
 import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { fmt, fmtApprox } from "../utils.js";
 import { PageLoader } from "../components/PageLoader.jsx";
@@ -198,7 +198,9 @@ function ProjTrajectoryChart({ timeline, metric }) {
     );
   }
 
-  const vals = timeline.map(p => p.projected);
+  // Domain spans the projection line *and* the band, so the shaded range never
+  // clips at the top or bottom of the plot.
+  const vals = timeline.flatMap(p => [p.projected, p.low, p.high].filter(Number.isFinite));
   const minV = Math.min(...vals), maxV = Math.max(...vals);
   const span = maxV - minV;
   const pad  = span > 0 ? span * 0.15 : (maxV || 1) * 0.05;
@@ -211,11 +213,23 @@ function ProjTrajectoryChart({ timeline, metric }) {
   const X = t => pL + ((t - minT) / tRange) * (W - pL - pR);
   const Y = v => pT + (H - pT - pB) * (1 - (v - domMin) / domRange);
 
-  const pts = timeline.map(p => ({ x: X(p.t), y: Y(p.projected), v: p.projected, spike: p.spike }));
+  const pts = timeline.map(p => ({
+    x: X(p.t), y: Y(p.projected), v: p.projected, spike: p.spike,
+    yLow:  Number.isFinite(p.low)  ? Y(p.low)  : null,
+    yHigh: Number.isFinite(p.high) ? Y(p.high) : null,
+  }));
   const linePath = pts.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.y.toFixed(1)).join(" ");
   const areaPath = linePath
     + ` L${pts[pts.length - 1].x.toFixed(1)},${(H - pB).toFixed(1)}`
     + ` L${pts[0].x.toFixed(1)},${(H - pB).toFixed(1)} Z`;
+
+  // Band polygon: high edge left→right, then low edge right→left, closed.
+  const bandPts = pts.filter(p => p.yLow != null && p.yHigh != null);
+  const bandPath = bandPts.length >= 2
+    ? bandPts.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.yHigh.toFixed(1)).join(" ")
+      + " " + [...bandPts].reverse().map(p => "L" + p.x.toFixed(1) + "," + p.yLow.toFixed(1)).join(" ")
+      + " Z"
+    : null;
 
   const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => ({ v: domMin + domRange * f, y: pT + (H - pT - pB) * (1 - f) }));
   const fmtDate = t => new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -259,7 +273,9 @@ function ProjTrajectoryChart({ timeline, metric }) {
         </g>
       ))}
       <line x1={pL} x2={W - pR} y1={H - pB} y2={H - pB} stroke="var(--ink)" strokeWidth="1" />
-      <path d={areaPath} fill="var(--accent)" opacity="0.06" />
+      {bandPath
+        ? <path d={bandPath} fill="var(--accent)" opacity="0.10" />
+        : <path d={areaPath} fill="var(--accent)" opacity="0.06" />}
       <path d={linePath} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
       {pts.map((p, i) => {
         const isSpike = !!p.spike?.post;
@@ -308,7 +324,7 @@ function ProjTrajectoryChart({ timeline, metric }) {
 }
 
 // ─── Projection trajectory section (click through metrics) ────────────
-function ProjectionTrajectory({ qdata, snaps, calibrationFactors, posts }) {
+function ProjectionTrajectory({ qdata, snaps, calibrationFactors, calibrationHistory, posts }) {
   const [d1, d2] = qdata;
   const [, tq2, tq3] = TRENDS_QUARTERS;
   const [activeKey, setActiveKey] = useState(METRICS[0].id);
@@ -323,12 +339,15 @@ function ProjectionTrajectory({ qdata, snaps, calibrationFactors, posts }) {
       ? (metric.baselineFromQ2 && q1v !== null ? (q2v - q1v) : q2v) / ((tq2.end - tq2.start) / 86400000)
       : null;
     const calibrationFactor = calibrationFactors[metric.id] ?? 1;
-    const raw = getProjectionTimeline(snaps, metric, tq3, q2Rate, histBaseline, calibrationFactor);
+    const errs = (calibrationHistory?.[metric.id] ?? []).map(h => h.percent_error).filter(Number.isFinite);
+    const avgAbsErr = errs.length ? errs.reduce((a, e) => a + Math.abs(e), 0) / errs.length : null;
+    const raw = getProjectionTimeline(snaps, metric, tq3, q2Rate, histBaseline, calibrationFactor, avgAbsErr);
     // Tie sharp jumps to the post that landed as the metric accelerated.
     return annotateTimelineSpikes(raw, posts);
-  }, [d1, d2, metric, tq2, tq3, snaps, calibrationFactors, posts]);
+  }, [d1, d2, metric, tq2, tq3, snaps, calibrationFactors, calibrationHistory, posts]);
 
   const hasSpikes = timeline.some(p => p.spike);
+  const hasBand = timeline.some(p => Number.isFinite(p.low) && Number.isFinite(p.high));
 
   // Show the section once any metric has enough snapshot history to plot.
   const hasData = METRICS.some(m => getMetricHistory(snaps, m.id).length >= 2);
@@ -340,6 +359,7 @@ function ProjectionTrajectory({ qdata, snaps, calibrationFactors, posts }) {
         <h2 className="section-title serif">Projection <em>Trajectory</em></h2>
         <p className="section-sub">
           How each metric’s projected {tq3.label} final has shifted as the quarter has accrued daily snapshots.
+          {hasBand ? " The shaded band is the likely range — it narrows as the quarter fills in." : ""}
           {hasSpikes ? " Highlighted points mark a sharp jump — hover to see the post published as it moved." : ""}
         </p>
       </header>
@@ -361,6 +381,101 @@ function ProjectionTrajectory({ qdata, snaps, calibrationFactors, posts }) {
         </div>
       </div>
     </section>
+  );
+}
+
+// ─── Calibration accuracy (how well past projections landed) ──────────
+function CalibrationAccuracy({ calibrationHistory }) {
+  const rows = METRICS.map(metric => {
+    const hist = (calibrationHistory?.[metric.id] ?? []).filter(h => Number.isFinite(h.percent_error));
+    if (!hist.length) return { metric, quarters: 0 };
+    const absErrs = hist.map(h => Math.abs(h.percent_error)); // most-recent-first
+    const avgAbs = absErrs.reduce((a, e) => a + e, 0) / absErrs.length;
+    const latest = absErrs[0];
+    const older = absErrs.slice(1);
+    const olderAvg = older.length ? older.reduce((a, e) => a + e, 0) / older.length : null;
+    let trend = null;
+    if (olderAvg !== null) {
+      if (latest < olderAvg - 0.5) trend = { label: "improving", cls: "pos" };
+      else if (latest > olderAvg + 0.5) trend = { label: "slipping", cls: "neg" };
+      else trend = { label: "steady", cls: "na" };
+    }
+    return { metric, quarters: hist.length, avgAbs, latest, trend };
+  });
+
+  const withHistory = rows.filter(r => r.quarters > 0);
+  const overallAvg = withHistory.length
+    ? withHistory.reduce((a, r) => a + r.avgAbs, 0) / withHistory.length
+    : null;
+
+  return (
+    <section id="accuracy" className="section wrap">
+      <header className="section-head">
+        <h2 className="section-title serif">Projection <em>Accuracy</em></h2>
+        <p className="section-sub">
+          {overallAvg !== null
+            ? `Across completed quarters, projections have landed within ±${overallAvg.toFixed(1)}% of the final on average. Each quarter the dashboard re-scores itself and feeds the miss back into the next projection.`
+            : "Each quarter the dashboard re-runs what it would have projected for the prior quarter at this same stage, measures the miss, and feeds it into the next projection. This is the first quarter recording those audits — the track record builds here from next quarter on."}
+        </p>
+      </header>
+      {overallAvg === null ? (
+        <div className="accuracy-empty">
+          <span className="accuracy-empty-mark">⊹</span>
+          Self-auditing is live — accuracy history will populate as quarters complete.
+        </div>
+      ) : (
+        <div className="proj-grid">
+          {withHistory.map(({ metric, quarters, avgAbs, latest, trend }) => (
+            <div key={metric.id} className="proj-card">
+              <div className="proj-card-label">{metric.label}</div>
+              <div className="proj-number serif">±{avgAbs.toFixed(1)}%</div>
+              <div className="proj-number-sub">Avg miss · {quarters}Q</div>
+              <div className="proj-stats-grid">
+                <div className="proj-stat">
+                  <div className="proj-stat-label">Most Recent</div>
+                  <div className="proj-stat-value">±{latest.toFixed(1)}%</div>
+                </div>
+                {trend && (
+                  <div className="proj-stat">
+                    <div className="proj-stat-label">Trend</div>
+                    <div className={"proj-stat-value " + trend.cls}>{trend.label}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ─── Sparkline: actual-to-date converging on the projected final ──────
+// Two lines on a shared 0-based scale: the solid actual cumulative climbs
+// while the dashed projected-final sits flatter near the top, so the closing
+// gap reads as "distance left to go." Decorative — the numbers above carry the
+// data — hence aria-hidden and non-scaling strokes for crisp lines at any width.
+function Sparkline({ actual, projected }) {
+  if ((actual?.length ?? 0) < 2 && (projected?.length ?? 0) < 2) return null;
+  const W = 220, H = 44, p = 4;
+  const all = [...(actual || []), ...(projected || [])];
+  const ts = all.map(d => d.t), vs = all.map(d => d.val);
+  const minT = Math.min(...ts), maxT = Math.max(...ts);
+  const maxV = Math.max(...vs, 0), minV = Math.min(...vs, 0);
+  const X = t => p + ((t - minT) / ((maxT - minT) || 1)) * (W - 2 * p);
+  const Y = v => p + (H - 2 * p) * (1 - (v - minV) / ((maxV - minV) || 1));
+  const toPath = arr => arr.map((d, i) => (i ? "L" : "M") + X(d.t).toFixed(1) + "," + Y(d.val).toFixed(1)).join(" ");
+  return (
+    <svg className="proj-spark" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+      {(projected?.length ?? 0) >= 2 && (
+        <path d={toPath(projected)} fill="none" stroke="var(--accent)" strokeWidth="1.5"
+              strokeDasharray="3 2" opacity="0.9" vectorEffect="non-scaling-stroke" />
+      )}
+      {(actual?.length ?? 0) >= 2 && (
+        <path d={toPath(actual)} fill="none" stroke="var(--ink-3)" strokeWidth="1.5"
+              vectorEffect="non-scaling-stroke" />
+      )}
+    </svg>
   );
 }
 
@@ -392,6 +507,24 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
     ? (q3done ? `${ql} Final` : `Projected Final · ${ql}`)
     : (metric.baselineFromQ2 ? `${ql} Current Total` : `${ql} Current`);
 
+  // Empirical miss from persisted audits feeds both the band floor and the
+  // "Past Accuracy" stat below; compute once.
+  const errors = (history ?? []).map(h => h.percent_error).filter(Number.isFinite);
+  const avgAbsErr = errors.length ? errors.reduce((a, e) => a + Math.abs(e), 0) / errors.length : null;
+
+  // Uncertainty range around the projected final. Kept in the same (net) space
+  // as the headline above, so card and range never contradict each other.
+  const band = pace && !q3done
+    ? projectionBand(pace, { elapsedFraction: pace.elapsedFraction, empiricalErrorPct: avgAbsErr, current: q3input })
+    : null;
+
+  // Sparkline series (total/cumulative space, self-consistent): actual climbing
+  // toward the dashed projected-final line.
+  const actualSeries = getMetricHistory(snaps, metric.id);
+  const projSeries = metric.isPace && !q3done
+    ? getProjectionTimeline(snaps, metric, tq3, q2Rate, histBaseline, calibrationFactor).map(p => ({ t: p.t, val: p.projected }))
+    : [];
+
   const stat1Label = metric.baselineFromQ2 ? `${ql} Net New` : `${ql} to Date`;
   const stat1Val   = metric.baselineFromQ2 && q3v !== null && q2v !== null ? fmt(q3v - q2v, metric.isPercent) : fmt(q3v, metric.isPercent);
 
@@ -421,9 +554,8 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
   // Track record: average absolute miss across persisted past-quarter audits
   // for this metric, so the calibration correction isn't an invisible
   // multiplier — you can see how accurate it's actually been.
-  const errors = (history ?? []).map(h => h.percent_error).filter(Number.isFinite);
   const trackRecordVal = errors.length
-    ? `±${(errors.reduce((a, e) => a + Math.abs(e), 0) / errors.length).toFixed(1)}% · ${errors.length}Q`
+    ? `±${avgAbsErr.toFixed(1)}% · ${errors.length}Q`
     : "—";
 
   return (
@@ -431,6 +563,20 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
       <div className="proj-card-label">{metric.label}</div>
       <div className="proj-number serif">{headline}</div>
       <div className="proj-number-sub">{headlineSub}</div>
+      {band && (
+        <div className="proj-range" title="Likely range — widens with method disagreement, time remaining, and past miss">
+          {fmtApprox(band.low, metric.isPercent)} – {fmtApprox(band.high, metric.isPercent)} <span className="proj-range-tag">likely range</span>
+        </div>
+      )}
+      {projSeries.length >= 2 && (
+        <div className="proj-spark-wrap">
+          <Sparkline actual={actualSeries} projected={projSeries} />
+          <div className="proj-spark-key">
+            <span className="proj-spark-key-item"><span className="spark-swatch actual" />actual</span>
+            <span className="proj-spark-key-item"><span className="spark-swatch proj" />projected</span>
+          </div>
+        </div>
+      )}
       <div className="proj-stats-grid">
         <div className="proj-stat">
           <div className="proj-stat-label">{stat1Label}</div>
@@ -557,6 +703,80 @@ function Drivers({ drivers, pacing, tq3 }) {
   );
 }
 
+// ─── Narrative summary (deterministic plain-English read) ─────────────
+function NarrativeSummary({ text }) {
+  if (!text) return null;
+  return (
+    <section className="section wrap" aria-label="Quarter summary">
+      <p className="trends-narrative serif">{text}</p>
+    </section>
+  );
+}
+
+// ─── Platform breakdown (QoQ standings, not a forecast) ───────────────
+const platDeltaCls = d => !Number.isFinite(d) ? "na" : d >= 0 ? "pos" : "neg";
+const platDeltaTxt = d => !Number.isFinite(d) ? "—" : `${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(1)}%`;
+function PlatformBreakdown({ platforms, tq2 }) {
+  const rows = (platforms || []).filter(p => p && p.name);
+  if (!rows.length) return null;
+  return (
+    <section id="platforms" className="section wrap">
+      <header className="section-head">
+        <h2 className="section-title serif">Platform <em>Breakdown</em></h2>
+        <p className="section-sub">Where each platform stands this quarter and how it’s moved since {tq2.label}. Quarter-over-quarter standings — there’s one data point per quarter per platform, so this isn’t a daily-paced forecast like the metrics above.</p>
+      </header>
+      <div className="proj-grid">
+        {rows.map(p => (
+          <div key={p.name} className="proj-card">
+            <div className="proj-card-label">{p.name}</div>
+            <div className="proj-number serif">{p.followers != null ? fmt(p.followers) : "—"}</div>
+            <div className="proj-number-sub">Followers</div>
+            <div className="proj-stats-grid">
+              <div className="proj-stat">
+                <div className="proj-stat-label">Followers vs {tq2.label}</div>
+                <div className={"proj-stat-value " + platDeltaCls(p.followersDelta)}>{platDeltaTxt(p.followersDelta)}</div>
+              </div>
+              <div className="proj-stat">
+                <div className="proj-stat-label">Engagement Rate</div>
+                <div className="proj-stat-value rate">{p.engagementRate != null ? p.engagementRate.toFixed(2) + "%" : "—"}</div>
+              </div>
+              <div className="proj-stat">
+                <div className="proj-stat-label">Engagement vs {tq2.label}</div>
+                <div className={"proj-stat-value " + platDeltaCls(p.engagementDelta)}>{platDeltaTxt(p.engagementDelta)}</div>
+              </div>
+              <div className="proj-stat">
+                <div className="proj-stat-label">Reach</div>
+                <div className="proj-stat-value">{p.pageReach != null ? fmt(p.pageReach) : "—"}</div>
+              </div>
+              <div className="proj-stat">
+                <div className="proj-stat-label">Clicks</div>
+                <div className="proj-stat-value">{p.pageClicks != null ? fmt(p.pageClicks) : "—"}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── Anomaly / data-quality flags ─────────────────────────────────
+function AnomalyFlags({ flags }) {
+  if (!flags || !flags.length) return null;
+  return (
+    <section className="section wrap" aria-label="Data quality notices">
+      <ul className="flags-strip">
+        {flags.map((f, i) => (
+          <li key={i} className={"flag flag--" + f.severity}>
+            <span className="flag-mark" aria-hidden="true">{f.severity === "warn" ? "!" : "i"}</span>
+            <span className="flag-msg">{f.message}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 // ─── Hero ─────────────────────────────────────────────────────────
 function Hero({ agency, q3comp, q3done }) {
   const cfg = AGENCIES[agency] || AGENCIES.isl;
@@ -587,12 +807,14 @@ const TRENDS_SECTIONS = [
   { id: "drivers",               label: "Drivers" },
   { id: "projections",           label: "Projections" },
   { id: "projection-trajectory", label: "Trajectory" },
+  { id: "accuracy",              label: "Accuracy" },
+  { id: "platforms",             label: "Platforms" },
   { id: "quarterly-trends",      label: "Trends" },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────
 export function TrendsPage({ agency, onReady }) {
-  const { qdata, snapsByQuarter, calibrationHistory, drivers, status, error } = useTrendsData(agency);
+  const { qdata, snapsByQuarter, calibrationHistory, drivers, platforms, status, error } = useTrendsData(agency);
 
   useEffect(() => {
     if (status === "ready" || status === "error") onReady?.();
@@ -643,10 +865,35 @@ export function TrendsPage({ agency, onReady }) {
     ? [pacingRanked[0], pacingRanked[pacingRanked.length - 1]]
     : [null, null];
 
+  const anomalies = detectTrendsAnomalies({ snaps: snapsByQuarter[q3.suffix] ?? [], qdata, currentQuarter: q3 });
+
+  const overallAccuracyPct = (() => {
+    const perMetric = METRICS
+      .map(m => {
+        const errs = (calibrationHistory?.[m.id] ?? []).map(h => h.percent_error).filter(Number.isFinite);
+        return errs.length ? errs.reduce((a, e) => a + Math.abs(e), 0) / errs.length : null;
+      })
+      .filter(Number.isFinite);
+    return perMetric.length ? perMetric.reduce((a, e) => a + e, 0) / perMetric.length : null;
+  })();
+
+  const narrative = buildTrendsNarrative({
+    drivers, pacing, anomalies, overallAccuracyPct,
+    currentQuarter: q3, elapsedPct: q3comp * 100, complete: q3done,
+  });
+
   return (
     <main className="report-wrap">
       <SectionRail sections={TRENDS_SECTIONS} />
       <ErrorBoundary><Hero agency={agency} q3comp={q3comp} q3done={q3done} /></ErrorBoundary>
+
+      <ErrorBoundary>
+        <NarrativeSummary text={narrative} />
+      </ErrorBoundary>
+
+      <ErrorBoundary>
+        <AnomalyFlags flags={anomalies} />
+      </ErrorBoundary>
 
       <ErrorBoundary>
         <Drivers drivers={drivers} pacing={pacing} tq3={q3} />
@@ -667,7 +914,15 @@ export function TrendsPage({ agency, onReady }) {
       </ErrorBoundary>
 
       <ErrorBoundary>
-        <ProjectionTrajectory qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} calibrationFactors={calibrationFactors} posts={drivers?.posts ?? []} />
+        <ProjectionTrajectory qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} calibrationFactors={calibrationFactors} calibrationHistory={calibrationHistory} posts={drivers?.posts ?? []} />
+      </ErrorBoundary>
+
+      <ErrorBoundary>
+        <CalibrationAccuracy calibrationHistory={calibrationHistory} />
+      </ErrorBoundary>
+
+      <ErrorBoundary>
+        <PlatformBreakdown platforms={platforms} tq2={TRENDS_QUARTERS[1]} />
       </ErrorBoundary>
 
       <ErrorBoundary>

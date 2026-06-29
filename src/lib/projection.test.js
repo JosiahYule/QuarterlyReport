@@ -4,6 +4,9 @@ import {
   buildProjectionAudit,
   blendCalibrationHistory,
   annotateTimelineSpikes,
+  projectionBand,
+  detectTrendsAnomalies,
+  buildTrendsNarrative,
 } from "./projection.js";
 
 const DAY = 86400000;
@@ -271,5 +274,155 @@ describe("annotateTimelineSpikes", () => {
     expect(annotateTimelineSpikes([], [])).toEqual([]);
     expect(annotateTimelineSpikes(null, [])).toEqual([]);
     expect(annotateTimelineSpikes([{ t: 1, projected: 5 }], [])).toHaveLength(1);
+  });
+});
+
+describe("projectionBand", () => {
+  const pace = (projected, components, elapsedFraction) => ({ projected, components, elapsedFraction });
+
+  it("returns null when there is no usable projection", () => {
+    expect(projectionBand(null, {})).toBeNull();
+    expect(projectionBand({ projected: 0 }, {})).toBeNull();
+    expect(projectionBand({ projected: NaN }, {})).toBeNull();
+  });
+
+  it("brackets the point estimate: low ≤ expected ≤ high", () => {
+    const band = projectionBand(pace(1000, { simple: 1100, rolling: 980, reg: 1020 }, 0.5), { elapsedFraction: 0.5 });
+    expect(band.low).toBeLessThanOrEqual(band.expected);
+    expect(band.high).toBeGreaterThanOrEqual(band.expected);
+    expect(band.expected).toBe(1000);
+  });
+
+  it("widens when the three methods disagree", () => {
+    const tight = projectionBand(pace(1000, { simple: 1000, rolling: 1005, reg: 995 }, 0.5), { elapsedFraction: 0.5 });
+    const wide  = projectionBand(pace(1000, { simple: 1300, rolling: 800,  reg: 1000 }, 0.5), { elapsedFraction: 0.5 });
+    expect(wide.relHalf).toBeGreaterThan(tight.relHalf);
+  });
+
+  it("narrows as the quarter completes", () => {
+    const comps = { simple: 1100, rolling: 950, reg: 1010 };
+    const early = projectionBand(pace(1000, comps, 0.2), { elapsedFraction: 0.2 });
+    const late  = projectionBand(pace(1000, comps, 0.9), { elapsedFraction: 0.9 });
+    expect(late.relHalf).toBeLessThan(early.relHalf);
+  });
+
+  it("widens with a worse empirical track record, and the effect fades late", () => {
+    const comps = { simple: 1000, rolling: 1000, reg: 1000 }; // no method spread
+    const clean = projectionBand(pace(1000, comps, 0.4), { elapsedFraction: 0.4, empiricalErrorPct: 2 });
+    const messy = projectionBand(pace(1000, comps, 0.4), { elapsedFraction: 0.4, empiricalErrorPct: 25 });
+    expect(messy.relHalf).toBeGreaterThan(clean.relHalf);
+    // By quarter's end the empirical contribution is gone (remaining → 0).
+    const messyLate = projectionBand(pace(1000, comps, 1), { elapsedFraction: 1, empiricalErrorPct: 25 });
+    expect(messyLate.relHalf).toBeCloseTo(0.01, 5); // clamped floor only
+  });
+
+  it("floors the low end at the value already banked", () => {
+    // Big band, but we've already accrued 990 — the final can't come in below it.
+    const band = projectionBand(pace(1000, { simple: 1400, rolling: 700, reg: 1000 }, 0.3), { elapsedFraction: 0.3, current: 990 });
+    expect(band.low).toBe(990);
+  });
+});
+
+describe("detectTrendsAnomalies", () => {
+  const currentQuarter = { start: new Date(2026, 2, 1), end: new Date(2026, 5, 1), label: "Q3" };
+  const now = new Date(2026, 3, 1); // ~31 days into the quarter
+  // A healthy current quarter: dense, monotonically rising impressions, fresh.
+  function healthySnaps() {
+    const snaps = [];
+    // Up to ~half a day before `now`, so the fixture isn't itself stale.
+    for (let i = 0; i <= 30; i++) {
+      snaps.push({ t: currentQuarter.start.getTime() + i * DAY + DAY / 2, vals: { impressions: 100 + i * 10 } });
+    }
+    return snaps;
+  }
+  const qdata = [
+    { overall: { impressions: 500 } },  // two-back
+    { overall: { impressions: 800 } },  // previous (has a value)
+    { overall: { impressions: 380 } },  // current
+  ];
+
+  it("reports no flags for a fresh, dense, rising quarter", () => {
+    const flags = detectTrendsAnomalies({ snaps: healthySnaps(), qdata, currentQuarter, now });
+    expect(flags).toEqual([]);
+  });
+
+  it("flags stale snapshots when the latest is several days old", () => {
+    const stale = healthySnaps().map(s => ({ ...s, t: s.t - 6 * DAY }));
+    const flags = detectTrendsAnomalies({ snaps: stale, qdata, currentQuarter, now });
+    expect(flags.some(f => f.type === "stale")).toBe(true);
+  });
+
+  it("flags a cumulative metric that moved backward", () => {
+    const snaps = healthySnaps();
+    snaps[20].vals.impressions = 50; // sudden drop below its neighbours
+    const flags = detectTrendsAnomalies({ snaps, qdata, currentQuarter, now });
+    expect(flags.some(f => f.type === "backward" && f.metricId === "impressions")).toBe(true);
+  });
+
+  it("flags a metric present last quarter but missing this quarter", () => {
+    const missing = [qdata[0], qdata[1], { overall: {} }];
+    const flags = detectTrendsAnomalies({ snaps: healthySnaps(), qdata: missing, currentQuarter, now });
+    expect(flags.some(f => f.type === "missing" && f.metricId === "impressions")).toBe(true);
+  });
+
+  it("flags thin history deep into the quarter", () => {
+    const thin = [
+      { t: currentQuarter.start.getTime() + 5 * DAY, vals: { impressions: 120 } },
+      { t: currentQuarter.start.getTime() + 20 * DAY, vals: { impressions: 300 } },
+    ];
+    const flags = detectTrendsAnomalies({ snaps: thin, qdata, currentQuarter, now });
+    expect(flags.some(f => f.type === "thin" && f.metricId === "impressions")).toBe(true);
+  });
+
+  it("returns nothing without a current quarter", () => {
+    expect(detectTrendsAnomalies({})).toEqual([]);
+  });
+});
+
+describe("buildTrendsNarrative", () => {
+  const currentQuarter = { label: "Q3" };
+  const pacing = [
+    { metric: { id: "impressions", label: "Impressions" }, rateVsQ2: 22 },
+    { metric: { id: "shares", label: "Shares" }, rateVsQ2: -8 },
+  ];
+  const drivers = { topPost: { post_name: "Big winner", impressions: 9000 } };
+
+  it("returns empty when there's nothing beyond the elapsed line", () => {
+    expect(buildTrendsNarrative({ currentQuarter, elapsedPct: 30 })).toBe("");
+  });
+
+  it("leads with the elapsed quarter and the pacing leader / laggard", () => {
+    const s = buildTrendsNarrative({ currentQuarter, elapsedPct: 30, pacing });
+    expect(s).toContain("Q3 is 30% elapsed");
+    expect(s).toContain("Impressions is pacing 22% ahead");
+    expect(s).toContain("Shares runs 8% behind");
+  });
+
+  it("names the top post and weaves in accuracy and warnings", () => {
+    const s = buildTrendsNarrative({
+      currentQuarter, elapsedPct: 50, pacing, drivers,
+      overallAccuracyPct: 4.2,
+      anomalies: [{ severity: "warn" }, { severity: "info" }],
+    });
+    expect(s).toContain("“Big winner”");
+    expect(s).toContain("9,000 impressions");
+    expect(s).toContain("±4.2%");
+    expect(s).toContain("1 data-quality issue needs");
+  });
+
+  it("handles an all-behind quarter without claiming anyone is ahead", () => {
+    const behind = [
+      { metric: { id: "shares", label: "Shares" }, rateVsQ2: -8 },
+      { metric: { id: "posts", label: "Posts Published" }, rateVsQ2: -40 },
+    ];
+    const s = buildTrendsNarrative({ currentQuarter, elapsedPct: 60, pacing: behind });
+    expect(s).toContain("running below last quarter's rate");
+    expect(s).toContain("Shares is closest");
+    expect(s).not.toContain("ahead");
+  });
+
+  it("says the quarter is complete when it is", () => {
+    const s = buildTrendsNarrative({ currentQuarter, complete: true, pacing });
+    expect(s).toContain("Q3 is complete");
   });
 });

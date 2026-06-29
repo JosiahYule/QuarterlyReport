@@ -16,6 +16,9 @@ export {
   getWeekAgoProjection,
   getProjectionTimeline,
   annotateTimelineSpikes,
+  projectionBand,
+  detectTrendsAnomalies,
+  buildTrendsNarrative,
   clampCalibrationFactor,
   buildProjectionAudit,
   buildProjectionAudits,
@@ -159,6 +162,47 @@ async function fetchDrivers(agency, quarterSuffix) {
   }
 }
 
+// Per-platform standings for the viewed agency, current quarter vs previous,
+// so the breakdown can show where each platform is and which way it's moving.
+// This is a quarter-over-quarter read, not a daily-paced projection — there
+// are no per-platform daily snapshots to project from, only one row per
+// quarter — so the UI frames it as standings, not a forecast.
+function relDelta(cur, prev) {
+  return Number.isFinite(cur) && Number.isFinite(prev) && prev > 0 ? (cur - prev) / prev * 100 : null;
+}
+async function fetchPlatformBreakdown(agency, currentSuffix, prevSuffix) {
+  try {
+    const { data, error } = await supabase
+      .from("social_reports")
+      .select("quarter, social_platforms(name, sort_order, followers, engagement_rate, page_reach, page_clicks)")
+      .eq("agency", agency)
+      .in("quarter", [currentSuffix, prevSuffix]);
+    if (error || !data) return [];
+    const byQuarter = {};
+    for (const r of data) byQuarter[r.quarter] = r.social_platforms || [];
+    const cur = byQuarter[currentSuffix] || [];
+    const prevByName = {};
+    for (const p of (byQuarter[prevSuffix] || [])) prevByName[(p.name || "").toLowerCase()] = p;
+
+    return [...cur]
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map(p => {
+        const pp = prevByName[(p.name || "").toLowerCase()];
+        return {
+          name: p.name,
+          followers: p.followers,
+          engagementRate: p.engagement_rate,
+          pageReach: p.page_reach,
+          pageClicks: p.page_clicks,
+          followersDelta: relDelta(p.followers, pp?.followers),
+          engagementDelta: relDelta(p.engagement_rate, pp?.engagement_rate),
+        };
+      });
+  } catch (_) {
+    return [];
+  }
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────
 async function fetchQuarter(agency, quarter) {
   try {
@@ -201,16 +245,17 @@ async function snapshotAllAgencies() {
 }
 
 export function useTrendsData(agency) {
-  const [state, setState] = useState({ qdata: null, snapsByQuarter: {}, calibrationHistory: {}, drivers: null, status: "loading", error: null });
+  const [state, setState] = useState({ qdata: null, snapsByQuarter: {}, calibrationHistory: {}, drivers: null, platforms: [], status: "loading", error: null });
 
   useEffect(() => {
     let cancelled = false;
 
     const run = async () => {
       try {
-        const [qdata, drivers, ...rest] = await Promise.all([
+        const [qdata, drivers, platforms, ...rest] = await Promise.all([
           Promise.all(TRENDS_QUARTERS.map(q => fetchQuarter(agency, q.suffix))),
           fetchDrivers(agency, TRENDS_QUARTERS[2].suffix),
+          fetchPlatformBreakdown(agency, TRENDS_QUARTERS[2].suffix, TRENDS_QUARTERS[1].suffix),
           ...TRENDS_QUARTERS.map(q => loadSnapshots(agency, q.suffix)),
           ...METRICS.map(m => loadCalibrationHistory(agency, m.id)),
         ]);
@@ -230,18 +275,18 @@ export function useTrendsData(agency) {
           // history regardless of whose Trends tab gets opened.
           snapshotAllAgencies();
           auditAllAgencies();
-          setState({ qdata, snapsByQuarter, calibrationHistory, drivers, status: "ready", error: null });
+          setState({ qdata, snapsByQuarter, calibrationHistory, drivers, platforms, status: "ready", error: null });
         }
       } catch (err) {
         if (!cancelled) {
           setState(s => s.status === "loading"
-            ? { qdata: null, snapsByQuarter: {}, calibrationHistory: {}, drivers: null, status: "error", error: friendlyError(err) }
+            ? { qdata: null, snapsByQuarter: {}, calibrationHistory: {}, drivers: null, platforms: [], status: "error", error: friendlyError(err) }
             : s);
         }
       }
     };
 
-    setState({ qdata: null, snapsByQuarter: {}, calibrationHistory: {}, drivers: null, status: "loading", error: null });
+    setState({ qdata: null, snapsByQuarter: {}, calibrationHistory: {}, drivers: null, platforms: [], status: "loading", error: null });
     run();
     // Refresh every 5 minutes, but only while the tab is visible
     const id = setInterval(() => { if (!document.hidden) run(); }, 300_000);

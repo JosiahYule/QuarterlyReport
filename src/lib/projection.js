@@ -154,7 +154,16 @@ export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory
   const safeCalibration = Number.isFinite(calibrationFactor) && calibrationFactor > 0 ? calibrationFactor : 1;
   const projected = Math.max(rawProjected * safeCalibration, current);
 
-  return { projected, rawProjected, dailyRate: rollingRate ?? simpleRate, dElapsed, dTotal, calibrationFactor: safeCalibration };
+  // Component sub-projections (each scaled by the same calibration the blend
+  // got) are exposed so projectionBand can read how far the three methods
+  // disagree right now — a direct, data-driven measure of model uncertainty.
+  const components = {
+    simple:  simpleProj  * safeCalibration,
+    rolling: rollingProj !== null ? rollingProj * safeCalibration : null,
+    reg:     regProj     !== null ? regProj     * safeCalibration : null,
+  };
+
+  return { projected, rawProjected, dailyRate: rollingRate ?? simpleRate, dElapsed, dTotal, calibrationFactor: safeCalibration, elapsedFraction, components };
 }
 
 // ─── History: pure helpers (operate on pre-fetched snapshot arrays) ──
@@ -179,7 +188,7 @@ export function getWeekAgoProjection(snapshots, metric, tq3, q2Rate, histBaselin
   return pace.projected + (metric.baselineFromQ2 ? histBaseline : 0);
 }
 
-export function getProjectionTimeline(snapshots, metric, tq3, q2Rate, histBaseline = 0, calibrationFactor = 1) {
+export function getProjectionTimeline(snapshots, metric, tq3, q2Rate, histBaseline = 0, calibrationFactor = 1, empiricalErrorPct = null) {
   const allHistory = getMetricHistory(snapshots, metric.id);
   if (allHistory.length < 2) return [];
   const result = [];
@@ -189,10 +198,58 @@ export function getProjectionTimeline(snapshots, metric, tq3, q2Rate, histBaseli
     const snapInput = snap.val - histBaseline;
     const pace = computeAdvancedPace(snapInput, tq3.start, tq3.end, q2Rate, pastHistory, histBaseline, new Date(snap.t), calibrationFactor);
     if (pace?.projected != null) {
-      result.push({ t: snap.t, projected: pace.projected + (metric.baselineFromQ2 ? histBaseline : 0) });
+      const add = metric.baselineFromQ2 ? histBaseline : 0;
+      const band = projectionBand(pace, { empiricalErrorPct, current: snapInput });
+      result.push({
+        t: snap.t,
+        projected: pace.projected + add,
+        low:  band ? band.low + add : null,
+        high: band ? band.high + add : null,
+      });
     }
   }
   return result;
+}
+
+// ─── Projection uncertainty band ──────────────────────────────────
+// A low/expected/high range around a projected final, built only from
+// observable signals so it stays honest:
+//   • method disagreement — the simple/rolling/regression sub-projections are
+//     three semi-independent estimates of the same final; how far apart they
+//     sit right now is a direct read on present model uncertainty.
+//   • time remaining — even when the methods agree today, the unmeasured rest
+//     of the quarter leaves room to drift, so the band widens with the fraction
+//     of quarter still to come.
+//   • track record — the metric's own average past miss (avg |percent_error|
+//     from persisted audits, if any) sets an empirical floor that fades out as
+//     the quarter completes and there is less left to be wrong about.
+// The band collapses toward the point estimate as elapsedFraction → 1, and its
+// low end is floored at `current` (a cumulative metric can't end below what is
+// already banked). Returns null when there's no projection to bound.
+const BAND_BASE_VOL = 0.12; // per-remaining-quarter drift assumption, ~12%
+export function projectionBand(pace, { elapsedFraction, empiricalErrorPct = null, current = null } = {}) {
+  if (!pace || !Number.isFinite(pace.projected) || pace.projected <= 0) return null;
+  const proj = pace.projected;
+  const ef = Number.isFinite(elapsedFraction) ? elapsedFraction
+           : Number.isFinite(pace.elapsedFraction) ? pace.elapsedFraction : 0;
+  const remaining = clamp(1 - ef, 0, 1);
+
+  const comps = [pace.components?.simple, pace.components?.rolling, pace.components?.reg]
+    .filter(v => Number.isFinite(v) && v > 0);
+  const spread = comps.length >= 2 ? (Math.max(...comps) - Math.min(...comps)) / proj : 0;
+
+  const empirical = Number.isFinite(empiricalErrorPct) ? Math.abs(empiricalErrorPct) / 100 : 0;
+
+  const relHalf = clamp(
+    spread * 0.6 + remaining * BAND_BASE_VOL + empirical * remaining,
+    0.01, 0.6
+  );
+
+  const half = proj * relHalf;
+  let low = proj - half;
+  if (Number.isFinite(current)) low = Math.max(low, current);
+  low = Math.max(0, low);
+  return { low, expected: proj, high: proj + half, relHalf };
 }
 
 // Flag the points where the projected final jumped sharply and tie each jump
@@ -244,6 +301,108 @@ export function annotateTimelineSpikes(timeline, posts, options = {}) {
       },
     };
   });
+}
+
+// ─── Data-quality / anomaly flags ─────────────────────────────────
+// Surface the conditions that quietly make a projection untrustworthy, so a
+// broken metric announces itself instead of drawing a confident line over bad
+// data. Pure: takes the current quarter's snapshot array, the three-quarter
+// extracted data, the current-quarter meta, and an injectable `now`. Returns
+// [{ metricId, type, severity, message }] (metricId null = page-level).
+export function detectTrendsAnomalies({ snaps, qdata, currentQuarter, now = new Date() } = {}) {
+  const flags = [];
+  if (!currentQuarter) return flags;
+  const complete = now >= currentQuarter.end;
+  const elapsedDays = Math.max(0, (now - currentQuarter.start) / 86400000);
+  const currentData  = Array.isArray(qdata) && qdata.length ? qdata[qdata.length - 1] : null;
+  const previousData = Array.isArray(qdata) && qdata.length >= 2 ? qdata[qdata.length - 2] : null;
+
+  // Staleness: the newest snapshot across all metrics has gone quiet.
+  const allT = (snaps || []).map(s => s.t).filter(Number.isFinite);
+  if (!complete && elapsedDays >= 7 && allT.length) {
+    const ageDays = (now - Math.max(...allT)) / 86400000;
+    if (ageDays >= 2) {
+      flags.push({ metricId: null, type: "stale", severity: "warn",
+        message: `Daily snapshots have paused — the latest is ${Math.floor(ageDays)} days old, so projections may be drifting from reality.` });
+    }
+  }
+
+  for (const metric of METRICS) {
+    if (!metric.isPace) continue;
+    const hist = getMetricHistory(snaps, metric.id);
+
+    // A cumulative total shouldn't fall mid-quarter. Followers can legitimately
+    // dip (unfollows), so skip the baseline-relative metric. Tolerate a tiny
+    // wiggle to avoid flagging rounding noise.
+    if (!metric.baselineFromQ2) {
+      for (let i = 1; i < hist.length; i++) {
+        if (hist[i - 1].val - hist[i].val > Math.max(1, hist[i - 1].val * 0.02)) {
+          flags.push({ metricId: metric.id, type: "backward", severity: "warn",
+            message: `${metric.label} dropped mid-quarter — a cumulative total shouldn't fall, so this is likely a data-entry correction.` });
+          break;
+        }
+      }
+    }
+
+    const cur  = extractMetric(currentData, metric);
+    const prev = extractMetric(previousData, metric);
+
+    // Present last quarter, absent now → can't be projected.
+    if (cur === null && prev !== null) {
+      flags.push({ metricId: metric.id, type: "missing", severity: "warn",
+        message: `${metric.label} has no ${currentQuarter.label} value yet, so it can't be projected this quarter.` });
+      continue;
+    }
+
+    // Well into the quarter but too few snapshots to lean on.
+    if (!complete && elapsedDays >= 14 && cur !== null && hist.length < 4) {
+      flags.push({ metricId: metric.id, type: "thin", severity: "info",
+        message: `${metric.label} has only ${hist.length} snapshot${hist.length === 1 ? "" : "s"} this quarter — its projection rests on thin data.` });
+    }
+  }
+
+  return flags;
+}
+
+// ─── Narrative summary ────────────────────────────────────────────
+// A deterministic, plain-English read of the quarter, stitched from the same
+// signals shown elsewhere on the page (pacing, top post, accuracy, flags). No
+// LLM, no randomness — same inputs always yield the same sentence, so it's safe
+// to put in front of a client. Returns "" when there's nothing worth saying.
+function narrativeCount(n) { return Number.isFinite(n) ? Math.round(n).toLocaleString() : null; }
+export function buildTrendsNarrative({ drivers, pacing, anomalies = [], overallAccuracyPct = null, currentQuarter, elapsedPct = 0, complete = false } = {}) {
+  const parts = [];
+  const ql = currentQuarter?.label ?? "This quarter";
+
+  parts.push(complete ? `${ql} is complete.` : `${ql} is ${Math.round(elapsedPct)}% elapsed.`);
+
+  const [lead, lag] = Array.isArray(pacing) ? pacing : [];
+  if (lead && Number.isFinite(lead.rateVsQ2)) {
+    if (lead.rateVsQ2 >= 0) {
+      const tail = lag && lag.metric.id !== lead.metric.id && Number.isFinite(lag.rateVsQ2) && lag.rateVsQ2 < 0
+        ? `, while ${lag.metric.label} runs ${Math.abs(lag.rateVsQ2).toFixed(0)}% behind`
+        : "";
+      parts.push(`${lead.metric.label} is pacing ${Math.abs(lead.rateVsQ2).toFixed(0)}% ahead of last quarter's rate${tail}.`);
+    } else {
+      parts.push(`Every tracked metric is running below last quarter's rate — ${lead.metric.label} is closest, ${Math.abs(lead.rateVsQ2).toFixed(0)}% behind.`);
+    }
+  }
+
+  const topName = drivers?.topPost?.post_name;
+  if (topName) {
+    const imp = narrativeCount(drivers.topPost.impressions);
+    parts.push(`The most-viewed post so far is “${topName}”${imp ? ` at ${imp} impressions` : ""}.`);
+  }
+
+  if (Number.isFinite(overallAccuracyPct)) {
+    parts.push(`Past projections have landed within ±${overallAccuracyPct.toFixed(1)}% of the final.`);
+  }
+
+  const warns = (anomalies || []).filter(a => a.severity === "warn").length;
+  if (warns) parts.push(`${warns} data-quality ${warns === 1 ? "issue needs" : "issues need"} a look before leaning on the projections.`);
+
+  // A bare elapsed sentence alone isn't worth surfacing.
+  return parts.length > 1 ? parts.join(" ") : "";
 }
 
 // ─── Calibration audit ────────────────────────────────────────────
