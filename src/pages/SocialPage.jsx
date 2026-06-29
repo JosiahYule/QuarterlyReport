@@ -383,7 +383,7 @@ function TopPosts({ data }) {
         ? <EmptyData label="No posts recorded this quarter." />
         : (
           <div className="table-wrap">
-            <table className="table">
+            <table className="table table--stack">
               <thead>
                 <tr>
                   <th scope="col">Post</th>
@@ -406,9 +406,9 @@ function TopPosts({ data }) {
                         </span>
                         <div className="campaign-chan">{p.Platforms || "—"}</div>
                       </td>
-                      <td className="r num">{fmtExact(impressions)}</td>
-                      <td className="r num">{fmtExact(engagements)}</td>
-                      <td className="r num" style={{ color: engRate >= 5 ? "var(--up)" : "var(--ink)" }}>
+                      <td className="r num" data-label="Impressions">{fmtExact(impressions)}</td>
+                      <td className="r num" data-label="Engagements">{fmtExact(engagements)}</td>
+                      <td className="r num" data-label="Eng. Rate" style={{ color: engRate >= 5 ? "var(--up)" : "var(--ink)" }}>
                         {engRate.toFixed(2)}%
                       </td>
                     </tr>
@@ -611,7 +611,7 @@ function AllPosts({ data }) {
       {view === "list" ? (
         <div className="all-posts-list-wrap">
           {posts.length === 0 && <EmptyData label="No posts match your search or filter." />}
-          <table className="table">
+          <table className="table table--wide">
             <thead>
               <tr>
                 <th scope="col">Post</th>

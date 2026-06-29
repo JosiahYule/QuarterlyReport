@@ -175,7 +175,7 @@ export function AppNav({ agency, view, quarter, onNavigate }) {
               aria-expanded={agencyOpen}
               aria-label={`Current agency: ${cfg.name}. Activate to switch.`}
             >
-              {cfg.name}
+              <span className="app-nav-agency-name">{cfg.name}</span>
               <span className="app-nav-caret" aria-hidden="true"><IconCaret /></span>
             </button>
             {agencyOpen && (

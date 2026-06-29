@@ -134,14 +134,17 @@
   .app-nav-left  { display: flex; align-items: center; gap: 24px; min-width: 0; }
   .app-nav-right { display: flex; align-items: center; gap: 18px; flex-shrink: 0; }
 
-  .app-nav-agency { position: relative; }
+  .app-nav-agency { position: relative; min-width: 0; display: flex; align-items: center; }
   .app-nav-agency-btn {
     display: inline-flex; align-items: baseline; gap: 5px;
     font-family: var(--serif); font-size: 20px; line-height: 1;
     letter-spacing: -0.02em; color: var(--ink);
-    white-space: nowrap;
+    white-space: nowrap; min-width: 0;
     transition: opacity .15s ease;
   }
+  /* Let the agency name ellipsize so a long name can never push the view
+     tabs off-screen; the tabs hold their width instead. */
+  .app-nav-agency-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .app-nav-agency-btn:hover { opacity: 0.7; }
   .app-nav-agency-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
   .app-nav-caret {
@@ -175,7 +178,7 @@
 
   .app-nav-divider { width: 1px; height: 18px; background: var(--rule); flex-shrink: 0; }
 
-  .app-nav-tabs { display: flex; gap: 24px; }
+  .app-nav-tabs { display: flex; gap: 24px; flex-shrink: 0; }
   .app-nav-tabs button {
     font-size: 13px; color: var(--ink-3);
     position: relative; padding: 4px 0;
@@ -725,19 +728,50 @@
   .app-nav-range   { display: none; }
   .app-nav-divider { display: none; }
   .app-nav-agency-btn { font-size: 15px; }
-  .app-nav-left  { gap: 14px; }
+  .app-nav-left  { gap: 12px; min-width: 0; }
+  .app-nav-tabs  { gap: 16px; }
+  .app-nav-tabs button { font-size: 12px; }
   .qchooser      { padding: 5px 10px; }
 
   .hero-b-top  { flex-direction: column; align-items: flex-start; gap: 12px; }
   .hero-b-q    { font-size: 34px; }
-  .hero-b-note { font-size: 17px; }
+  .hero-b-note { font-size: 17px; margin-bottom: 8px; }
 
   .trend-legend { flex-wrap: wrap; row-gap: 12px; }
   .colophon     { padding-bottom: 40px; }
 
-  .proj-grid { grid-template-columns: 1fr; }
+  /* Stacked cards collapse to one column; tighten the row gap so a phone
+     isn't mostly empty bands between cards. */
+  .proj-grid { grid-template-columns: 1fr; row-gap: 28px; column-gap: 0; }
 
   .calendar-grid-unknown { grid-template-columns: 1fr; }
+
+  /* Reflow showcase tables (Top Posts) into stacked, labelled blocks so the
+     header row can't collide and nothing overflows off-screen. */
+  .table--stack thead { display: none; }
+  .table--stack tbody tr {
+    display: block; padding: 18px 0; border-bottom: 1px solid var(--rule);
+  }
+  .table--stack tbody tr:first-child { border-top: 1px solid var(--ink); }
+  .table--stack tbody td { display: block; padding: 0; border: 0; }
+  .table--stack tbody td.r {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--rule-soft);
+    text-align: left; font-size: 16px;
+  }
+  .table--stack tbody td.r::before {
+    content: attr(data-label);
+    font-family: var(--sans); font-size: 10px; font-weight: 500;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3);
+  }
+}
+
+/* Dense, sortable tables (All Posts) keep their columns but scroll
+   horizontally inside their wrapper instead of squeezing until the headers
+   overlap — `.table { width: 100% }` otherwise defeats the wrapper's
+   overflow-x. */
+@media (max-width: 720px) {
+  .table--wide { min-width: 680px; }
 }
 
 /* ── Small phone (≤480px) ───────────────────────────────────── */
@@ -745,8 +779,11 @@
   :root { --pad-y: 40px; }
 
   .wrap, .report-wrap { padding: 0 16px; }
-  .app-nav-agency-btn { font-size: 14px; letter-spacing: -0.01em; }
-  .app-nav-left  { gap: 12px; }
+  .app-nav-row   { gap: 12px; }
+  .app-nav-agency-btn { font-size: 13px; letter-spacing: -0.01em; }
+  .app-nav-left  { gap: 10px; }
+  .app-nav-tabs  { gap: 13px; }
+  .app-nav-tabs button { font-size: 12px; }
   .qchooser      { padding: 5px 8px; font-size: 12px; }
 
   .kpi-grid  { column-gap: 16px; row-gap: 32px; }
