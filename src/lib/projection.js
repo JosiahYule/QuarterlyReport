@@ -323,7 +323,7 @@ export function detectTrendsAnomalies({ snaps, qdata, currentQuarter, now = new 
     const ageDays = (now - Math.max(...allT)) / 86400000;
     if (ageDays >= 2) {
       flags.push({ metricId: null, type: "stale", severity: "warn",
-        message: `Daily snapshots have paused — the latest is ${Math.floor(ageDays)} days old, so projections may be drifting from reality.` });
+        message: `Daily snapshots have paused. The latest is ${Math.floor(ageDays)} days old, so projections may be drifting from reality.` });
     }
   }
 
@@ -338,7 +338,7 @@ export function detectTrendsAnomalies({ snaps, qdata, currentQuarter, now = new 
       for (let i = 1; i < hist.length; i++) {
         if (hist[i - 1].val - hist[i].val > Math.max(1, hist[i - 1].val * 0.02)) {
           flags.push({ metricId: metric.id, type: "backward", severity: "warn",
-            message: `${metric.label} dropped mid-quarter — a cumulative total shouldn't fall, so this is likely a data-entry correction.` });
+            message: `${metric.label} dropped mid-quarter. A cumulative total shouldn't fall, so this is likely a data-entry correction.` });
           break;
         }
       }
@@ -357,7 +357,7 @@ export function detectTrendsAnomalies({ snaps, qdata, currentQuarter, now = new 
     // Well into the quarter but too few snapshots to lean on.
     if (!complete && elapsedDays >= 14 && cur !== null && hist.length < 4) {
       flags.push({ metricId: metric.id, type: "thin", severity: "info",
-        message: `${metric.label} has only ${hist.length} snapshot${hist.length === 1 ? "" : "s"} this quarter — its projection rests on thin data.` });
+        message: `${metric.label} has only ${hist.length} snapshot${hist.length === 1 ? "" : "s"} this quarter, so its projection rests on thin data.` });
     }
   }
 
@@ -384,7 +384,7 @@ export function buildTrendsNarrative({ drivers, pacing, anomalies = [], overallA
         : "";
       parts.push(`${lead.metric.label} is pacing ${Math.abs(lead.rateVsQ2).toFixed(0)}% ahead of last quarter's rate${tail}.`);
     } else {
-      parts.push(`Every tracked metric is running below last quarter's rate — ${lead.metric.label} is closest, ${Math.abs(lead.rateVsQ2).toFixed(0)}% behind.`);
+      parts.push(`Every tracked metric is running below last quarter's rate. ${lead.metric.label} is closest, ${Math.abs(lead.rateVsQ2).toFixed(0)}% behind.`);
     }
   }
 
