@@ -506,12 +506,23 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
     wowCls = delta >= 0 ? "pos" : "neg";
   }
 
-  // Track record: average absolute miss across persisted past-quarter audits
-  // for this metric, so the calibration correction isn't an invisible
-  // multiplier — you can see how accurate it's actually been.
+  // Track record: average absolute miss across persisted past-quarter audits.
+  // Stays absent (rather than showing a "—") until at least one prior quarter
+  // has been audited, so a fresh dashboard doesn't read as unfinished.
   const trackRecordVal = errors.length
     ? `±${avgAbsErr.toFixed(1)}% · ${errors.length}Q`
     : "—";
+
+  // Build the stat rows, then drop any that have no value yet ("—"). Early in a
+  // quarter the rate-derived stats and the past-accuracy row simply aren't
+  // there; the card fills in as data accrues instead of showing empty dashes.
+  const stats = [
+    { label: stat1Label,              value: stat1Val },
+    { label: "Daily Rate",            value: stat2Val,      cls: "rate" },
+    { label: `Rate vs ${tq2.label}`,  value: stat3Val,      cls: stat3Cls },
+    { label: "vs Last Week",          value: wowVal,        cls: wowCls },
+    { label: "Past Accuracy",         value: trackRecordVal },
+  ].filter(s => s.value !== "—");
 
   return (
     <div className="proj-card">
@@ -524,26 +535,12 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
         </div>
       )}
       <div className="proj-stats-grid">
-        <div className="proj-stat">
-          <div className="proj-stat-label">{stat1Label}</div>
-          <div className="proj-stat-value">{stat1Val}</div>
-        </div>
-        <div className="proj-stat">
-          <div className="proj-stat-label">Daily Rate</div>
-          <div className="proj-stat-value rate">{stat2Val}</div>
-        </div>
-        <div className="proj-stat">
-          <div className="proj-stat-label">Rate vs {tq2.label}</div>
-          <div className={"proj-stat-value " + stat3Cls}>{stat3Val}</div>
-        </div>
-        <div className="proj-stat">
-          <div className="proj-stat-label">vs Last Week</div>
-          <div className={"proj-stat-value " + wowCls}>{wowVal}</div>
-        </div>
-        <div className="proj-stat">
-          <div className="proj-stat-label">Past Accuracy</div>
-          <div className="proj-stat-value">{trackRecordVal}</div>
-        </div>
+        {stats.map(s => (
+          <div className="proj-stat" key={s.label}>
+            <div className="proj-stat-label">{s.label}</div>
+            <div className={"proj-stat-value" + (s.cls ? " " + s.cls : "")}>{s.value}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -776,6 +773,12 @@ export function TrendsPage({ agency, onReady }) {
   const q3comp = quarterCompletion(q3);
   const q3done = quarterComplete(q3);
 
+  // Projections only begin once the quarter is a week in (computeAdvancedPace
+  // returns null before day 7). Until then the cards show current totals, so
+  // the section explains the wait rather than looking half-empty.
+  const q3DaysElapsed = q3comp * ((q3.end - q3.start) / 86400000);
+  const preProjection = !q3done && q3DaysElapsed < 7;
+
   const pacingRanked = METRICS
     .map(m => ({ metric: m, rateVsQ2: computeMetricRateVsQ2(m, qdata, snapsByQuarter[q3.suffix] ?? [], TRENDS_QUARTERS[1], q3, calibrationFactors[m.id]) }))
     .filter(r => Number.isFinite(r.rateVsQ2))
@@ -802,7 +805,9 @@ export function TrendsPage({ agency, onReady }) {
         <section id="projections" className="section wrap">
           <header className="section-head">
             <h2 className="section-title serif">{TRENDS_QUARTERS[2].label} Projected <em>Finals</em></h2>
-            <p className="section-sub">Estimated end-of-quarter totals based on observed daily rate × total quarter days.</p>
+            <p className="section-sub">{preProjection
+              ? "Projections begin after the first week, once a few daily snapshots have accrued. Showing current totals so far."
+              : "Estimated end-of-quarter totals based on observed daily rate × total quarter days."}</p>
           </header>
           <div className="proj-grid">
             {METRICS.map(m => (
