@@ -360,75 +360,64 @@ function Platforms({ data }) {
 }
 
 // ─── Top Posts ────────────────────────────────────────────────────
+// The three highest-reach posts this quarter, derived automatically from the
+// full post log (social_posts) rather than a hand-curated list. Ranked by
+// impressions, with engagements as the tiebreaker. Posts are cross-posted
+// across platforms, so this is an overall ranking rather than per-platform.
 function TopPosts({ data }) {
-  const ALL_PLATFORMS = [
-    { key: "linkedin",  label: "LinkedIn" },
-    { key: "facebook",  label: "Facebook" },
-    { key: "instagram", label: "Instagram" },
-  ];
-  const PLATFORMS = ALL_PLATFORMS.filter(pt => (data.topPostsByPlatform[pt.key] || []).length > 0);
-  const defaultPlatform = (PLATFORMS[0] || ALL_PLATFORMS[0]).key;
-  const [platform, setPlatform] = useState(defaultPlatform);
-  const posts = data.topPostsByPlatform[platform] || [];
+  const topPosts = useMemo(() => {
+    return (data.allPosts || [])
+      .filter(p => Number.isFinite(p.Impressions))
+      .slice()
+      .sort((a, b) => (b.Impressions - a.Impressions) || ((b.Engagements || 0) - (a.Engagements || 0)))
+      .slice(0, 3);
+  }, [data.allPosts]);
 
   return (
     <section id="top-posts" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Top <em>Posts</em></h2>
+        <p className="section-sub">The three highest-reach posts this quarter, pulled automatically from the full post log.</p>
       </header>
-      <div className="platform-tabs" role="tablist" aria-label="Platform">
-        {PLATFORMS.map(pt => (
-          <button
-            key={pt.key}
-            role="tab"
-            aria-selected={platform === pt.key}
-            aria-controls={`top-posts-panel-${pt.key}`}
-            id={`top-posts-tab-${pt.key}`}
-            className={"platform-tab serif" + (platform === pt.key ? " is-active" : "")}
-            onClick={() => setPlatform(pt.key)}
-          >
-            {pt.label}
-          </button>
-        ))}
-      </div>
-      <div
-        role="tabpanel"
-        id={`top-posts-panel-${platform}`}
-        aria-labelledby={`top-posts-tab-${platform}`}
-      >
-        {posts.length === 0 && <EmptyData label="No top posts recorded for this platform." />}
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th scope="col">Post</th>
-                <th scope="col" className="r">Impressions</th>
-                <th scope="col" className="r">Engagements</th>
-                <th scope="col" className="r">Eng. Rate</th>
-              </tr>
-            </thead>
-            <tbody>
-              {posts.map((c, i) => {
-                const engagements = (c.likes || 0) + (c.shares || 0);
-                const engRate = c.impressions > 0 ? engagements / c.impressions * 100 : 0;
-                return (
-                  <tr key={c.title + i}>
-                    <td>
-                      <span className="campaign-name serif">{c.title}</span>
-                      <div className="campaign-chan">{platform}</div>
-                    </td>
-                    <td className="r num">{fmtExact(c.impressions)}</td>
-                    <td className="r num">{fmtExact(engagements)}</td>
-                    <td className="r num" style={{ color: engRate >= 5 ? "var(--up)" : "var(--ink)" }}>
-                      {engRate.toFixed(2)}%
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {topPosts.length === 0
+        ? <EmptyData label="No posts recorded this quarter." />
+        : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th scope="col">Post</th>
+                  <th scope="col" className="r">Impressions</th>
+                  <th scope="col" className="r">Engagements</th>
+                  <th scope="col" className="r">Eng. Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topPosts.map((p, i) => {
+                  const impressions = p.Impressions || 0;
+                  const engagements = p.Engagements || 0;
+                  const engRate = impressions > 0 ? engagements / impressions * 100 : 0;
+                  const name = p["Post Name"] || "Untitled post";
+                  return (
+                    <tr key={name + i}>
+                      <td>
+                        <span className="campaign-name serif">
+                          {p.URL ? <a href={p.URL} target="_blank" rel="noreferrer">{name}</a> : name}
+                        </span>
+                        <div className="campaign-chan">{p.Platforms || "—"}</div>
+                      </td>
+                      <td className="r num">{fmtExact(impressions)}</td>
+                      <td className="r num">{fmtExact(engagements)}</td>
+                      <td className="r num" style={{ color: engRate >= 5 ? "var(--up)" : "var(--ink)" }}>
+                        {engRate.toFixed(2)}%
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
     </section>
   );
 }
