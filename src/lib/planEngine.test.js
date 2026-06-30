@@ -9,17 +9,20 @@ import {
 } from "./planEngine.js";
 
 describe("classifyPost", () => {
-  it("matches job-posting keywords", () => {
-    expect(classifyPost({ post_name: "We're hiring a Payroll Clerk!" })).toBe("job_posting");
+  it("uses the Notes field as the post type when present", () => {
+    expect(classifyPost({ post_name: "Friday update", notes: "job posting" })).toEqual({ key: "job posting", label: "Job Posting" });
   });
-  it("matches keywords in notes when the title doesn't", () => {
-    expect(classifyPost({ post_name: "Friday update", notes: "client testimonial from ABC Co." })).toBe("client_story");
+  it("trims and title-cases the notes-derived type", () => {
+    expect(classifyPost({ post_name: "x", notes: "  client testimonial  " })).toEqual({ key: "client testimonial", label: "Client Testimonial" });
   });
-  it("falls back to other when nothing matches", () => {
-    expect(classifyPost({ post_name: "Just a regular post" })).toBe("other");
+  it("falls back to keyword matching on the post name when notes is empty", () => {
+    expect(classifyPost({ post_name: "We're hiring a Payroll Clerk!", notes: "" })).toEqual({ key: "job posting", label: "Job Posting" });
   });
-  it("is case-insensitive", () => {
-    expect(classifyPost({ post_name: "NOW HIRING for our Halifax branch" })).toBe("job_posting");
+  it("falls back to other when nothing matches and notes is empty", () => {
+    expect(classifyPost({ post_name: "Just a regular post" })).toEqual({ key: "other", label: "Other" });
+  });
+  it("fallback keyword match is case-insensitive", () => {
+    expect(classifyPost({ post_name: "NOW HIRING for our Halifax branch" })).toEqual({ key: "job posting", label: "Job Posting" });
   });
 });
 
@@ -68,9 +71,20 @@ describe("buildPlanSuggestion", () => {
     const plan = buildPlanSuggestion(posts, { now: new Date(2026, 5, 1) });
     expect(plan.status).toBe("ready");
     expect(plan.sampleSize).toBe(6);
-    expect(plan.bestType.key).toBe("job_posting");
+    expect(plan.bestType.key).toBe("job posting");
     expect(plan.bestDay.name).toBe("Monday");
     expect(plan.confidence).toBe("high");
+  });
+
+  it("groups by the Notes field directly when posts have it set", () => {
+    const posts = [
+      post("Now hiring A", "2026-06-01", 1000, 200, "Job Posting"),
+      post("Now hiring B", "2026-06-08", 1000, 220, "job posting"),
+      post("Now hiring C", "2026-06-15", 1000, 180, "  job posting  "),
+    ];
+    const plan = buildPlanSuggestion(posts);
+    expect(plan.typeBreakdown).toHaveLength(1);
+    expect(plan.typeBreakdown[0]).toMatchObject({ key: "job posting", label: "Job Posting", count: 3 });
   });
 
   it("excludes buckets below MIN_SAMPLE_SIZE from 'best of' picks", () => {
@@ -82,7 +96,7 @@ describe("buildPlanSuggestion", () => {
     ];
     expect(MIN_SAMPLE_SIZE).toBeGreaterThan(1);
     const plan = buildPlanSuggestion(posts);
-    expect(plan.bestType?.key).not.toBe("job_posting");
+    expect(plan.bestType?.key).not.toBe("job posting");
   });
 
   it("flags today's bucket when today matches the best day", () => {
