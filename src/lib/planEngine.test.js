@@ -119,43 +119,73 @@ describe("buildPlanSuggestion", () => {
 });
 
 describe("buildWeekPlan", () => {
+  const NOW = { now: new Date(2026, 5, 15) };
+
   it("returns one entry per weekday, Monday–Friday", () => {
-    const week = buildWeekPlan([]);
+    const week = buildWeekPlan([], NOW);
     expect(week).toHaveLength(5);
     expect(week.map(d => d.dayName)).toEqual(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]);
     expect(WEEKDAYS).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it("picks the best content type for each specific day", () => {
+  it("reserves exactly two job-ad days (perm + contract), even when job ads win more days", () => {
     const posts = [
-      // Mondays: two job postings beat one company update
-      post("Hiring 1", "2026-03-02", 1000, 200, "job posting"),
-      post("Hiring 2", "2026-03-09", 1000, 220, "job posting"),
-      post("Update 1", "2026-03-16", 1000, 50, "company update"),
-      // Tuesdays: testimonials
-      post("Story 1", "2026-03-03", 1000, 300, "testimonial"),
-      post("Story 2", "2026-03-10", 1000, 280, "testimonial"),
+      // Job ads perform best on Mon > Tue > Wed (3 strong job days)
+      post("Hiring Mon 1", "2026-06-01", 1000, 300, "job posting"),
+      post("Hiring Mon 2", "2026-06-08", 1000, 300, "job posting"),
+      post("Hiring Tue 1", "2026-06-02", 1000, 250, "job posting"),
+      post("Hiring Tue 2", "2026-06-09", 1000, 250, "job posting"),
+      post("Hiring Wed 1", "2026-06-03", 1000, 150, "job posting"),
+      post("Hiring Wed 2", "2026-06-10", 1000, 150, "job posting"),
+      // Other content on Thu (testimonial) and Fri (tips)
+      post("Story Thu 1", "2026-06-04", 1000, 280, "testimonial"),
+      post("Story Thu 2", "2026-06-11", 1000, 280, "testimonial"),
+      post("Tips Fri 1", "2026-06-05", 1000, 200, "tips"),
+      post("Tips Fri 2", "2026-06-12", 1000, 200, "tips"),
     ];
-    const week = buildWeekPlan(posts);
-    const mon = week.find(d => d.dayName === "Monday");
-    const tue = week.find(d => d.dayName === "Tuesday");
-    expect(mon.bestType.label).toBe("Job Posting");
-    expect(mon.confident).toBe(true);
-    expect(tue.bestType.label).toBe("Testimonial");
+    const week = buildWeekPlan(posts, NOW);
+    const jobDays = week.filter(d => d.slot === "job");
+    expect(jobDays).toHaveLength(2); // capped at 2 despite 3 strong job days
+    // The two best job days are Monday and Tuesday, labeled in weekday order.
+    expect(jobDays.map(d => d.dayName)).toEqual(["Monday", "Tuesday"]);
+    expect(jobDays.map(d => d.roleLabel)).toEqual(["Permanent", "Contract"]);
+    // The content days carry the non-job types.
+    expect(week.find(d => d.dayName === "Thursday").bestType.label).toBe("Testimonial");
+    expect(week.find(d => d.dayName === "Friday").bestType.label).toBe("Tips");
   });
 
-  it("returns bestType null for days with no posts", () => {
-    const posts = [post("Hiring", "2026-03-02", 1000, 200, "job posting")]; // Monday only
-    const week = buildWeekPlan(posts);
-    expect(week.find(d => d.dayName === "Wednesday").bestType).toBeNull();
+  it("fills the non-job days with distinct content types for diversity", () => {
+    const posts = [
+      // Job ads only on Monday
+      post("Hiring 1", "2026-06-01", 1000, 300, "job posting"),
+      post("Hiring 2", "2026-06-08", 1000, 300, "job posting"),
+      // Testimonials best on both Tue and Wed; diversity should still spread types
+      post("Story Tue", "2026-06-02", 1000, 320, "testimonial"),
+      post("Story Tue2", "2026-06-09", 1000, 320, "testimonial"),
+      post("Story Wed", "2026-06-03", 1000, 300, "testimonial"),
+      post("Story Wed2", "2026-06-10", 1000, 300, "testimonial"),
+      post("Tips Wed", "2026-06-17", 1000, 120, "tips"),
+      post("Tips Wed2", "2026-06-24", 1000, 120, "tips"),
+    ];
+    const week = buildWeekPlan(posts, NOW);
+    const contentLabels = week.filter(d => d.slot === "content" && d.bestType).map(d => d.bestType.label);
+    // No content type is used twice across the non-job days.
+    expect(new Set(contentLabels).size).toBe(contentLabels.length);
+    expect(contentLabels).toContain("Testimonial");
+    expect(contentLabels).toContain("Tips");
   });
 
-  it("still surfaces a leading type below minPerCell but flags it not confident", () => {
-    const posts = [post("Hiring", "2026-03-02", 1000, 200, "job posting")]; // one Monday post
-    const week = buildWeekPlan(posts, { minPerCell: 2 });
-    const mon = week.find(d => d.dayName === "Monday");
-    expect(mon.bestType.label).toBe("Job Posting");
-    expect(mon.confident).toBe(false);
+  it("suggests fresh content (null) on a content day with no history", () => {
+    const posts = [
+      post("Hiring 1", "2026-06-01", 1000, 300, "job posting"),
+      post("Hiring 2", "2026-06-08", 1000, 300, "job posting"),
+      post("Story Tue", "2026-06-02", 1000, 280, "testimonial"),
+      post("Story Tue2", "2026-06-09", 1000, 280, "testimonial"),
+    ];
+    const week = buildWeekPlan(posts, NOW);
+    // Friday has no content history → no specific suggestion.
+    const friday = week.find(d => d.dayName === "Friday");
+    expect(friday.slot === "content" ? friday.bestType : "(job day)").toBeNull();
   });
 });
 
@@ -231,6 +261,18 @@ describe("buildContentMix", () => {
 
   it("returns empty rows with no posts", () => {
     expect(buildContentMix([]).rows).toEqual([]);
+  });
+
+  it("weights recent posts more heavily in a type's engagement rate", () => {
+    // An old weak post and a recent strong post of the same type.
+    const posts = [
+      post("Old blog", "2026-01-01", 1000, 50,  "blog"), // 5%, ~5.5 months old
+      post("New blog", "2026-06-15", 1000, 300, "blog"), // 30%, recent
+    ];
+    const flat     = buildContentMix(posts, { now: null }).rows[0];           // no weighting
+    const weighted = buildContentMix(posts, { now: new Date(2026, 5, 20) }).rows[0];
+    expect(flat.avgEngagementRate).toBeCloseTo(0.175, 3);   // plain impression-weighted mean
+    expect(weighted.avgEngagementRate).toBeGreaterThan(0.25); // pulled toward the recent 30%
   });
 });
 
