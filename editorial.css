@@ -1209,9 +1209,23 @@
 .admin-plan-perf-meta { font-size: 11px; color: var(--ink-3); }
 .admin-plan-perf-rate { font-size: 13px; font-weight: 500; color: var(--ink); white-space: nowrap; }
 
+/* Planner */
+.admin-planner-add     { display: grid; grid-template-columns: 1fr 180px 160px auto; gap: 8px; margin-bottom: 10px; }
+.admin-planner-quickadd{ margin-bottom: 12px; }
+.admin-planner-list    { list-style: none; margin: 8px 0 0; padding: 0; }
+.admin-planner-row     { display: grid; grid-template-columns: 120px 1fr 180px 160px auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--rule-soft); }
+.admin-planner-row:last-child { border-bottom: none; }
+.admin-planner-row.is-posted .admin-planner-idea { text-decoration: line-through; color: var(--ink-4); }
+.admin-planner-status  { font-size: 12px; }
+.admin-planner-row.is-planned .admin-planner-status { color: var(--accent); }
+.admin-planner-row.is-posted  .admin-planner-status { color: var(--up); }
+
 @media (max-width: 720px) {
   .admin-plan-scorecard { grid-template-columns: repeat(2, 1fr); }
   .admin-plan-perf-grid { grid-template-columns: 1fr; gap: 20px; }
+  .admin-planner-add    { grid-template-columns: 1fr 1fr; }
+  .admin-planner-row    { grid-template-columns: 100px 1fr auto; }
+  .admin-planner-type, .admin-planner-date { display: none; }
 }
 
 /* Save bar */

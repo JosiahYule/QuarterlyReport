@@ -32,6 +32,10 @@ const FALLBACK_CATEGORIES = [
 ];
 const OTHER_LABEL = "Other";
 
+// The known content-type vocabulary, exposed so the planner's type picker
+// offers the same labels the classifier uses (free text is still allowed).
+export const SUGGESTED_CONTENT_TYPES = [...FALLBACK_CATEGORIES.map(c => c.label), OTHER_LABEL];
+
 function titleCase(s) {
   return s.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
 }
