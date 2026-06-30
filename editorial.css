@@ -1173,6 +1173,47 @@
 .admin-plan-today-tag { display: inline-block; margin-left: 8px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 99px; padding: 1px 7px; vertical-align: middle; }
 .admin-plan-nodata { color: var(--ink-4); font-style: italic; }
 
+/* Scorecard */
+.admin-plan-scorecard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.admin-plan-stat      { display: flex; flex-direction: column; gap: 3px; padding: 14px 16px; border: 1px solid var(--rule-soft); background: var(--paper-2); }
+.admin-plan-stat-label{ font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
+.admin-plan-stat-value{ font-size: 24px; font-weight: 500; color: var(--ink); line-height: 1.1; }
+.admin-plan-delta     { font-size: 12px; }
+.admin-plan-delta.is-up   { color: var(--up); }
+.admin-plan-delta.is-down { color: var(--down); }
+.admin-plan-delta.is-flat { color: var(--ink-4); }
+
+/* Cadence */
+.admin-plan-cadence       { border: 1px solid var(--rule-soft); }
+.admin-plan-cadence.is-dark{ border-color: var(--down); }
+.admin-plan-cadence-alert { padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--down); border-bottom: 1px solid var(--rule-soft); background: rgba(180, 40, 40, 0.05); }
+.admin-plan-cadence-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 14px 16px; }
+
+/* Content-mix flags */
+.admin-plan-flag      { display: inline-block; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; padding: 2px 9px; border-radius: 99px; }
+.admin-plan-flag.is-opp  { color: var(--up);   border: 1px solid var(--up); }
+.admin-plan-flag.is-over { color: #7a5c00;     border: 1px solid rgba(122, 92, 0, 0.35); }
+
+/* Performers */
+.admin-plan-perf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.admin-plan-perf-head { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 8px; }
+.admin-plan-perf-head.is-up   { color: var(--up); }
+.admin-plan-perf-head.is-down { color: var(--down); }
+.admin-plan-perf-list { list-style: none; margin: 0; padding: 0; }
+.admin-plan-perf-row  { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--rule-soft); }
+.admin-plan-perf-row:last-child { border-bottom: none; }
+.admin-plan-perf-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-plan-perf-name { font-size: 13px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-plan-perf-name a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--rule); }
+.admin-plan-perf-name a:hover { border-bottom-color: var(--ink); }
+.admin-plan-perf-meta { font-size: 11px; color: var(--ink-3); }
+.admin-plan-perf-rate { font-size: 13px; font-weight: 500; color: var(--ink); white-space: nowrap; }
+
+@media (max-width: 720px) {
+  .admin-plan-scorecard { grid-template-columns: repeat(2, 1fr); }
+  .admin-plan-perf-grid { grid-template-columns: 1fr; gap: 20px; }
+}
+
 /* Save bar */
 .admin-save-bar  { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding: 14px 0; border-top: 1px solid var(--rule-soft); margin-top: 32px; background: var(--paper); }
 .admin-save-msg  { font-size: 13px; color: var(--up); }

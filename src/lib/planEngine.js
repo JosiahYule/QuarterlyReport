@@ -174,6 +174,149 @@ export function buildWeekPlan(posts, { minPerCell = 2 } = {}) {
   });
 }
 
+// ─── Hub modules ────────────────────────────────────────────────────
+// The pieces below turn the Plan tab into a manager's command center.
+// All are pure reads over the same post log — no LLM, no persistence.
+const DAY_MS = 86400000;
+
+function dateToLocalTs(dateStr) {
+  if (typeof dateStr !== "string") return null;
+  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const t = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
+function startOfDay(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+// Roll up a set of posts into headline totals. Shared by the scorecard and
+// content-mix modules so they agree on what "this quarter" adds up to.
+function aggregate(posts) {
+  const valid = (posts || []).filter(p => p.post_date && Number(p.impressions) > 0);
+  const impressions = valid.reduce((a, p) => a + (Number(p.impressions) || 0), 0);
+  const engagements = valid.reduce((a, p) => a + (Number(p.engagements) || 0), 0);
+  return { postCount: valid.length, impressions, engagements, rate: engagementRate(impressions, engagements) };
+}
+
+function relDelta(cur, prev) {
+  return Number.isFinite(cur) && Number.isFinite(prev) && prev > 0 ? ((cur - prev) / prev) * 100 : null;
+}
+
+// Scorecard — this quarter's headline numbers, each with a quarter-over-
+// quarter delta so momentum reads at a glance. delta is null when there's
+// no comparable prior-quarter figure (so the UI shows no arrow rather than
+// a misleading one).
+export function buildScorecard(currentPosts, prevPosts) {
+  const cur = aggregate(currentPosts);
+  const prev = aggregate(prevPosts);
+  return {
+    hasPrev: prev.postCount > 0,
+    metrics: [
+      { key: "posts",       label: "Posts",           value: cur.postCount,   delta: relDelta(cur.postCount, prev.postCount),     format: "int" },
+      { key: "engagement",  label: "Avg. engagement", value: cur.rate,        delta: relDelta(cur.rate, prev.rate),               format: "pct" },
+      { key: "impressions", label: "Impressions",     value: cur.impressions, delta: relDelta(cur.impressions, prev.impressions), format: "int" },
+      { key: "engagements", label: "Engagements",     value: cur.engagements, delta: relDelta(cur.engagements, prev.engagements), format: "int" },
+    ],
+  };
+}
+
+// Cadence — how consistently posts are going out within a quarter window.
+// quarterStart/quarterEnd (Date objects) bound the posts-per-week pace to
+// the quarter being viewed; without them it falls back to first-post→today.
+// daysSinceLast and the "gone dark" flag are measured against today (clamped
+// to the quarter end, so a past quarter reports how early posting tailed off
+// rather than how long ago the quarter was).
+export function buildCadence(posts, { now = new Date(), quarterStart = null, quarterEnd = null, darkThreshold = 7 } = {}) {
+  const times = (posts || [])
+    .map(p => (p.post_date ? dateToLocalTs(p.post_date) : null))
+    .filter(t => t !== null)
+    .sort((a, b) => a - b);
+  if (!times.length) return { status: "empty" };
+
+  const today = startOfDay(now);
+  const last = times[times.length - 1];
+  const endClamp = quarterEnd ? Math.min(today, startOfDay(new Date(quarterEnd.getTime() - DAY_MS))) : today;
+  const refDay = Math.max(endClamp, last); // never before the most recent post
+  const startTs = quarterStart ? startOfDay(quarterStart) : times[0];
+
+  const daysSinceLast = Math.max(0, Math.round((refDay - last) / DAY_MS));
+  const spanDays = Math.max(1, Math.round((refDay - startTs) / DAY_MS) + 1);
+  const postsPerWeek = times.length / Math.max(1, spanDays / 7);
+
+  let largestGap = 0;
+  for (let i = 1; i < times.length; i++) {
+    largestGap = Math.max(largestGap, Math.round((times[i] - times[i - 1]) / DAY_MS));
+  }
+
+  return {
+    status: "ready",
+    postCount: times.length,
+    daysSinceLast,
+    postsPerWeek,
+    largestGap,
+    goneDark: daysSinceLast >= darkThreshold,
+  };
+}
+
+// Content mix — share of volume vs. share of performance, per type. Flags
+// where the two diverge: a type that out-performs the overall rate but is
+// rarely posted is an "opportunity" (post more); one that's posted a lot but
+// under-performs is "overinvested" (ease off). Thresholds are deliberately
+// loose so only clear divergences get a call-out.
+export const MIX_OUTPERFORM   = 1.15; // ≥15% above the overall rate
+export const MIX_UNDERPERFORM = 0.85; // ≤15% below the overall rate
+export const MIX_HIGH_SHARE   = 0.33; // a third or more of all posts = a major chunk
+export const MIX_LOW_SHARE    = 0.25; // a quarter or less = a minority you could lean into
+
+export function buildContentMix(posts) {
+  const valid = (posts || []).filter(p => p.post_date && Number(p.impressions) > 0);
+  if (!valid.length) return { rows: [], overallRate: null };
+  const total = valid.length;
+  const overallRate = aggregate(valid).rate;
+  const rows = groupAndScore(valid, classifyPost).sort(byRateDesc).map(t => {
+    const share = t.count / total;
+    const vsOverall = overallRate && t.avgEngagementRate != null ? t.avgEngagementRate / overallRate : null;
+    let flag = "balanced";
+    if (vsOverall != null) {
+      if (vsOverall >= MIX_OUTPERFORM && share <= MIX_LOW_SHARE) flag = "opportunity";
+      else if (vsOverall <= MIX_UNDERPERFORM && share >= MIX_HIGH_SHARE) flag = "overinvested";
+    }
+    return { key: t.key, label: t.label, count: t.count, share, avgEngagementRate: t.avgEngagementRate, vsOverall, flag };
+  });
+  return { rows, overallRate };
+}
+
+// Top & under performers — concrete posts, ranked by engagement rate, so the
+// manager has real examples to repeat or rethink rather than just averages.
+// bottom is only returned when there are enough posts to meaningfully
+// distinguish a worst-N from the best-N.
+export function buildPerformers(posts, { limit = 3 } = {}) {
+  const ranked = (posts || [])
+    .filter(p => p.post_date && Number(p.impressions) > 0)
+    .map(p => {
+      const impressions = Number(p.impressions) || 0;
+      const engagements = Number(p.engagements) || 0;
+      return {
+        postName: p.post_name || "(untitled)",
+        postDate: p.post_date,
+        url: p.url || "",
+        type: classifyPost(p).label,
+        impressions,
+        engagements,
+        rate: engagementRate(impressions, engagements),
+      };
+    })
+    .filter(p => p.rate != null)
+    .sort((a, b) => b.rate - a.rate);
+  return {
+    total: ranked.length,
+    top: ranked.slice(0, limit),
+    bottom: ranked.length > limit ? ranked.slice(-limit).reverse() : [],
+  };
+}
+
 // ─── Narrative ──────────────────────────────────────────────────────
 // A deterministic plain-English read of the plan, same spirit as
 // buildTrendsNarrative in projection.js: no LLM, no randomness, safe to
