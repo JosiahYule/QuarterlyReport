@@ -6,6 +6,10 @@ import {
   buildPlanSuggestion,
   buildPlanNarrative,
   buildWeekPlan,
+  buildScorecard,
+  buildCadence,
+  buildContentMix,
+  buildPerformers,
   WEEKDAYS,
   MIN_SAMPLE_SIZE,
 } from "./planEngine.js";
@@ -152,6 +156,101 @@ describe("buildWeekPlan", () => {
     const mon = week.find(d => d.dayName === "Monday");
     expect(mon.bestType.label).toBe("Job Posting");
     expect(mon.confident).toBe(false);
+  });
+});
+
+describe("buildScorecard", () => {
+  it("computes quarter-over-quarter deltas", () => {
+    const cur = [
+      post("A", "2026-06-01", 1000, 200),
+      post("B", "2026-06-08", 1000, 200),
+    ];
+    const prev = [post("C", "2026-03-01", 1000, 100)];
+    const sc = buildScorecard(cur, prev);
+    expect(sc.hasPrev).toBe(true);
+    const posts = sc.metrics.find(m => m.key === "posts");
+    expect(posts.value).toBe(2);
+    expect(posts.delta).toBe(100); // 1 → 2 posts = +100%
+    const eng = sc.metrics.find(m => m.key === "engagement");
+    expect(eng.value).toBeCloseTo(0.2, 5); // 400/2000
+    expect(eng.delta).toBeCloseTo(100, 5); // 0.1 → 0.2 = +100%
+  });
+
+  it("reports hasPrev false and null deltas with no prior quarter", () => {
+    const sc = buildScorecard([post("A", "2026-06-01", 1000, 200)], []);
+    expect(sc.hasPrev).toBe(false);
+    expect(sc.metrics.every(m => m.delta === null)).toBe(true);
+  });
+});
+
+describe("buildCadence", () => {
+  it("returns empty status when there are no dated posts", () => {
+    expect(buildCadence([]).status).toBe("empty");
+  });
+
+  it("measures days since last post, pace, and largest gap", () => {
+    const posts = [
+      post("A", "2026-06-01", 1000, 100), // Monday
+      post("B", "2026-06-08", 1000, 100), // +7
+      post("C", "2026-06-22", 1000, 100), // +14 (largest gap)
+    ];
+    const c = buildCadence(posts, {
+      now: new Date(2026, 5, 29),
+      quarterStart: new Date(2026, 5, 1),
+      quarterEnd: new Date(2026, 8, 1),
+    });
+    expect(c.status).toBe("ready");
+    expect(c.postCount).toBe(3);
+    expect(c.daysSinceLast).toBe(7);   // Jun 22 → Jun 29
+    expect(c.largestGap).toBe(14);     // Jun 8 → Jun 22
+    expect(c.goneDark).toBe(true);     // 7 ≥ default threshold
+  });
+
+  it("does not flag gone-dark when a post is recent", () => {
+    const posts = [post("A", "2026-06-27", 1000, 100)];
+    const c = buildCadence(posts, { now: new Date(2026, 5, 29), quarterStart: new Date(2026, 5, 1), quarterEnd: new Date(2026, 8, 1) });
+    expect(c.daysSinceLast).toBe(2);
+    expect(c.goneDark).toBe(false);
+  });
+});
+
+describe("buildContentMix", () => {
+  it("flags an under-posted, over-performing type as an opportunity", () => {
+    // 8 company updates (low engagement) + 2 testimonials (high engagement)
+    const posts = [
+      ...Array.from({ length: 8 }, (_, i) => post(`U${i}`, "2026-06-01", 1000, 30, "company update")),
+      post("T1", "2026-06-02", 1000, 300, "testimonial"),
+      post("T2", "2026-06-03", 1000, 320, "testimonial"),
+    ];
+    const mix = buildContentMix(posts);
+    const testimonial = mix.rows.find(r => r.label === "Testimonial");
+    const update = mix.rows.find(r => r.label === "Company Update");
+    expect(testimonial.flag).toBe("opportunity"); // 20% share, well above overall rate
+    expect(update.flag).toBe("overinvested");      // 80% share, below overall rate
+  });
+
+  it("returns empty rows with no posts", () => {
+    expect(buildContentMix([]).rows).toEqual([]);
+  });
+});
+
+describe("buildPerformers", () => {
+  it("ranks posts by engagement rate, top and bottom", () => {
+    const posts = [
+      post("Best", "2026-06-01", 1000, 500),   // 50%
+      post("Mid", "2026-06-02", 1000, 200),    // 20%
+      post("Worst", "2026-06-03", 1000, 50),   // 5%
+      post("Low", "2026-06-04", 1000, 80),     // 8%
+    ];
+    const perf = buildPerformers(posts, { limit: 2 });
+    expect(perf.total).toBe(4);
+    expect(perf.top.map(p => p.postName)).toEqual(["Best", "Mid"]);
+    expect(perf.bottom.map(p => p.postName)).toEqual(["Worst", "Low"]);
+  });
+
+  it("omits the bottom list when there aren't enough posts", () => {
+    const posts = [post("A", "2026-06-01", 1000, 200), post("B", "2026-06-02", 1000, 100)];
+    expect(buildPerformers(posts, { limit: 3 }).bottom).toEqual([]);
   });
 });
 
