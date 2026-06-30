@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../../lib/supabase.js";
 import { QUARTERS, CURRENT_QUARTER } from "../../config.js";
+import { Planner } from "./Planner.jsx";
 import {
   buildPlanSuggestion,
   buildPlanNarrative,
@@ -267,83 +268,84 @@ export function PlanTab({ agency, quarter }) {
   const posts = [...currentPosts, ...prevPosts];
   const plan = buildPlanSuggestion(posts);
   const periodLabel = prevQ ? `this quarter and last quarter (${prevQ.label})` : "this quarter";
-
-  if (plan.status === "empty") {
-    return (
-      <div className="admin-form-section">
-        <div className="admin-plan-empty">
-          No dated, logged posts with impressions yet across {periodLabel}. Add rows in the
-          Social → All Posts tab (or import a CSV) to unlock posting suggestions here.
-        </div>
-      </div>
-    );
-  }
-
-  const narrative = buildPlanNarrative(plan);
-  const week = buildWeekPlan(posts);
-  const scorecard = buildScorecard(currentPosts, prevPosts);
-  const mix = buildContentMix(posts);
-  const performers = buildPerformers(posts);
+  const isEmpty = plan.status === "empty";
   const qMeta = QUARTERS.find(q => q.suffix === quarter);
-  const cadence = buildCadence(currentPosts, { quarterStart: qMeta?.start, quarterEnd: qMeta?.end });
-  const liveQuarter = quarter === CURRENT_QUARTER.suffix;
+  const suggestion = isEmpty ? null : { type: plan.bestType?.label || "", todayName: plan.todayName };
 
   return (
     <div className="admin-form-section">
-      <div>
-        <div className="admin-section-heading">{qMeta?.label || "This quarter"} at a glance</div>
-        <Scorecard scorecard={scorecard} liveQuarter={liveQuarter} />
-      </div>
+      {!isEmpty && (
+        <>
+          <div>
+            <div className="admin-section-heading">{qMeta?.label || "This quarter"} at a glance</div>
+            <Scorecard scorecard={buildScorecard(currentPosts, prevPosts)} liveQuarter={quarter === CURRENT_QUARTER.suffix} />
+          </div>
 
-      <div className="admin-plan-headline admin-section-card">
-        <div className="admin-plan-headline-top">
-          <span className="admin-label">Today — {plan.todayName}</span>
-          <ConfidenceBadge confidence={plan.confidence} />
-        </div>
-        <p className="admin-plan-narrative">{narrative}</p>
-        <p className="admin-list-hint" style={{ margin: 0 }}>
-          Based on {plan.sampleSize} logged post{plan.sampleSize === 1 ? "" : "s"} across {periodLabel}{" "}
-          ({pct(plan.overallRate)} avg. engagement overall). Buckets need at least {MIN_SAMPLE_SIZE} posts
-          before they're trusted enough to drive a suggestion.
-        </p>
-      </div>
-
-      {cadence.status === "ready" && (
-        <div>
-          <div className="admin-section-heading">Posting cadence</div>
-          <CadenceCard cadence={cadence} />
-        </div>
+          <div className="admin-plan-headline admin-section-card">
+            <div className="admin-plan-headline-top">
+              <span className="admin-label">Today — {plan.todayName}</span>
+              <ConfidenceBadge confidence={plan.confidence} />
+            </div>
+            <p className="admin-plan-narrative">{buildPlanNarrative(plan)}</p>
+            <p className="admin-list-hint" style={{ margin: 0 }}>
+              Based on {plan.sampleSize} logged post{plan.sampleSize === 1 ? "" : "s"} across {periodLabel}{" "}
+              ({pct(plan.overallRate)} avg. engagement overall). Buckets need at least {MIN_SAMPLE_SIZE} posts
+              before they're trusted enough to drive a suggestion.
+            </p>
+          </div>
+        </>
       )}
 
-      <div>
-        <div className="admin-section-heading">Your week at a glance</div>
-        <p className="admin-list-hint">
-          The content type that's historically performed best on each weekday. Not sure what to post today?
-          Find {plan.todayName} below and start there.
-        </p>
-        <WeekPlan week={week} todayName={plan.todayName} />
-      </div>
+      <Planner agency={agency} quarter={quarter} suggestion={suggestion} />
 
-      <div>
-        <div className="admin-section-heading">Content mix vs. performance</div>
-        <p className="admin-list-hint">
-          How much you post of each type vs. how well it does. <strong>Post more</strong> flags a type that
-          punches above its weight but you rarely run; <strong>ease off</strong> flags one you lean on that
-          under-delivers.
-        </p>
-        <ContentMixTable mix={mix} />
-      </div>
+      {isEmpty ? (
+        <div className="admin-plan-empty">
+          No dated, logged posts with impressions yet across {periodLabel}, so the analytics below are empty.
+          Add rows in the Social → All Posts tab (or import a CSV) to unlock posting suggestions.
+        </div>
+      ) : (
+        <>
+          {(() => {
+            const cadence = buildCadence(currentPosts, { quarterStart: qMeta?.start, quarterEnd: qMeta?.end });
+            return cadence.status === "ready" ? (
+              <div>
+                <div className="admin-section-heading">Posting cadence</div>
+                <CadenceCard cadence={cadence} />
+              </div>
+            ) : null;
+          })()}
 
-      <div>
-        <div className="admin-section-heading">Top &amp; underperformers</div>
-        <p className="admin-list-hint">Real posts to learn from across {periodLabel}, ranked by engagement.</p>
-        <Performers performers={performers} />
-      </div>
+          <div>
+            <div className="admin-section-heading">Your week at a glance</div>
+            <p className="admin-list-hint">
+              The content type that's historically performed best on each weekday. Not sure what to post today?
+              Find {plan.todayName} below and start there.
+            </p>
+            <WeekPlan week={buildWeekPlan(posts)} todayName={plan.todayName} />
+          </div>
 
-      <div>
-        <div className="admin-section-heading">Engagement by day of week</div>
-        <BreakdownTable rows={plan.dayBreakdown} nameKey="name" qualified={MIN_SAMPLE_SIZE} />
-      </div>
+          <div>
+            <div className="admin-section-heading">Content mix vs. performance</div>
+            <p className="admin-list-hint">
+              How much you post of each type vs. how well it does. <strong>Post more</strong> flags a type that
+              punches above its weight but you rarely run; <strong>ease off</strong> flags one you lean on that
+              under-delivers.
+            </p>
+            <ContentMixTable mix={buildContentMix(posts)} />
+          </div>
+
+          <div>
+            <div className="admin-section-heading">Top &amp; underperformers</div>
+            <p className="admin-list-hint">Real posts to learn from across {periodLabel}, ranked by engagement.</p>
+            <Performers performers={buildPerformers(posts)} />
+          </div>
+
+          <div>
+            <div className="admin-section-heading">Engagement by day of week</div>
+            <BreakdownTable rows={plan.dayBreakdown} nameKey="name" qualified={MIN_SAMPLE_SIZE} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
