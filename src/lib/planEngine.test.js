@@ -5,6 +5,8 @@ import {
   todayWeekdayIndex,
   buildPlanSuggestion,
   buildPlanNarrative,
+  buildWeekPlan,
+  WEEKDAYS,
   MIN_SAMPLE_SIZE,
 } from "./planEngine.js";
 
@@ -109,6 +111,47 @@ describe("buildPlanSuggestion", () => {
     const plan = buildPlanSuggestion(posts, { now: monday });
     expect(plan.bestDay.name).toBe("Monday");
     expect(plan.todayBucket.key).toBe(plan.bestDay.key);
+  });
+});
+
+describe("buildWeekPlan", () => {
+  it("returns one entry per weekday, Monday–Friday", () => {
+    const week = buildWeekPlan([]);
+    expect(week).toHaveLength(5);
+    expect(week.map(d => d.dayName)).toEqual(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]);
+    expect(WEEKDAYS).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("picks the best content type for each specific day", () => {
+    const posts = [
+      // Mondays: two job postings beat one company update
+      post("Hiring 1", "2026-03-02", 1000, 200, "job posting"),
+      post("Hiring 2", "2026-03-09", 1000, 220, "job posting"),
+      post("Update 1", "2026-03-16", 1000, 50, "company update"),
+      // Tuesdays: testimonials
+      post("Story 1", "2026-03-03", 1000, 300, "testimonial"),
+      post("Story 2", "2026-03-10", 1000, 280, "testimonial"),
+    ];
+    const week = buildWeekPlan(posts);
+    const mon = week.find(d => d.dayName === "Monday");
+    const tue = week.find(d => d.dayName === "Tuesday");
+    expect(mon.bestType.label).toBe("Job Posting");
+    expect(mon.confident).toBe(true);
+    expect(tue.bestType.label).toBe("Testimonial");
+  });
+
+  it("returns bestType null for days with no posts", () => {
+    const posts = [post("Hiring", "2026-03-02", 1000, 200, "job posting")]; // Monday only
+    const week = buildWeekPlan(posts);
+    expect(week.find(d => d.dayName === "Wednesday").bestType).toBeNull();
+  });
+
+  it("still surfaces a leading type below minPerCell but flags it not confident", () => {
+    const posts = [post("Hiring", "2026-03-02", 1000, 200, "job posting")]; // one Monday post
+    const week = buildWeekPlan(posts, { minPerCell: 2 });
+    const mon = week.find(d => d.dayName === "Monday");
+    expect(mon.bestType.label).toBe("Job Posting");
+    expect(mon.confident).toBe(false);
   });
 });
 
