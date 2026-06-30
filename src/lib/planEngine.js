@@ -85,20 +85,57 @@ function engagementRate(impressions, engagements) {
   return impressions > 0 ? engagements / impressions : null;
 }
 
+const DAY_MS = 86400000;
+
+function dateToLocalTs(dateStr) {
+  if (typeof dateStr !== "string") return null;
+  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const t = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
+function startOfDay(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+// Recent posts of a type predict how it'll do now better than months-old
+// ones — if a format was reworked, it now performs to its new level, not its
+// lifetime average. Each post's weight halves every RECENCY_HALF_LIFE_DAYS of
+// age, measured from `now`. Passing no `now` disables weighting (every post
+// counts equally) so plain aggregations and tests stay deterministic.
+export const RECENCY_HALF_LIFE_DAYS = 45;
+
+function recencyWeight(dateStr, nowTs, halfLife) {
+  if (nowTs == null) return 1;
+  const t = dateToLocalTs(dateStr);
+  if (t === null) return 1;
+  const ageDays = Math.max(0, (nowTs - t) / DAY_MS);
+  return Math.pow(0.5, ageDays / halfLife);
+}
+
 // keyFn returns { key, ...extra } (e.g. a label/name to display) or
-// null/undefined to exclude the post from this grouping.
-function groupAndScore(posts, keyFn) {
+// null/undefined to exclude the post from this grouping. avgEngagementRate is
+// impression-weighted and, when `now` is given, recency-weighted on top;
+// count stays a raw post count for sample-size checks.
+function groupAndScore(posts, keyFn, { now = null, halfLife = RECENCY_HALF_LIFE_DAYS } = {}) {
+  const nowTs = now ? startOfDay(now) : null;
   const buckets = new Map();
   for (const p of posts) {
     const meta = keyFn(p);
     if (!meta) continue;
-    if (!buckets.has(meta.key)) buckets.set(meta.key, { ...meta, count: 0, impressions: 0, engagements: 0 });
+    const imp = Number(p.impressions) || 0;
+    const eng = Number(p.engagements) || 0;
+    const w = recencyWeight(p.post_date, nowTs, halfLife);
+    if (!buckets.has(meta.key)) buckets.set(meta.key, { ...meta, count: 0, impressions: 0, engagements: 0, wImp: 0, wEng: 0 });
     const b = buckets.get(meta.key);
     b.count += 1;
-    b.impressions += Number(p.impressions) || 0;
-    b.engagements += Number(p.engagements) || 0;
+    b.impressions += imp;
+    b.engagements += eng;
+    b.wImp += imp * w;
+    b.wEng += eng * w;
   }
-  return [...buckets.values()].map(b => ({ ...b, avgEngagementRate: engagementRate(b.impressions, b.engagements) }));
+  return [...buckets.values()].map(b => ({ ...b, avgEngagementRate: engagementRate(b.wImp, b.wEng) }));
 }
 
 const byRateDesc = (a, b) => (b.avgEngagementRate ?? -1) - (a.avgEngagementRate ?? -1);
@@ -112,15 +149,17 @@ export function buildPlanSuggestion(posts, { now = new Date() } = {}) {
   const valid = (posts || []).filter(p => p.post_date && Number(p.impressions) > 0);
   if (!valid.length) return { status: "empty" };
 
-  const totalImpressions = valid.reduce((a, p) => a + (Number(p.impressions) || 0), 0);
-  const totalEngagements = valid.reduce((a, p) => a + (Number(p.engagements) || 0), 0);
-  const overallRate = engagementRate(totalImpressions, totalEngagements);
-
   const dayBuckets = groupAndScore(valid, p => {
     const idx = dayOfWeekIndex(p.post_date);
     return idx === null ? null : { key: idx, name: DAY_NAMES[idx] };
-  }).sort(byRateDesc);
-  const typeBuckets = groupAndScore(valid, classifyPost).sort(byRateDesc);
+  }, { now }).sort(byRateDesc);
+  const typeBuckets = groupAndScore(valid, classifyPost, { now }).sort(byRateDesc);
+
+  // Recency-weighted overall baseline, so "vs overall" in the narrative
+  // compares like-for-like against the weighted type/day rates.
+  const totalWImp = typeBuckets.reduce((a, b) => a + b.wImp, 0);
+  const totalWEng = typeBuckets.reduce((a, b) => a + b.wEng, 0);
+  const overallRate = engagementRate(totalWImp, totalWEng);
 
   const qualifiedDays  = dayBuckets.filter(b => b.count >= MIN_SAMPLE_SIZE && b.avgEngagementRate !== null);
   const qualifiedTypes = typeBuckets.filter(b => b.count >= MIN_SAMPLE_SIZE && b.avgEngagementRate !== null);
@@ -148,32 +187,104 @@ export function buildPlanSuggestion(posts, { now = new Date() } = {}) {
 }
 
 // ─── Week plan (Mon–Fri) ────────────────────────────────────────────
-// The work week, so a "what do I post today" question always has a row.
 export const WEEKDAYS = [1, 2, 3, 4, 5];
 
-// For each weekday, the content type that has historically performed best
-// *when posted on that day* — a per-day version of the content-type
-// breakdown above. These day×type cells are far sparser than either
-// marginal (a single day only sees a slice of each type's posts), so the
-// minimum is lower than MIN_SAMPLE_SIZE: a type is "confident" once it
-// clears minPerCell, and below that the leading type is still surfaced but
-// flagged thin so one lucky post doesn't masquerade as a pattern. Days with
-// no posts at all return bestType: null.
-export function buildWeekPlan(posts, { minPerCell = 2 } = {}) {
+// Job ads are a fixed weekly obligation — one permanent, one contract — and
+// shouldn't crowd out variety, so the week plan reserves at most
+// JOB_AD_SLOTS days for them and fills the rest with *distinct* other
+// content types for diversity. A post counts as a job ad when its type label
+// looks like one (covers "Job Posting", "Job Ad", perm/contract tags, etc.).
+export const JOB_AD_SLOTS = 2;
+export const JOB_ROLE_LABELS = ["Permanent", "Contract"];
+const JOB_AD_KEYWORDS = ["job", "hiring", "perm", "contract", "vacanc"];
+
+export function isJobAdType(label) {
+  const l = (label || "").toLowerCase();
+  return JOB_AD_KEYWORDS.some(k => l.includes(k));
+}
+
+function combinations(arr, k) {
+  if (k === 0) return [[]];
+  if (k > arr.length) return [];
+  const [head, ...tail] = arr;
+  return [
+    ...combinations(tail, k - 1).map(c => [head, ...c]),
+    ...combinations(tail, k),
+  ];
+}
+
+// Max-weight assignment of distinct content types to days — each type used at
+// most once across the given days, so the non-job days stay diverse. Exact
+// search over tiny inputs (≤3 days); cells are pre-sorted by rate so ties
+// resolve deterministically.
+function assignDistinct(days, cellsByDay) {
+  if (!days.length) return { score: 0, picks: {} };
+  const [day, ...rest] = days;
+  const cells = cellsByDay[day] || [];
+  // Baseline: leave this day open, assign the rest optimally.
+  const skip = assignDistinct(rest, cellsByDay);
+  let best = { score: skip.score, picks: { ...skip.picks, [day]: null } };
+  for (const cell of cells) {
+    const remaining = {};
+    for (const d of rest) remaining[d] = (cellsByDay[d] || []).filter(c => c.key !== cell.key);
+    const sub = assignDistinct(rest, remaining);
+    const score = (cell.avgEngagementRate ?? 0) + sub.score;
+    if (score > best.score) best = { score, picks: { ...sub.picks, [day]: cell } };
+  }
+  return best;
+}
+
+// A recommended Mon–Fri schedule: up to JOB_AD_SLOTS job-ad days (labeled
+// permanent / contract) placed to maximize the week's total expected
+// engagement, with the remaining days filled by the best *distinct* content
+// types for variety. Rates are recency-weighted via `now`.
+export function buildWeekPlan(posts, { now = new Date(), minPerCell = 2 } = {}) {
   const valid = (posts || []).filter(p => p.post_date && Number(p.impressions) > 0);
-  return WEEKDAYS.map(dayIndex => {
+
+  // Per day: the aggregated job-ad track record, and the ranked non-job cells.
+  const jobByDay = {};
+  const contentByDay = {};
+  for (const dayIndex of WEEKDAYS) {
     const dayPosts = valid.filter(p => dayOfWeekIndex(p.post_date) === dayIndex);
-    const types = groupAndScore(dayPosts, classifyPost)
+    const jobPosts = dayPosts.filter(p => isJobAdType(classifyPost(p).label));
+    const jobAgg = groupAndScore(jobPosts, () => ({ key: "job" }), { now })[0] || null;
+    jobByDay[dayIndex] = { rate: jobAgg?.avgEngagementRate ?? null, count: jobAgg?.count ?? 0 };
+    contentByDay[dayIndex] = groupAndScore(dayPosts.filter(p => !isJobAdType(classifyPost(p).label)), classifyPost, { now })
       .filter(b => b.avgEngagementRate !== null)
       .sort(byRateDesc);
-    const qualified = types.filter(b => b.count >= minPerCell);
-    const bestType = qualified[0] || types[0] || null;
+  }
+
+  // Try every choice of which days carry the job ads; keep the split that
+  // maximizes total expected engagement (job days score their job rate, the
+  // rest get the best distinct-content assignment).
+  let bestPlan = null;
+  for (const jobDays of combinations(WEEKDAYS, JOB_AD_SLOTS)) {
+    const contentDays = WEEKDAYS.filter(d => !jobDays.includes(d));
+    const jobScore = jobDays.reduce((a, d) => a + (jobByDay[d].rate ?? 0), 0);
+    const { score: contentScore, picks } = assignDistinct(contentDays, contentByDay);
+    const total = jobScore + contentScore;
+    if (!bestPlan || total > bestPlan.total) bestPlan = { total, jobDays, picks };
+  }
+
+  const roleByDay = {};
+  [...bestPlan.jobDays].sort((a, b) => a - b).forEach((d, i) => {
+    roleByDay[d] = JOB_ROLE_LABELS[i] || `Job ad ${i + 1}`;
+  });
+
+  return WEEKDAYS.map(dayIndex => {
+    if (bestPlan.jobDays.includes(dayIndex)) {
+      const job = jobByDay[dayIndex];
+      return {
+        dayIndex, dayName: DAY_NAMES[dayIndex], slot: "job", roleLabel: roleByDay[dayIndex],
+        bestType: { label: "Job Posting", count: job.count, avgEngagementRate: job.rate },
+        confident: job.count >= minPerCell,
+      };
+    }
+    const cell = bestPlan.picks[dayIndex] || null;
     return {
-      dayIndex,
-      dayName: DAY_NAMES[dayIndex],
-      postCount: dayPosts.length,
-      bestType,
-      confident: !!bestType && bestType.count >= minPerCell,
+      dayIndex, dayName: DAY_NAMES[dayIndex], slot: "content", roleLabel: null,
+      bestType: cell ? { label: cell.label, count: cell.count, avgEngagementRate: cell.avgEngagementRate } : null,
+      confident: !!cell && cell.count >= minPerCell,
     };
   });
 }
@@ -181,19 +292,6 @@ export function buildWeekPlan(posts, { minPerCell = 2 } = {}) {
 // ─── Hub modules ────────────────────────────────────────────────────
 // The pieces below turn the Plan tab into a manager's command center.
 // All are pure reads over the same post log — no LLM, no persistence.
-const DAY_MS = 86400000;
-
-function dateToLocalTs(dateStr) {
-  if (typeof dateStr !== "string") return null;
-  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return null;
-  const t = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
-  return Number.isFinite(t) ? t : null;
-}
-
-function startOfDay(d) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}
 
 // Roll up a set of posts into headline totals. Shared by the scorecard and
 // content-mix modules so they agree on what "this quarter" adds up to.
@@ -274,12 +372,17 @@ export const MIX_UNDERPERFORM = 0.85; // ≤15% below the overall rate
 export const MIX_HIGH_SHARE   = 0.33; // a third or more of all posts = a major chunk
 export const MIX_LOW_SHARE    = 0.25; // a quarter or less = a minority you could lean into
 
-export function buildContentMix(posts) {
+export function buildContentMix(posts, { now = new Date() } = {}) {
   const valid = (posts || []).filter(p => p.post_date && Number(p.impressions) > 0);
   if (!valid.length) return { rows: [], overallRate: null };
   const total = valid.length;
-  const overallRate = aggregate(valid).rate;
-  const rows = groupAndScore(valid, classifyPost).sort(byRateDesc).map(t => {
+  const buckets = groupAndScore(valid, classifyPost, { now }).sort(byRateDesc);
+  // Recency-weighted overall baseline, consistent with the per-type rates.
+  const overallRate = engagementRate(
+    buckets.reduce((a, b) => a + b.wImp, 0),
+    buckets.reduce((a, b) => a + b.wEng, 0),
+  );
+  const rows = buckets.map(t => {
     const share = t.count / total;
     const vsOverall = overallRate && t.avgEngagementRate != null ? t.avgEngagementRate / overallRate : null;
     let flag = "balanced";

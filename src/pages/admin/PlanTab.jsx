@@ -191,13 +191,25 @@ function BreakdownTable({ rows, nameKey, qualified }) {
   );
 }
 
+function WeekSlot({ d }) {
+  if (d.slot === "job") {
+    return (
+      <span>
+        <span className="admin-plan-jobtag">Job ad</span> {d.roleLabel}
+      </span>
+    );
+  }
+  if (d.bestType) return <span>{d.bestType.label}</span>;
+  return <span className="admin-plan-nodata">Mix it up — any fresh content</span>;
+}
+
 function WeekPlan({ week, todayName }) {
   return (
     <table className="admin-plan-table admin-plan-week">
       <thead>
         <tr>
           <th>Day</th>
-          <th>Suggested post type</th>
+          <th>Suggested post</th>
           <th className="r">Track record</th>
         </tr>
       </thead>
@@ -205,17 +217,18 @@ function WeekPlan({ week, todayName }) {
         {week.map(d => {
           const isToday = d.dayName === todayName;
           const cls = (d.confident ? "" : "is-thin") + (isToday ? " is-today" : "");
+          const hasRecord = d.bestType && d.bestType.count > 0 && Number.isFinite(d.bestType.avgEngagementRate);
           return (
             <tr key={d.dayIndex} className={cls.trim()}>
               <td>
                 {d.dayName}
                 {isToday && <span className="admin-plan-today-tag">Today</span>}
               </td>
-              <td>{d.bestType ? d.bestType.label : <span className="admin-plan-nodata">No posts logged yet</span>}</td>
+              <td><WeekSlot d={d} /></td>
               <td className="r">
-                {d.bestType
+                {hasRecord
                   ? `${d.bestType.count} post${d.bestType.count === 1 ? "" : "s"} · ${pct(d.bestType.avgEngagementRate)}`
-                  : "—"}
+                  : "no history yet"}
               </td>
             </tr>
           );
@@ -318,8 +331,9 @@ export function PlanTab({ agency, quarter }) {
           <div>
             <div className="admin-section-heading">Your week at a glance</div>
             <p className="admin-list-hint">
-              The content type that's historically performed best on each weekday. Not sure what to post today?
-              Find {plan.todayName} below and start there.
+              A balanced week: two days reserved for job ads (one permanent, one contract), placed where they
+              perform best, and the other three filled with your strongest <em>distinct</em> content types for
+              variety. Recent posts count more, so a format you've recently improved rises here.
             </p>
             <WeekPlan week={buildWeekPlan(posts)} todayName={plan.todayName} />
           </div>
