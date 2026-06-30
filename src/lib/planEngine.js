@@ -15,32 +15,39 @@ const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 export const MIN_SAMPLE_SIZE = 3;
 
 // ─── Content-type classification ──────────────────────────────────
-// Keyword buckets tuned for staffing-agency social content. Matched
-// case-insensitively against "post name + notes"; first match wins.
-const CONTENT_CATEGORIES = [
-  { key: "job_posting",    label: "Job Posting",            keywords: ["hiring", "now hiring", "job opening", "apply now", "apply today", "we're hiring", "job alert", "career opportunity"] },
-  { key: "client_story",   label: "Client/Candidate Story",  keywords: ["testimonial", "success story", "spotlight", "case study", "client review", "candidate story", "placement story"] },
-  { key: "team_culture",   label: "Team & Culture",          keywords: ["our team", "team culture", "welcome to the team", "work anniversary", "congrat", "staff appreciation", "employee spotlight"] },
-  { key: "tips_advice",    label: "Industry Tips/Advice",    keywords: ["tip", "tips", "advice", "how to", "resume", "interview", "guide", "checklist", "did you know"] },
-  { key: "event",          label: "Event/Webinar",           keywords: ["webinar", "job fair", "career fair", "open house", "register now", "join us"] },
-  { key: "seasonal",       label: "Holiday/Seasonal",        keywords: ["happy holidays", "merry christmas", "season", "thanksgiving", "halloween", "new year", "long weekend"] },
-  { key: "company_update", label: "Company Update",          keywords: ["announce", "milestone", "award", "partnership", "proud to", "we've moved", "new office"] },
-  { key: "video",          label: "Video",                   keywords: ["video", "watch now", "reel", "behind the scenes"] },
+// The Notes column on the All Posts table is where the post type is
+// actually recorded (e.g. "job posting", "testimonial") — so that's the
+// source of truth for a post's category whenever it's filled in. Keyword
+// matching against the post name is only a fallback for older/undated rows
+// logged without a notes entry, so they don't all collapse into "Other".
+const FALLBACK_CATEGORIES = [
+  { label: "Job Posting",           keywords: ["hiring", "now hiring", "job opening", "apply now", "apply today", "we're hiring", "job alert", "career opportunity"] },
+  { label: "Client/Candidate Story", keywords: ["testimonial", "success story", "spotlight", "case study", "client review", "candidate story", "placement story"] },
+  { label: "Team & Culture",        keywords: ["our team", "team culture", "welcome to the team", "work anniversary", "congrat", "staff appreciation", "employee spotlight"] },
+  { label: "Industry Tips/Advice",  keywords: ["tip", "tips", "advice", "how to", "resume", "interview", "guide", "checklist", "did you know"] },
+  { label: "Event/Webinar",         keywords: ["webinar", "job fair", "career fair", "open house", "register now", "join us"] },
+  { label: "Holiday/Seasonal",      keywords: ["happy holidays", "merry christmas", "season", "thanksgiving", "halloween", "new year", "long weekend"] },
+  { label: "Company Update",        keywords: ["announce", "milestone", "award", "partnership", "proud to", "we've moved", "new office"] },
+  { label: "Video",                 keywords: ["video", "watch now", "reel", "behind the scenes"] },
 ];
-const OTHER_KEY = "other";
 const OTHER_LABEL = "Other";
 
-export const CONTENT_CATEGORY_LABELS = Object.fromEntries([
-  ...CONTENT_CATEGORIES.map(c => [c.key, c.label]),
-  [OTHER_KEY, OTHER_LABEL],
-]);
+function titleCase(s) {
+  return s.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
+}
 
 export function classifyPost(post) {
-  const text = `${post?.post_name || ""} ${post?.notes || ""}`.toLowerCase();
-  for (const cat of CONTENT_CATEGORIES) {
-    if (cat.keywords.some(k => text.includes(k))) return cat.key;
+  const noteType = (post?.notes || "").trim().replace(/\s+/g, " ");
+  if (noteType) {
+    const label = titleCase(noteType);
+    return { key: label.toLowerCase(), label };
   }
-  return OTHER_KEY;
+
+  const text = (post?.post_name || "").toLowerCase();
+  for (const cat of FALLBACK_CATEGORIES) {
+    if (cat.keywords.some(k => text.includes(k))) return { key: cat.label.toLowerCase(), label: cat.label };
+  }
+  return { key: OTHER_LABEL.toLowerCase(), label: OTHER_LABEL };
 }
 
 // ─── Day-of-week ───────────────────────────────────────────────────
@@ -74,13 +81,15 @@ function engagementRate(impressions, engagements) {
   return impressions > 0 ? engagements / impressions : null;
 }
 
+// keyFn returns { key, ...extra } (e.g. a label/name to display) or
+// null/undefined to exclude the post from this grouping.
 function groupAndScore(posts, keyFn) {
   const buckets = new Map();
   for (const p of posts) {
-    const key = keyFn(p);
-    if (key === null || key === undefined) continue;
-    if (!buckets.has(key)) buckets.set(key, { key, count: 0, impressions: 0, engagements: 0 });
-    const b = buckets.get(key);
+    const meta = keyFn(p);
+    if (!meta) continue;
+    if (!buckets.has(meta.key)) buckets.set(meta.key, { ...meta, count: 0, impressions: 0, engagements: 0 });
+    const b = buckets.get(meta.key);
     b.count += 1;
     b.impressions += Number(p.impressions) || 0;
     b.engagements += Number(p.engagements) || 0;
@@ -103,12 +112,11 @@ export function buildPlanSuggestion(posts, { now = new Date() } = {}) {
   const totalEngagements = valid.reduce((a, p) => a + (Number(p.engagements) || 0), 0);
   const overallRate = engagementRate(totalImpressions, totalEngagements);
 
-  const dayBuckets = groupAndScore(valid, p => dayOfWeekIndex(p.post_date))
-    .map(b => ({ ...b, name: DAY_NAMES[b.key] }))
-    .sort(byRateDesc);
-  const typeBuckets = groupAndScore(valid, classifyPost)
-    .map(b => ({ ...b, label: CONTENT_CATEGORY_LABELS[b.key] }))
-    .sort(byRateDesc);
+  const dayBuckets = groupAndScore(valid, p => {
+    const idx = dayOfWeekIndex(p.post_date);
+    return idx === null ? null : { key: idx, name: DAY_NAMES[idx] };
+  }).sort(byRateDesc);
+  const typeBuckets = groupAndScore(valid, classifyPost).sort(byRateDesc);
 
   const qualifiedDays  = dayBuckets.filter(b => b.count >= MIN_SAMPLE_SIZE && b.avgEngagementRate !== null);
   const qualifiedTypes = typeBuckets.filter(b => b.count >= MIN_SAMPLE_SIZE && b.avgEngagementRate !== null);
