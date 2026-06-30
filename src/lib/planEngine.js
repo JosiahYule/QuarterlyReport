@@ -143,6 +143,37 @@ export function buildPlanSuggestion(posts, { now = new Date() } = {}) {
   };
 }
 
+// ─── Week plan (Mon–Fri) ────────────────────────────────────────────
+// The work week, so a "what do I post today" question always has a row.
+export const WEEKDAYS = [1, 2, 3, 4, 5];
+
+// For each weekday, the content type that has historically performed best
+// *when posted on that day* — a per-day version of the content-type
+// breakdown above. These day×type cells are far sparser than either
+// marginal (a single day only sees a slice of each type's posts), so the
+// minimum is lower than MIN_SAMPLE_SIZE: a type is "confident" once it
+// clears minPerCell, and below that the leading type is still surfaced but
+// flagged thin so one lucky post doesn't masquerade as a pattern. Days with
+// no posts at all return bestType: null.
+export function buildWeekPlan(posts, { minPerCell = 2 } = {}) {
+  const valid = (posts || []).filter(p => p.post_date && Number(p.impressions) > 0);
+  return WEEKDAYS.map(dayIndex => {
+    const dayPosts = valid.filter(p => dayOfWeekIndex(p.post_date) === dayIndex);
+    const types = groupAndScore(dayPosts, classifyPost)
+      .filter(b => b.avgEngagementRate !== null)
+      .sort(byRateDesc);
+    const qualified = types.filter(b => b.count >= minPerCell);
+    const bestType = qualified[0] || types[0] || null;
+    return {
+      dayIndex,
+      dayName: DAY_NAMES[dayIndex],
+      postCount: dayPosts.length,
+      bestType,
+      confident: !!bestType && bestType.count >= minPerCell,
+    };
+  });
+}
+
 // ─── Narrative ──────────────────────────────────────────────────────
 // A deterministic plain-English read of the plan, same spirit as
 // buildTrendsNarrative in projection.js: no LLM, no randomness, safe to

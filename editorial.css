@@ -1167,6 +1167,12 @@
 .admin-plan-table tr:last-child td { border-bottom: none; }
 .admin-plan-table tr.is-thin td { color: var(--ink-4); }
 
+/* Week-at-a-glance */
+.admin-plan-week tr.is-today td      { background: var(--paper-2); font-weight: 500; }
+.admin-plan-week tr.is-today td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+.admin-plan-today-tag { display: inline-block; margin-left: 8px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 99px; padding: 1px 7px; vertical-align: middle; }
+.admin-plan-nodata { color: var(--ink-4); font-style: italic; }
+
 /* Save bar */
 .admin-save-bar  { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding: 14px 0; border-top: 1px solid var(--rule-soft); margin-top: 32px; background: var(--paper); }
 .admin-save-msg  { font-size: 13px; color: var(--up); }
