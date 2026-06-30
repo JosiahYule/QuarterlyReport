@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { AGENCIES, QUARTERS } from "../../config.js";
 import { SocialForm } from "./SocialForm.jsx";
 import { WebForm } from "./WebForm.jsx";
+import { PlanTab } from "./PlanTab.jsx";
 
 function ConfirmModal({ onConfirm, onCancel }) {
   return (
@@ -80,6 +81,7 @@ export function AdminDashboard({ onSignOut }) {
               {[
                 { id: "social", label: "Social" },
                 { id: "web",    label: "Website" },
+                { id: "plan",   label: "Plan" },
               ].map(t => (
                 <button key={t.id} role="tab" aria-selected={type === t.id}
                   className={"admin-type-tab" + (type === t.id ? " is-active" : "")}
@@ -94,10 +96,9 @@ export function AdminDashboard({ onSignOut }) {
       </header>
 
       <main className="admin-main">
-        {type === "social"
-          ? <SocialForm key={agency + quarter} agency={agency} quarter={quarter} onDirtyChange={setIsDirty} />
-          : <WebForm    key={agency + quarter}   agency={agency} quarter={quarter} onDirtyChange={setIsDirty} />
-        }
+        {type === "social" && <SocialForm key={agency + quarter} agency={agency} quarter={quarter} onDirtyChange={setIsDirty} />}
+        {type === "web"    && <WebForm    key={agency + quarter} agency={agency} quarter={quarter} onDirtyChange={setIsDirty} />}
+        {type === "plan"   && <PlanTab    key={agency + quarter} agency={agency} quarter={quarter} />}
       </main>
     </div>
   );
