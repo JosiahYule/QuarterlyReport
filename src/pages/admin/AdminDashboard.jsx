@@ -3,6 +3,7 @@ import { AGENCIES, QUARTERS } from "../../config.js";
 import { SocialForm } from "./SocialForm.jsx";
 import { WebForm } from "./WebForm.jsx";
 import { PlanTab } from "./PlanTab.jsx";
+import { setFavicon } from "../../lib/favicon.js";
 
 function ConfirmModal({ onConfirm, onCancel }) {
   return (
@@ -42,6 +43,11 @@ export function AdminDashboard({ onSignOut }) {
   }, [pendingAction]);
 
   const cancelDiscard = useCallback(() => setPendingAction(null), []);
+
+  useEffect(() => {
+    const q = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];
+    setFavicon(q.label);
+  }, [quarter]);
 
   // Warn before the tab closes with unsaved changes
   useEffect(() => {

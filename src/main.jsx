@@ -7,6 +7,7 @@ import { LoadingScreen } from "./components/LoadingScreen.jsx";
 import { PageSkeleton } from "./components/Skeleton.jsx";
 import { AGENCIES, QUARTERS, CURRENT_QUARTER, REPORT_AUTHOR } from "./config.js";
 import { installGlobalErrorReporting } from "./lib/monitor.js";
+import { setFavicon } from "./lib/favicon.js";
 
 installGlobalErrorReporting();
 
@@ -38,6 +39,13 @@ function App() {
     const viewLabel = view === "social" ? "Social Media" : view === "web" ? "Website" : "Trends";
     document.title = `${cfg.name} ${q.label} ${q.year} — ${viewLabel}`;
   }, [agency, quarter, view]);
+
+  // Tab favicon mirrors the quarter on screen (defaults to today's quarter
+  // on first load, since that's the default view)
+  useEffect(() => {
+    const q = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];
+    setFavicon(q.label);
+  }, [quarter]);
 
   // Agency-keyed accent colour (see editorial.css body[data-agency] rules)
   useEffect(() => {
