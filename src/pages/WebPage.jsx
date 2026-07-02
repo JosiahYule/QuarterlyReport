@@ -4,7 +4,7 @@ import { Delta } from "../components/Delta.jsx";
 import { PageLoader } from "../components/PageLoader.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { EmptyNote } from "../components/EmptyState.jsx";
-import { fmtInt, fmtPct, fmtTime, calcAutoDelta, parseDelta, FLAT } from "../utils.js";
+import { fmtInt, fmtPct, fmtTime, calcAutoDelta, parseDelta, invertDir, FLAT } from "../utils.js";
 import { AGENCIES, QUARTERS } from "../config.js";
 import { CountUp } from "../components/CountUp.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
@@ -124,11 +124,6 @@ function Channels({ data, prevData }) {
 }
 
 // ─── Top pages ────────────────────────────────────────────────────
-function invertDir(d) {
-  if (!d) return null;
-  return { ...d, dir: d.dir === "up" ? "down" : d.dir === "down" ? "up" : "flat" };
-}
-
 function TopPages({ data, prevData }) {
   const pages = data.topPages || [];
   const prevMap = {};
