@@ -32,6 +32,7 @@ export default [
         URLSearchParams: "readonly",
         URL: "readonly",
         history: "readonly",
+        crypto: "readonly",
       },
     },
     settings: { react: { version: "detect" } },

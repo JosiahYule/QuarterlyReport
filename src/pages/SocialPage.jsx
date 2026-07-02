@@ -728,6 +728,57 @@ function AllPosts({ data }) {
   );
 }
 
+// ─── Paid Media ───────────────────────────────────────────────────
+function PaidMedia({ data }) {
+  const campaigns = data.paidMedia || [];
+  return (
+    <section id="paid-media" className="section wrap">
+      <header className="section-head">
+        <h2 className="section-title serif">Paid <em>Media</em></h2>
+      </header>
+      {campaigns.length === 0 ? (
+        <EmptyData label="No paid media campaigns recorded this quarter." />
+      ) : (
+        <div className="paid-media-campaigns">
+          {campaigns.map(c => (
+            <div className="paid-media-campaign" key={c.id}>
+              <h3 className="paid-media-campaign-name serif">{c.name || "Untitled campaign"}</h3>
+              {c.ads.length === 0 ? (
+                <EmptyData label="No ads added to this campaign yet." />
+              ) : (
+                <div className="table-wrap">
+                  <table className="table table--wide">
+                    <thead>
+                      <tr>
+                        <th scope="col">Ad</th>
+                        <th scope="col" className="r">Impressions</th>
+                        <th scope="col" className="r">Clicks</th>
+                        <th scope="col" className="r">CPC</th>
+                        <th scope="col" className="r">Eng. Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {c.ads.map(ad => (
+                        <tr key={ad.id}>
+                          <td><span className="campaign-name serif">{ad.name || "Untitled ad"}</span></td>
+                          <td className="r num">{fmtExact(ad.impressions)}</td>
+                          <td className="r num">{fmtExact(ad.clicks)}</td>
+                          <td className="r num">{ad.cpc != null ? "$" + ad.cpc.toFixed(2) : "—"}</td>
+                          <td className="r num">{ad.engagementRate != null ? ad.engagementRate.toFixed(2) + "%" : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ─── Notes ────────────────────────────────────────────────────────
 function NoteList({ items }) {
   if (!items.length) return <EmptyNote />;
@@ -758,6 +809,7 @@ const SOCIAL_SECTIONS = [
   { id: "platforms",          label: "Platforms" },
   { id: "top-posts",          label: "Top Posts" },
   { id: "all-posts",          label: "All Posts" },
+  { id: "paid-media",         label: "Paid Media" },
   { id: "insights",           label: "Insights" },
 ];
 
@@ -810,6 +862,7 @@ export function SocialPage({ agency, quarter, onReady }) {
       <ErrorBoundary><Platforms data={data} /></ErrorBoundary>
       <ErrorBoundary><TopPosts data={data} /></ErrorBoundary>
       <ErrorBoundary><AllPosts data={data} /></ErrorBoundary>
+      <ErrorBoundary><PaidMedia data={data} /></ErrorBoundary>
       <ErrorBoundary><Notes data={data} /></ErrorBoundary>
     </main>
   );
