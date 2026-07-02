@@ -19,6 +19,13 @@ export function arrow(dir) {
   return dir === "up" ? "↑" : dir === "down" ? "↓" : "—";
 }
 
+// Flips a delta's direction for "lower is better" metrics (bounce rate, CPC)
+// so Delta's color/sign still reads as good/bad rather than literal up/down.
+export function invertDir(d) {
+  if (!d) return null;
+  return { ...d, dir: d.dir === "up" ? "down" : d.dir === "down" ? "up" : "flat" };
+}
+
 export function calcAutoDelta(cur, prev) {
   if (typeof cur !== "number" || typeof prev !== "number" || prev === 0) return null;
   const pct = ((cur - prev) / Math.abs(prev)) * 100;
@@ -68,4 +75,32 @@ export function toNumber(v) {
 
 export function nfk(s) {
   return String(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+// Rolls up a list of paid-media ads ({ impressions, clicks, cpc, engagementRate })
+// into blended totals. Spend isn't stored directly — it's derived per ad as
+// cpc × clicks, so a total is only meaningful once at least one ad has both.
+// Engagement rate is weighted by impressions rather than averaged plainly, so
+// a high-reach ad's rate counts for more than a low-reach one's.
+export function sumPaidMediaAds(ads) {
+  let impressions = 0, clicks = 0, spend = 0;
+  let hasImpressions = false, hasClicks = false, hasSpend = false;
+  let engWeighted = 0, engWeightBase = 0;
+  for (const ad of ads) {
+    if (typeof ad.impressions === "number") { impressions += ad.impressions; hasImpressions = true; }
+    if (typeof ad.clicks === "number") { clicks += ad.clicks; hasClicks = true; }
+    if (typeof ad.cpc === "number" && typeof ad.clicks === "number") { spend += ad.cpc * ad.clicks; hasSpend = true; }
+    if (typeof ad.engagementRate === "number" && typeof ad.impressions === "number") {
+      engWeighted += ad.engagementRate * ad.impressions;
+      engWeightBase += ad.impressions;
+    }
+  }
+  return {
+    impressions: hasImpressions ? impressions : null,
+    clicks: hasClicks ? clicks : null,
+    ctr: hasImpressions && hasClicks && impressions > 0 ? (clicks / impressions) * 100 : null,
+    spend: hasSpend ? spend : null,
+    cpc: hasSpend && clicks > 0 ? spend / clicks : null,
+    engagementRate: engWeightBase > 0 ? engWeighted / engWeightBase : null,
+  };
 }
