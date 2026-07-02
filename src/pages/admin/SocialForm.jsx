@@ -25,6 +25,9 @@ const BLANK_POST     = { title: "", impressions: "", likes: "", shares: "" };
 const BLANK_ALL_POST = { post_name: "", post_date: "", platforms: "", impressions: "", engagements: "", url: "", notes: "" };
 const BLANK_INSIGHTS = { working: "", not_working: "", actions: "", next_quarter: "" };
 
+const newAd       = () => ({ id: crypto.randomUUID(), name: "", impressions: "", clicks: "", cpc: "", engagement_rate: "" });
+const newCampaign = () => ({ id: crypto.randomUUID(), name: "", ads: [] });
+
 // ─── CSV import parser ────────────────────────────────────────────
 function parseCsv(text) {
   const lines = text.trim().split(/\r?\n/);
@@ -79,6 +82,7 @@ const TABS = [
   { id: "platforms", label: "Platforms" },
   { id: "topposts",  label: "Top Posts" },
   { id: "allposts",  label: "All Posts" },
+  { id: "paidmedia", label: "Paid Media" },
   { id: "insights",  label: "Insights"  },
 ];
 
@@ -101,6 +105,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
   const [platforms,   setPlatforms]   = useState([]);
   const [topPosts,    setTopPosts]    = useState({ linkedin: [], facebook: [], instagram: [] });
   const [allPosts,    setAllPosts]    = useState([]);
+  const [campaigns,   setCampaigns]   = useState([]);
   const [insights,    setInsights]    = useState(BLANK_INSIGHTS);
   const [topTab,      setTopTab]      = useState("linkedin");
   const [postsAsc,    setPostsAsc]    = useState(false);
@@ -137,7 +142,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
       try {
         const { data, error } = await supabase
           .from("social_reports")
-          .select("id, editors_note, social_kpis(*), social_platforms(*), social_top_posts(*), social_posts(*), social_insights(*)")
+          .select("id, editors_note, social_kpis(*), social_platforms(*), social_top_posts(*), social_posts(*), social_insights(*), paid_media_campaigns(*, paid_media_ads(*))")
           .eq("agency", agency)
           .eq("quarter", quarter)
           .maybeSingle();
@@ -161,6 +166,13 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
           })));
           const ins = data.social_insights?.[0] || {};
           setInsights({ working: ins.working || "", not_working: ins.not_working || "", actions: ins.actions || "", next_quarter: ins.next_quarter || "" });
+          setCampaigns([...(data.paid_media_campaigns || [])].sort((a, b) => a.sort_order - b.sort_order).map(c => ({
+            id: c.id, name: c.name || "",
+            ads: [...(c.paid_media_ads || [])].sort((a, b) => a.sort_order - b.sort_order).map(a => ({
+              id: a.id, name: a.name || "", impressions: str(a.impressions), clicks: str(a.clicks),
+              cpc: str(a.cpc), engagement_rate: str(a.engagement_rate),
+            })),
+          })));
         }
       } catch (err) {
         setLoadError("Failed to load report data. Please refresh and try again.");
@@ -217,6 +229,21 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
           platforms: p.platforms, impressions: num(p.impressions), engagements: num(p.engagements),
           url: p.url, notes: p.notes,
         }))));
+      }
+
+      // Paid media (campaign ids are generated client-side so ads can
+      // reference their campaign without a round trip to read back inserted ids)
+      await dbOp(supabase.from("paid_media_campaigns").delete().eq("report_id", rid));
+      if (campaigns.length) {
+        await dbOp(supabase.from("paid_media_campaigns").insert(campaigns.map((c, i) => ({
+          id: c.id, report_id: rid, sort_order: i, name: c.name,
+        }))));
+        const ads = campaigns.flatMap(c => c.ads.map((a, j) => ({
+          id: a.id, campaign_id: c.id, sort_order: j, name: a.name,
+          impressions: num(a.impressions), clicks: num(a.clicks),
+          cpc: num(a.cpc), engagement_rate: num(a.engagement_rate),
+        })));
+        if (ads.length) await dbOp(supabase.from("paid_media_ads").insert(ads));
       }
 
       // Insights
@@ -423,6 +450,64 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
           </div>
           <button className="admin-btn-add" onClick={() => { setAllPosts(ps => [...ps, { ...BLANK_ALL_POST }]); dirty(); }}>+ Add row</button>
           <p className="admin-list-hint" style={{ marginTop: 8 }}>{allPosts.length} post{allPosts.length !== 1 ? "s" : ""}</p>
+        </div>
+      )}
+
+      {/* Paid Media */}
+      {tab === "paidmedia" && (
+        <div className="admin-form-section">
+          <div className="admin-list-hint">Group ads under a campaign, then add each ad with its metrics.</div>
+          {campaigns.map((c, ci) => (
+            <div key={c.id} className="admin-campaign-card">
+              <div className="admin-campaign-card-head">
+                <Field label="Campaign name">
+                  <input type="text" className="admin-input" value={c.name}
+                    onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, name: e.target.value } : x)); dirty(); }} />
+                </Field>
+                <button className="admin-btn-remove"
+                  onClick={() => { setCampaigns(cs => cs.filter((_, j) => j !== ci)); dirty(); }}
+                  aria-label="Remove campaign"><IconClose /></button>
+              </div>
+
+              {c.ads.map((a, ai) => (
+                <div key={a.id} className="admin-list-row">
+                  <div className="admin-list-row-grid admin-ad-grid">
+                    <Field label="Ad name">
+                      <input type="text" className="admin-input" value={a.name}
+                        onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, ads: x.ads.map((y, k) => k === ai ? { ...y, name: e.target.value } : y) } : x)); dirty(); }} />
+                    </Field>
+                    <Field label="Impressions">
+                      <input type="number" className="admin-input" value={a.impressions}
+                        onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, ads: x.ads.map((y, k) => k === ai ? { ...y, impressions: e.target.value } : y) } : x)); dirty(); }} />
+                    </Field>
+                    <Field label="Clicks">
+                      <input type="number" className="admin-input" value={a.clicks}
+                        onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, ads: x.ads.map((y, k) => k === ai ? { ...y, clicks: e.target.value } : y) } : x)); dirty(); }} />
+                    </Field>
+                    <Field label="CPC ($)">
+                      <input type="number" step="0.01" className="admin-input" value={a.cpc}
+                        onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, ads: x.ads.map((y, k) => k === ai ? { ...y, cpc: e.target.value } : y) } : x)); dirty(); }} />
+                    </Field>
+                    <Field label="Engagement Rate (%)">
+                      <input type="number" step="0.01" className="admin-input" value={a.engagement_rate}
+                        onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, ads: x.ads.map((y, k) => k === ai ? { ...y, engagement_rate: e.target.value } : y) } : x)); dirty(); }} />
+                    </Field>
+                  </div>
+                  <button className="admin-btn-remove"
+                    onClick={() => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, ads: x.ads.filter((_, k) => k !== ai) } : x)); dirty(); }}
+                    aria-label="Remove ad"><IconClose /></button>
+                </div>
+              ))}
+              <button className="admin-btn-add"
+                onClick={() => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, ads: [...x.ads, newAd()] } : x)); dirty(); }}>
+                + Add ad
+              </button>
+            </div>
+          ))}
+          <button className="admin-btn-add"
+            onClick={() => { setCampaigns(cs => [...cs, newCampaign()]); dirty(); }}>
+            + Add campaign
+          </button>
         </div>
       )}
 

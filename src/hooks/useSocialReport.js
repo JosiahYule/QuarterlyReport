@@ -22,7 +22,8 @@ async function fetchReport(agency, quarter) {
       social_platforms(*),
       social_top_posts(*),
       social_posts(*),
-      social_insights(*)
+      social_insights(*),
+      paid_media_campaigns(*, paid_media_ads(*))
     `)
     .eq("agency", agency)
     .eq("quarter", quarter)
@@ -116,6 +117,23 @@ function normalize(report, agency, quarter, prev) {
     Notes:        p.notes,
   }));
 
+  const paidMedia = [...(report.paid_media_campaigns || [])]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(c => ({
+      id: c.id,
+      name: c.name,
+      ads: [...(c.paid_media_ads || [])]
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map(a => ({
+          id: a.id,
+          name: a.name,
+          impressions: a.impressions,
+          clicks: a.clicks,
+          cpc: a.cpc,
+          engagementRate: a.engagement_rate,
+        })),
+    }));
+
   return {
     meta: {
       quarter:    qMeta.label,
@@ -130,6 +148,7 @@ function normalize(report, agency, quarter, prev) {
     topPostsByPlatform,
     notes,
     allPosts,
+    paidMedia,
     weekly: Array.from({ length: 13 }, (_, i) => ({ wk: i + 1, imp: 0, leads: 0, spend: 0 })),
   };
 }
