@@ -225,6 +225,8 @@ export function AppNav({ agency, view, quarter, onNavigate }) {
               />
             )}
           </div>
+
+          <a href="/admin" className="app-nav-admin-link">Admin</a>
         </div>
 
       </div>
