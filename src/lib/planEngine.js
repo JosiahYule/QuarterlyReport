@@ -203,6 +203,30 @@ export function isJobAdType(label) {
   return JOB_AD_KEYWORDS.some(k => l.includes(k));
 }
 
+// Days since Monday (0=Mon..6=Sun) for a JS getDay()-style weekday index
+// (0=Sun..6=Sat). Lets a weekday be placed within its Mon-start week and
+// tells whether "today" has already passed a given weekday this week —
+// including when today itself is the Sat/Sun after that week's Mon-Fri.
+function mondayOffset(weekdayIdx) {
+  return (weekdayIdx + 6) % 7;
+}
+
+// Calendar date ("YYYY-MM-DD") of each Mon-Fri weekday in the week
+// containing `now`, so posts already logged this week can be matched to the
+// plan by actual date rather than just weekday name. Uses `now`'s plain
+// local date parts — same convention as dateToLocalTs/startOfDay above —
+// rather than an Intl timezone conversion, so a midnight `now` (as tests
+// construct) can't roll onto a different calendar day than intended.
+export function thisWeekDates(now = new Date()) {
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset(now.getDay()));
+  const out = {};
+  for (const dayIndex of WEEKDAYS) {
+    const dt = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + (dayIndex - 1));
+    out[dayIndex] = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  }
+  return out;
+}
+
 function combinations(arr, k) {
   if (k === 0) return [[]];
   if (k > arr.length) return [];
@@ -238,40 +262,98 @@ function assignDistinct(days, cellsByDay) {
 // permanent / contract) placed to maximize the week's total expected
 // engagement, with the remaining days filled by the best *distinct* content
 // types for variety. Rates are recency-weighted via `now`.
+//
+// Days already posted *this calendar week* (matched by exact date, not just
+// weekday) show what actually went out instead of a suggestion, and don't
+// factor into the remaining days' plan. Days that are already past with
+// nothing logged are flagged as missed rather than re-suggested. The plan
+// for what's left is adjusted so it doesn't repeat a job-ad slot or content
+// type already covered earlier this week.
 export function buildWeekPlan(posts, { now = new Date(), minPerCell = 2 } = {}) {
-  const valid = (posts || []).filter(p => p.post_date && Number(p.impressions) > 0);
+  const allPosts = posts || [];
+  const valid = allPosts.filter(p => p.post_date && Number(p.impressions) > 0);
 
-  // Per day: the aggregated job-ad track record, and the ranked non-job cells.
+  // Any logged post counts as "already posted" (even before impressions are
+  // in) — this is "did I already post," not "how did it perform."
+  const weekDates = thisWeekDates(now);
+  const postedByDay = {};
+  for (const dayIndex of WEEKDAYS) {
+    const dayPosts = allPosts.filter(p => p.post_date === weekDates[dayIndex]);
+    postedByDay[dayIndex] = dayPosts.length ? dayPosts : null;
+  }
+
+  // What's already covered this week, so the rest of the week doesn't repeat
+  // a job-ad slot or content type that's already gone out.
+  const usedTypesThisWeek = new Set();
+  const usedJobRoles = new Set();
+  let jobSlotsUsedThisWeek = 0;
+  for (const dayIndex of WEEKDAYS) {
+    for (const p of postedByDay[dayIndex] || []) {
+      const label = classifyPost(p).label;
+      if (isJobAdType(label)) {
+        jobSlotsUsedThisWeek += 1;
+        const l = label.toLowerCase();
+        if (l.includes("perm")) usedJobRoles.add("Permanent");
+        else if (l.includes("contract")) usedJobRoles.add("Contract");
+      } else {
+        usedTypesThisWeek.add(label.toLowerCase());
+      }
+    }
+  }
+
+  const todayOffset = mondayOffset(now.getDay());
+  const remainingDays = WEEKDAYS.filter(d => !postedByDay[d] && mondayOffset(d) >= todayOffset);
+
+  // Per remaining day: the aggregated job-ad track record, and the ranked
+  // non-job cells (types already used this week excluded, for variety).
   const jobByDay = {};
   const contentByDay = {};
-  for (const dayIndex of WEEKDAYS) {
+  for (const dayIndex of remainingDays) {
     const dayPosts = valid.filter(p => dayOfWeekIndex(p.post_date) === dayIndex);
     const jobPosts = dayPosts.filter(p => isJobAdType(classifyPost(p).label));
     const jobAgg = groupAndScore(jobPosts, () => ({ key: "job" }), { now })[0] || null;
     jobByDay[dayIndex] = { rate: jobAgg?.avgEngagementRate ?? null, count: jobAgg?.count ?? 0 };
     contentByDay[dayIndex] = groupAndScore(dayPosts.filter(p => !isJobAdType(classifyPost(p).label)), classifyPost, { now })
-      .filter(b => b.avgEngagementRate !== null)
+      .filter(b => b.avgEngagementRate !== null && !usedTypesThisWeek.has(b.label.toLowerCase()))
       .sort(byRateDesc);
   }
 
-  // Try every choice of which days carry the job ads; keep the split that
-  // maximizes total expected engagement (job days score their job rate, the
-  // rest get the best distinct-content assignment).
+  const jobSlotsRemaining = Math.max(0, JOB_AD_SLOTS - jobSlotsUsedThisWeek);
+  const roleLabelsRemaining = usedJobRoles.size
+    ? JOB_ROLE_LABELS.filter(r => !usedJobRoles.has(r))
+    : JOB_ROLE_LABELS;
+
+  // Try every choice of which remaining days carry the remaining job ads;
+  // keep the split that maximizes total expected engagement (job days score
+  // their job rate, the rest get the best distinct-content assignment).
   let bestPlan = null;
-  for (const jobDays of combinations(WEEKDAYS, JOB_AD_SLOTS)) {
-    const contentDays = WEEKDAYS.filter(d => !jobDays.includes(d));
+  const jobK = Math.min(jobSlotsRemaining, remainingDays.length);
+  for (const jobDays of combinations(remainingDays, jobK)) {
+    const contentDays = remainingDays.filter(d => !jobDays.includes(d));
     const jobScore = jobDays.reduce((a, d) => a + (jobByDay[d].rate ?? 0), 0);
     const { score: contentScore, picks } = assignDistinct(contentDays, contentByDay);
     const total = jobScore + contentScore;
     if (!bestPlan || total > bestPlan.total) bestPlan = { total, jobDays, picks };
   }
+  if (!bestPlan) bestPlan = { total: 0, jobDays: [], picks: {} };
 
   const roleByDay = {};
   [...bestPlan.jobDays].sort((a, b) => a - b).forEach((d, i) => {
-    roleByDay[d] = JOB_ROLE_LABELS[i] || `Job ad ${i + 1}`;
+    roleByDay[d] = roleLabelsRemaining[i] || `Job ad ${i + 1}`;
   });
 
   return WEEKDAYS.map(dayIndex => {
+    const dayPosts = postedByDay[dayIndex];
+    if (dayPosts) {
+      return {
+        dayIndex, dayName: DAY_NAMES[dayIndex], slot: "posted", roleLabel: null, bestType: null,
+        posted: dayPosts.map(p => ({ label: classifyPost(p).label, postName: p.post_name || "" })),
+        confident: true,
+      };
+    }
+    if (mondayOffset(dayIndex) < todayOffset) {
+      return { dayIndex, dayName: DAY_NAMES[dayIndex], slot: "missed", roleLabel: null, bestType: null, confident: false };
+    }
     if (bestPlan.jobDays.includes(dayIndex)) {
       const job = jobByDay[dayIndex];
       return {

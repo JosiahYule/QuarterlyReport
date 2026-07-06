@@ -192,6 +192,16 @@ function BreakdownTable({ rows, nameKey, qualified }) {
 }
 
 function WeekSlot({ d }) {
+  if (d.slot === "posted") {
+    return (
+      <span>
+        <span className="admin-plan-postedtag">Posted</span> {d.posted.map(p => p.label).join(", ")}
+      </span>
+    );
+  }
+  if (d.slot === "missed") {
+    return <span className="admin-plan-nodata">No post logged</span>;
+  }
   if (d.slot === "job") {
     return (
       <span>
@@ -216,7 +226,7 @@ function WeekPlan({ week, todayName }) {
       <tbody>
         {week.map(d => {
           const isToday = d.dayName === todayName;
-          const cls = (d.confident ? "" : "is-thin") + (isToday ? " is-today" : "");
+          const cls = (d.confident ? "" : "is-thin") + (isToday ? " is-today" : "") + (d.slot === "posted" ? " is-posted" : "");
           const hasRecord = d.bestType && d.bestType.count > 0 && Number.isFinite(d.bestType.avgEngagementRate);
           return (
             <tr key={d.dayIndex} className={cls.trim()}>
@@ -226,7 +236,11 @@ function WeekPlan({ week, todayName }) {
               </td>
               <td><WeekSlot d={d} /></td>
               <td className="r">
-                {hasRecord
+                {d.slot === "posted"
+                  ? `${d.posted.length} post${d.posted.length === 1 ? "" : "s"} logged`
+                  : d.slot === "missed"
+                  ? "—"
+                  : hasRecord
                   ? `${d.bestType.count} post${d.bestType.count === 1 ? "" : "s"} · ${pct(d.bestType.avgEngagementRate)}`
                   : "no history yet"}
               </td>
@@ -333,7 +347,9 @@ export function PlanTab({ agency, quarter }) {
             <p className="admin-list-hint">
               A balanced week: two days reserved for job ads (one permanent, one contract), placed where they
               perform best, and the other three filled with your strongest <em>distinct</em> content types for
-              variety. Recent posts count more, so a format you've recently improved rises here.
+              variety. Recent posts count more, so a format you've recently improved rises here. Days you've
+              already posted this week show what went out instead of a suggestion, and the rest of the week is
+              replanned around it — so a job ad or content type you've already covered won't be suggested again.
             </p>
             <WeekPlan week={buildWeekPlan(posts)} todayName={plan.todayName} />
           </div>

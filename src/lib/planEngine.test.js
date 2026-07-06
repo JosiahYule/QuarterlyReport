@@ -6,6 +6,7 @@ import {
   buildPlanSuggestion,
   buildPlanNarrative,
   buildWeekPlan,
+  thisWeekDates,
   buildScorecard,
   buildCadence,
   buildContentMix,
@@ -164,8 +165,8 @@ describe("buildWeekPlan", () => {
       post("Story Tue2", "2026-06-09", 1000, 320, "testimonial"),
       post("Story Wed", "2026-06-03", 1000, 300, "testimonial"),
       post("Story Wed2", "2026-06-10", 1000, 300, "testimonial"),
-      post("Tips Wed", "2026-06-17", 1000, 120, "tips"),
-      post("Tips Wed2", "2026-06-24", 1000, 120, "tips"),
+      post("Tips Wed", "2026-05-20", 1000, 120, "tips"),
+      post("Tips Wed2", "2026-05-27", 1000, 120, "tips"),
     ];
     const week = buildWeekPlan(posts, NOW);
     const contentLabels = week.filter(d => d.slot === "content" && d.bestType).map(d => d.bestType.label);
@@ -186,6 +187,77 @@ describe("buildWeekPlan", () => {
     // Friday has no content history → no specific suggestion.
     const friday = week.find(d => d.dayName === "Friday");
     expect(friday.slot === "content" ? friday.bestType : "(job day)").toBeNull();
+  });
+});
+
+describe("thisWeekDates", () => {
+  it("returns the Mon-Fri calendar dates for the week containing `now`", () => {
+    // 2026-07-08 is a Wednesday; that week runs Mon 7/6 - Fri 7/10.
+    const dates = thisWeekDates(new Date(2026, 6, 8));
+    expect(dates).toEqual({
+      1: "2026-07-06",
+      2: "2026-07-07",
+      3: "2026-07-08",
+      4: "2026-07-09",
+      5: "2026-07-10",
+    });
+  });
+});
+
+describe("buildWeekPlan — this week's actual posts", () => {
+  // 2026-07-08 is a Wednesday; this week runs Mon 7/6 - Fri 7/10.
+  const WED = { now: new Date(2026, 6, 8) };
+
+  it("shows a day as already posted when a real post is logged on that calendar date", () => {
+    const posts = [post("Weekly update", "2026-07-06", 500, 50, "team culture")]; // this Monday
+    const week = buildWeekPlan(posts, WED);
+    const monday = week.find(d => d.dayName === "Monday");
+    expect(monday.slot).toBe("posted");
+    expect(monday.posted).toEqual([{ label: "Team Culture", postName: "Weekly update" }]);
+    expect(monday.confident).toBe(true);
+  });
+
+  it("flags a past day this week with nothing logged as missed", () => {
+    const posts = [post("Weekly update", "2026-07-06", 500, 50, "team culture")]; // only Monday posted
+    const week = buildWeekPlan(posts, WED);
+    const tuesday = week.find(d => d.dayName === "Tuesday"); // 7/7, before "today" (7/8), nothing logged
+    expect(tuesday.slot).toBe("missed");
+    expect(tuesday.confident).toBe(false);
+  });
+
+  it("excludes a content type already posted this week from the remaining days' suggestions", () => {
+    const posts = [
+      // Historical: testimonials are the strongest Thursday content, tips second.
+      post("Story Thu 1", "2026-06-04", 1000, 300, "testimonial"),
+      post("Story Thu 2", "2026-06-11", 1000, 300, "testimonial"),
+      post("Tips Thu 1", "2026-06-18", 1000, 150, "tips"),
+      post("Tips Thu 2", "2026-06-25", 1000, 150, "tips"),
+      // Already posted a testimonial this Monday.
+      post("This week testimonial", "2026-07-06", 1000, 300, "testimonial"),
+    ];
+    const week = buildWeekPlan(posts, WED);
+    const thursday = week.find(d => d.dayName === "Thursday");
+    expect(thursday.slot).toBe("content");
+    expect(thursday.bestType.label).toBe("Tips");
+  });
+
+  it("reduces the remaining job-ad slots and assigns the leftover role when one's already posted this week", () => {
+    const posts = [
+      // Historical: job ads perform best on Thursday.
+      post("Hiring Thu 1", "2026-06-04", 1000, 300, "job posting"),
+      post("Hiring Thu 2", "2026-06-11", 1000, 300, "job posting"),
+      // Already posted the Permanent job ad this Monday.
+      post("This week job ad", "2026-07-06", 1000, 300, "Permanent"),
+    ];
+    const week = buildWeekPlan(posts, WED);
+    const monday = week.find(d => d.dayName === "Monday");
+    expect(monday.slot).toBe("posted");
+    expect(monday.posted).toEqual([{ label: "Permanent", postName: "This week job ad" }]);
+
+    const jobDays = week.filter(d => d.slot === "job");
+    expect(jobDays).toHaveLength(1); // only the Contract slot is left this week
+    expect(jobDays[0].dayName).toBe("Thursday");
+    expect(jobDays[0].roleLabel).toBe("Contract");
   });
 });
 
