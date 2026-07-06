@@ -463,6 +463,16 @@
   .paid-media-totals-row td { font-weight: 600; border-top: 1px solid var(--ink); border-bottom: none; }
   .paid-media-totals-row td:first-child { font-family: var(--sans); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
 
+  .paid-media-status {
+    display: inline-block; margin-left: 10px; font-family: var(--sans);
+    font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 2px 9px; border-radius: 99px; white-space: nowrap; vertical-align: middle;
+  }
+  .paid-media-status.is-active    { color: var(--up); border: 1px solid var(--up); }
+  .paid-media-status.is-paused    { color: #7a5c00; border: 1px solid rgba(122, 92, 0, 0.35); }
+  .paid-media-status.is-completed { color: var(--ink-3); border: 1px solid var(--rule-soft); }
+  .paid-media-status.is-draft     { color: var(--ink-4); border: 1px solid var(--rule-soft); }
+
   /* Calendar */
   .calendar-view { display: flex; flex-direction: column; gap: 30px; }
   .calendar-month-title { font-family: var(--serif); font-size: 28px; margin-bottom: 14px; border-bottom: 1px solid var(--rule); padding-bottom: 8px; }
@@ -1163,7 +1173,7 @@
 .admin-channel-grid    { grid-template-columns: 1.6fr repeat(3, 1fr); }
 .admin-page-grid       { grid-template-columns: 2fr 1fr 1fr 1fr; }
 .admin-toppost-grid    { grid-template-columns: 3fr 1fr 1fr 1fr; }
-.admin-ad-grid         { grid-template-columns: 2fr repeat(4, 1fr); }
+.admin-ad-grid         { grid-template-columns: 1.6fr repeat(4, 1fr) 1fr; }
 
 /* Paid media campaign cards */
 .admin-campaign-card      { border: 1px solid var(--rule); background: var(--paper-2); padding: 16px; margin-bottom: 12px; }

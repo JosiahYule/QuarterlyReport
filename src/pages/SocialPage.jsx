@@ -745,6 +745,19 @@ function healthForAd(ad) {
   return { label, color, ctr, hasData: true };
 }
 
+const AD_STATUS_META = {
+  active:    { label: "Active",    className: "is-active" },
+  paused:    { label: "Paused",    className: "is-paused" },
+  completed: { label: "Completed", className: "is-completed" },
+  draft:     { label: "Draft",     className: "is-draft" },
+};
+
+function AdStatusTag({ status }) {
+  const meta = AD_STATUS_META[status];
+  if (!meta) return null;
+  return <span className={"paid-media-status " + meta.className}>{meta.label}</span>;
+}
+
 const PAID_MEDIA_KPI_DEFS = [
   { key: "spend",          label: "Total Spend",  fmt: v => v != null ? "$" + fmt(v) : "—" },
   { key: "impressions",    label: "Impressions",  fmt: fmt },
@@ -798,7 +811,10 @@ function PaidMediaCampaign({ c }) {
                 const { label, color, ctr, hasData } = healthForAd(ad);
                 return (
                   <tr key={ad.id}>
-                    <td><span className="campaign-name serif">{ad.name || "Untitled ad"}</span></td>
+                    <td>
+                      <span className="campaign-name serif">{ad.name || "Untitled ad"}</span>
+                      <AdStatusTag status={ad.status} />
+                    </td>
                     <td className="r num">{fmtExact(ad.impressions)}</td>
                     <td className="r num">{fmtExact(ad.clicks)}</td>
                     <td className="r num">{hasData ? ctr.toFixed(2) + "%" : "—"}</td>
