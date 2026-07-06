@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   computeAdvancedPace,
+  computeSporadicPace,
+  computePace,
+  METRICS,
   buildProjectionAudit,
   blendCalibrationHistory,
   annotateTimelineSpikes,
@@ -70,6 +73,89 @@ describe("computeAdvancedPace — least-squares rolling rate", () => {
   });
 });
 
+// Mostly-flat background (2/day) with one huge spike day (200), so a robust
+// model should read the background as ~2/day, not be dragged toward the
+// spike the way a mean or regression slope would be.
+function spikeSnapshots() {
+  const snaps = [];
+  let acc = 0;
+  for (let i = 0; i <= 30; i++) {
+    if (i > 0) acc += (i === 15 ? 200 : 2);
+    snaps.push({ t: qStart.getTime() + i * DAY, val: acc });
+  }
+  return snaps;
+}
+
+describe("computeSporadicPace", () => {
+  it("returns null before the quarter is a week in", () => {
+    expect(computeSporadicPace(50, qStart, qEnd, [], new Date(qStart.getTime() + 3 * DAY))).toBeNull();
+  });
+
+  it("falls back to the plain average rate with no delta history", () => {
+    const asOf = new Date(qStart.getTime() + 10 * DAY);
+    const pace = computeSporadicPace(100, qStart, qEnd, [], asOf);
+    expect(pace.dailyRate).toBeCloseTo(10, 5); // 100 / 10 days
+    expect(pace.projected).toBeCloseTo(10 * 92, 5);
+    expect(pace.components).toEqual({ simple: pace.projected, rolling: null, reg: null });
+    expect(pace.spikeFrequency).toBe(0);
+  });
+
+  it("reads the background rate from the median, unmoved by a single spike day", () => {
+    const history = spikeSnapshots();
+    const current = history[history.length - 1].val; // 29*2 + 200 = 258
+    const asOf = new Date(qStart.getTime() + 30 * DAY);
+    const pace = computeSporadicPace(current, qStart, qEnd, history, asOf);
+    expect(pace.dailyRate).toBeCloseTo(2, 5);
+    expect(pace.background).toBeCloseTo(2, 5);
+  });
+
+  it("adds a damped spike bonus instead of ignoring spikes or extrapolating one", () => {
+    const history = spikeSnapshots();
+    const current = history[history.length - 1].val; // 258
+    const asOf = new Date(qStart.getTime() + 30 * DAY);
+    const pace = computeSporadicPace(current, qStart, qEnd, history, asOf);
+    const dRemaining = 92 - 30;
+    const backgroundOnly = current + 2 * dRemaining; // no-spike floor
+    const naiveSpikeExtrapolation = current + 200 * dRemaining; // treats 200/day as the new rate
+    expect(pace.spikeFrequency).toBeCloseTo(1 / 30, 5);
+    expect(pace.projected).toBeGreaterThan(backgroundOnly);
+    expect(pace.projected).toBeLessThan(naiveSpikeExtrapolation / 10); // nowhere close to naive
+  });
+
+  it("exposes the no-spike vs with-spike scenarios as components, for the band's disagreement term", () => {
+    const history = spikeSnapshots();
+    const current = history[history.length - 1].val;
+    const asOf = new Date(qStart.getTime() + 30 * DAY);
+    const pace = computeSporadicPace(current, qStart, qEnd, history, asOf);
+    expect(pace.components.rolling).toBeNull();
+    expect(pace.components.reg).toBeGreaterThan(pace.components.simple);
+  });
+});
+
+describe("computePace", () => {
+  it("marks the Comments metric as sporadic", () => {
+    expect(METRICS.find(m => m.id === "comments").sporadic).toBe(true);
+  });
+
+  it("dispatches to the sporadic model when metric.sporadic is set", () => {
+    const history = spikeSnapshots();
+    const current = history[history.length - 1].val;
+    const asOf = new Date(qStart.getTime() + 30 * DAY);
+    const viaDispatch = computePace({ id: "comments", sporadic: true }, current, qStart, qEnd, null, history, 0, asOf);
+    const viaDirect = computeSporadicPace(current, qStart, qEnd, history, asOf);
+    expect(viaDispatch.projected).toBeCloseTo(viaDirect.projected, 6);
+  });
+
+  it("falls through to the general blend for ordinary metrics", () => {
+    const history = spikeSnapshots();
+    const current = history[history.length - 1].val;
+    const asOf = new Date(qStart.getTime() + 30 * DAY);
+    const viaDispatch = computePace({ id: "impressions" }, current, qStart, qEnd, null, history, 0, asOf);
+    const viaDirect = computeAdvancedPace(current, qStart, qEnd, null, history, 0, asOf);
+    expect(viaDispatch.projected).toBeCloseTo(viaDirect.projected, 6);
+  });
+});
+
 describe("buildProjectionAudit — stage-weighted calibration", () => {
   const snapshotHistory = decelSnapshots();
   const actual = snapshotHistory[snapshotHistory.length - 1].vals.m;
@@ -105,6 +191,50 @@ describe("buildProjectionAudit — stage-weighted calibration", () => {
     const audit = buildProjectionAudit({ ...common, targetElapsedFraction: 0.5 });
     expect(audit.calibrationFactor).toBeGreaterThanOrEqual(0.5);
     expect(audit.calibrationFactor).toBeLessThanOrEqual(1.5);
+  });
+
+  it("returns a sane band (low <= high, positive width) alongside the point estimate", () => {
+    const audit = buildProjectionAudit({ ...common, targetElapsedFraction: 0.5 });
+    expect(audit.bandRelHalf).toBeGreaterThan(0);
+    expect(audit.bandLow).toBeLessThanOrEqual(audit.bandHigh);
+  });
+});
+
+describe("buildProjectionAudit — band coverage", () => {
+  // A near-perfectly linear series: every stage's projection should land
+  // very close to the true final, so the band is a clean test of coverage
+  // logic rather than being entangled with how well the model itself fit
+  // (that's what the decelerating-series tests above are for).
+  function linearSnapshots(rate = 10) {
+    const snaps = [];
+    for (let i = 0; i <= 92; i++) snaps.push({ t: qStart.getTime() + i * DAY, vals: { m: rate * i } });
+    return snaps;
+  }
+  const snapshotHistory = linearSnapshots();
+  const actual = snapshotHistory[snapshotHistory.length - 1].vals.m;
+  const common = {
+    metric,
+    actualValue: actual,
+    completedQuarter: { start: qStart, end: qEnd },
+    previousQuarter: { start: new Date(2025, 11, 1), end: qStart },
+    previousQuarterValue: 800,
+    twoBackValue: null,
+    snapshotHistory,
+  };
+
+  it("flags coverage true when the actual final lands inside the band", () => {
+    const audit = buildProjectionAudit({ ...common, targetElapsedFraction: 0.5 });
+    expect(audit.bandCovered).toBe(true);
+    expect(audit.actual).toBeGreaterThanOrEqual(audit.bandLow);
+    expect(audit.actual).toBeLessThanOrEqual(audit.bandHigh);
+  });
+
+  it("flags coverage false when the actual final lands far outside the band", () => {
+    // Same projection trajectory, but a wildly different actual — the band
+    // itself (built only from the trajectory) can't have moved to cover it.
+    const audit = buildProjectionAudit({ ...common, actualValue: common.actualValue * 5, targetElapsedFraction: 0.5 });
+    expect(audit.bandCovered).toBe(false);
+    expect(audit.bandHigh).toBeLessThan(audit.actual);
   });
 });
 
