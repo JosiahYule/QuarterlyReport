@@ -8,6 +8,7 @@ import {
   buildWeekPlan,
   buildScorecard,
   buildCadence,
+  buildContentFreshness,
   buildContentMix,
   buildPerformers,
   MIN_SAMPLE_SIZE,
@@ -100,6 +101,21 @@ function CadenceCard({ cadence }) {
   );
 }
 
+function FreshnessTable({ freshness }) {
+  const stale = freshness.rows.filter(r => r.stale);
+  if (!stale.length) return null;
+  return (
+    <div>
+      {stale.map(r => (
+        <div key={r.key} className="admin-plan-freshness-alert">
+          ⚠ {r.label} — last posted {r.daysSinceLast} day{r.daysSinceLast === 1 ? "" : "s"} ago
+          {Number.isFinite(r.avgGap) ? ` (usually every ~${Math.round(r.avgGap)} days)` : ""}.
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ContentMixTable({ mix }) {
   if (!mix.rows.length) return null;
   return (
@@ -167,13 +183,14 @@ function Performers({ performers }) {
   );
 }
 
-function BreakdownTable({ rows, nameKey, qualified }) {
+function BreakdownTable({ rows, nameKey, qualified, header }) {
   if (!rows.length) return null;
+  const col = header || (nameKey === "name" ? "Day" : "Content type");
   return (
     <table className="admin-plan-table">
       <thead>
         <tr>
-          <th>{nameKey === "name" ? "Day" : "Content type"}</th>
+          <th>{col}</th>
           <th className="r">Posts</th>
           <th className="r">Avg. engagement</th>
         </tr>
@@ -196,6 +213,14 @@ function WeekSlot({ d }) {
     return (
       <span>
         <span className="admin-plan-postedtag">Posted</span> {d.posted.map(p => p.label).join(", ")}
+      </span>
+    );
+  }
+  if (d.slot === "planned") {
+    return (
+      <span>
+        <span className="admin-plan-plannedtag">Planned</span>{" "}
+        {d.planned.map(p => p.idea || p.label).join(", ")}
       </span>
     );
   }
@@ -226,7 +251,7 @@ function WeekPlan({ week, todayName }) {
       <tbody>
         {week.map(d => {
           const isToday = d.dayName === todayName;
-          const cls = (d.confident ? "" : "is-thin") + (isToday ? " is-today" : "") + (d.slot === "posted" ? " is-posted" : "");
+          const cls = (d.confident ? "" : "is-thin") + (isToday ? " is-today" : "") + (d.slot === "posted" ? " is-posted" : "") + (d.slot === "planned" ? " is-planned" : "");
           const hasRecord = d.bestType && d.bestType.count > 0 && Number.isFinite(d.bestType.avgEngagementRate);
           return (
             <tr key={d.dayIndex} className={cls.trim()}>
@@ -238,6 +263,8 @@ function WeekPlan({ week, todayName }) {
               <td className="r">
                 {d.slot === "posted"
                   ? `${d.posted.length} post${d.posted.length === 1 ? "" : "s"} logged`
+                  : d.slot === "planned"
+                  ? "scheduled, not yet posted"
                   : d.slot === "missed"
                   ? "—"
                   : hasRecord
@@ -258,6 +285,7 @@ export function PlanTab({ agency, quarter }) {
   const [loadError, setLoadError] = useState("");
   const [currentPosts, setCurrentPosts] = useState([]);
   const [prevPosts, setPrevPosts] = useState([]);
+  const [plannedItems, setPlannedItems] = useState([]);
 
   const prevQ = previousQuarter(quarter);
 
@@ -268,17 +296,28 @@ export function PlanTab({ agency, quarter }) {
     (async () => {
       try {
         const quarters = prevQ ? [quarter, prevQ.suffix] : [quarter];
-        const { data, error } = await supabase
-          .from("social_reports")
-          .select("quarter, social_posts(*)")
-          .eq("agency", agency)
-          .in("quarter", quarters);
-        if (error) throw error;
+        const [postsRes, plannedRes] = await Promise.all([
+          supabase
+            .from("social_reports")
+            .select("quarter, social_posts(*)")
+            .eq("agency", agency)
+            .in("quarter", quarters),
+          supabase
+            .from("plan_items")
+            .select("content_type, planned_date, idea, status")
+            .eq("agency", agency)
+            .eq("quarter", quarter)
+            .eq("status", "planned"),
+        ]);
+        if (postsRes.error) throw postsRes.error;
         if (!cancelled) {
           const byQuarter = {};
-          for (const r of data || []) byQuarter[r.quarter] = r.social_posts || [];
+          for (const r of postsRes.data || []) byQuarter[r.quarter] = r.social_posts || [];
           setCurrentPosts(byQuarter[quarter] || []);
           setPrevPosts(prevQ ? byQuarter[prevQ.suffix] || [] : []);
+          // The planner is a separate, best-effort signal — don't fail the
+          // whole tab if it can't be read (e.g. logged out of that scope).
+          setPlannedItems(plannedRes.error ? [] : plannedRes.data || []);
         }
       } catch {
         if (!cancelled) setLoadError("Failed to load the post log for this quarter. Please refresh and try again.");
@@ -342,16 +381,32 @@ export function PlanTab({ agency, quarter }) {
             ) : null;
           })()}
 
+          {(() => {
+            const freshness = buildContentFreshness(posts);
+            return freshness.rows.some(r => r.stale) ? (
+              <div>
+                <div className="admin-section-heading">Content freshness</div>
+                <p className="admin-list-hint">
+                  Each content type's own posting rhythm sets its own bar — flagged here when a type has gone
+                  noticeably longer than usual without a post.
+                </p>
+                <FreshnessTable freshness={freshness} />
+              </div>
+            ) : null;
+          })()}
+
           <div>
             <div className="admin-section-heading">Your week at a glance</div>
             <p className="admin-list-hint">
               A balanced week: two days reserved for job ads (one permanent, one contract), placed where they
-              perform best, and the other three filled with your strongest <em>distinct</em> content types for
-              variety. Recent posts count more, so a format you've recently improved rises here. Days you've
-              already posted this week show what went out instead of a suggestion, and the rest of the week is
-              replanned around it — so a job ad or content type you've already covered won't be suggested again.
+              perform best and always at least two clear days apart, and the other three filled with your
+              strongest <em>distinct</em> content types for variety. Recent posts count more, so a format you've
+              recently improved rises here. Days you've
+              already posted this week show what went out, and days already scheduled in the planner below show
+              that instead — the rest of the week is replanned around both, so a job ad or content type you've
+              already covered or queued won't be suggested again.
             </p>
-            <WeekPlan week={buildWeekPlan(posts)} todayName={plan.todayName} />
+            <WeekPlan week={buildWeekPlan(posts, { plannedItems })} todayName={plan.todayName} />
           </div>
 
           <div>
@@ -374,6 +429,17 @@ export function PlanTab({ agency, quarter }) {
             <div className="admin-section-heading">Engagement by day of week</div>
             <BreakdownTable rows={plan.dayBreakdown} nameKey="name" qualified={MIN_SAMPLE_SIZE} />
           </div>
+
+          {plan.timeBreakdown.length > 0 && (
+            <div>
+              <div className="admin-section-heading">Engagement by time of day</div>
+              <p className="admin-list-hint">
+                Based on the optional Time field on each post in the All Posts log — rows logged before that
+                field existed aren't included yet.
+              </p>
+              <BreakdownTable rows={plan.timeBreakdown} nameKey="label" header="Time of day" qualified={MIN_SAMPLE_SIZE} />
+            </div>
+          )}
         </>
       )}
     </div>

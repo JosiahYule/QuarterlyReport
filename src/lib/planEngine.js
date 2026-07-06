@@ -80,6 +80,30 @@ export function todayWeekdayIndex(now = new Date(), timeZone = REPORT_TZ) {
 
 export { DAY_NAMES };
 
+// ─── Time-of-day ─────────────────────────────────────────────────────
+// post_time is an optional "HH:MM" (24h) string, set when a post is logged
+// (see SocialForm.jsx). Older/back-filled rows without one just don't count
+// toward this — no penalty, no guess.
+export const TIME_BUCKETS = [
+  { key: "early_morning",  label: "Early Morning (6–9am)",    startHour: 6,  endHour: 9  },
+  { key: "late_morning",   label: "Late Morning (9am–12pm)",  startHour: 9,  endHour: 12 },
+  { key: "afternoon",      label: "Afternoon (12–3pm)",       startHour: 12, endHour: 15 },
+  { key: "late_afternoon", label: "Late Afternoon (3–6pm)",   startHour: 15, endHour: 18 },
+  { key: "evening",        label: "Evening (6pm+)",           startHour: 18, endHour: 24 },
+];
+
+// Anything before 6am folds into Evening (previous night's window) rather
+// than a sixth sparse bucket — off-hours posts are rare enough not to need one.
+export function classifyTimeOfDay(post_time) {
+  if (typeof post_time !== "string") return null;
+  const m = post_time.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const hour = Number(m[1]);
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return null;
+  const bucket = TIME_BUCKETS.find(b => hour >= b.startHour && hour < b.endHour) || TIME_BUCKETS[TIME_BUCKETS.length - 1];
+  return { key: bucket.key, label: bucket.label };
+}
+
 // ─── Bucketing ──────────────────────────────────────────────────────
 function engagementRate(impressions, engagements) {
   return impressions > 0 ? engagements / impressions : null;
@@ -154,6 +178,9 @@ export function buildPlanSuggestion(posts, { now = new Date() } = {}) {
     return idx === null ? null : { key: idx, name: DAY_NAMES[idx] };
   }, { now }).sort(byRateDesc);
   const typeBuckets = groupAndScore(valid, classifyPost, { now }).sort(byRateDesc);
+  // Time-of-day is optional (post_time may be unset on older/back-filled
+  // rows), so this bucket set can legitimately come back empty.
+  const timeBuckets = groupAndScore(valid, p => classifyTimeOfDay(p.post_time), { now }).sort(byRateDesc);
 
   // Recency-weighted overall baseline, so "vs overall" in the narrative
   // compares like-for-like against the weighted type/day rates.
@@ -163,13 +190,17 @@ export function buildPlanSuggestion(posts, { now = new Date() } = {}) {
 
   const qualifiedDays  = dayBuckets.filter(b => b.count >= MIN_SAMPLE_SIZE && b.avgEngagementRate !== null);
   const qualifiedTypes = typeBuckets.filter(b => b.count >= MIN_SAMPLE_SIZE && b.avgEngagementRate !== null);
+  const qualifiedTimes = timeBuckets.filter(b => b.count >= MIN_SAMPLE_SIZE && b.avgEngagementRate !== null);
 
   const bestDay  = qualifiedDays[0]  || null;
   const bestType = qualifiedTypes[0] || null;
+  const bestTime = qualifiedTimes[0] || null;
 
   const todayIdx = todayWeekdayIndex(now);
   const todayBucket = dayBuckets.find(b => b.key === todayIdx) || null;
 
+  // Time-of-day is a bonus signal, not a gate — confidence stays keyed to
+  // day+type so it doesn't dip just because post_time hasn't been logged yet.
   const confidence = bestDay && bestType ? "high" : bestDay || bestType ? "medium" : "low";
 
   return {
@@ -180,8 +211,10 @@ export function buildPlanSuggestion(posts, { now = new Date() } = {}) {
     todayBucket,
     bestDay,
     bestType,
+    bestTime,
     dayBreakdown: dayBuckets,
     typeBreakdown: typeBuckets,
+    timeBreakdown: timeBuckets,
     confidence,
   };
 }
@@ -201,6 +234,16 @@ const JOB_AD_KEYWORDS = ["job", "hiring", "perm", "contract", "vacanc"];
 export function isJobAdType(label) {
   const l = (label || "").toLowerCase();
   return JOB_AD_KEYWORDS.some(k => l.includes(k));
+}
+
+// Job ads can't run back-to-back or with just one rest day between — at
+// least two clear days must separate any two job-ad days in the week
+// (permanent and contract count the same for this rule). Expressed as a
+// minimum weekday-index gap: two clear days between index a and b means
+// |a - b| > JOB_AD_MIN_GAP_DAYS.
+export const JOB_AD_MIN_GAP_DAYS = 2;
+function hasMinJobGap(a, b) {
+  return Math.abs(a - b) > JOB_AD_MIN_GAP_DAYS;
 }
 
 // Days since Monday (0=Mon..6=Sun) for a JS getDay()-style weekday index
@@ -260,16 +303,19 @@ function assignDistinct(days, cellsByDay) {
 
 // A recommended Mon–Fri schedule: up to JOB_AD_SLOTS job-ad days (labeled
 // permanent / contract) placed to maximize the week's total expected
-// engagement, with the remaining days filled by the best *distinct* content
-// types for variety. Rates are recency-weighted via `now`.
+// engagement — at least JOB_AD_MIN_GAP_DAYS clear days apart from each other
+// and from any job ad already posted/planned this week — with the remaining
+// days filled by the best *distinct* content types for variety. Rates are
+// recency-weighted via `now`.
 //
 // Days already posted *this calendar week* (matched by exact date, not just
-// weekday) show what actually went out instead of a suggestion, and don't
-// factor into the remaining days' plan. Days that are already past with
-// nothing logged are flagged as missed rather than re-suggested. The plan
-// for what's left is adjusted so it doesn't repeat a job-ad slot or content
-// type already covered earlier this week.
-export function buildWeekPlan(posts, { now = new Date(), minPerCell = 2 } = {}) {
+// weekday) show what actually went out instead of a suggestion. Days already
+// scheduled in the Planner board (plannedItems: status "planned", not yet
+// posted) show that instead — a placeholder, not a duplicate suggestion.
+// Days that are already past with nothing logged or planned are flagged as
+// missed. The plan for what's left is adjusted so it doesn't repeat a
+// job-ad slot or content type already posted or planned earlier this week.
+export function buildWeekPlan(posts, { now = new Date(), minPerCell = 2, plannedItems = [] } = {}) {
   const allPosts = posts || [];
   const valid = allPosts.filter(p => p.post_date && Number(p.impressions) > 0);
 
@@ -282,27 +328,43 @@ export function buildWeekPlan(posts, { now = new Date(), minPerCell = 2 } = {}) 
     postedByDay[dayIndex] = dayPosts.length ? dayPosts : null;
   }
 
-  // What's already covered this week, so the rest of the week doesn't repeat
-  // a job-ad slot or content type that's already gone out.
+  // A day with a real post is settled; only look to the planner for days
+  // that haven't actually gone out yet.
+  const plannedByDay = {};
+  for (const dayIndex of WEEKDAYS) {
+    if (postedByDay[dayIndex]) { plannedByDay[dayIndex] = null; continue; }
+    const dateStr = weekDates[dayIndex];
+    const items = (plannedItems || []).filter(it => it.status === "planned" && it.planned_date === dateStr);
+    plannedByDay[dayIndex] = items.length ? items : null;
+  }
+
+  // What's already covered this week — posted or planned — so the rest of
+  // the week doesn't repeat a job-ad slot or content type already spoken for.
+  // usedJobDays also records *which* weekdays those job ads landed on, so a
+  // newly suggested job day can be checked against them for the minimum gap.
   const usedTypesThisWeek = new Set();
   const usedJobRoles = new Set();
+  const usedJobDays = [];
   let jobSlotsUsedThisWeek = 0;
-  for (const dayIndex of WEEKDAYS) {
-    for (const p of postedByDay[dayIndex] || []) {
-      const label = classifyPost(p).label;
-      if (isJobAdType(label)) {
-        jobSlotsUsedThisWeek += 1;
-        const l = label.toLowerCase();
-        if (l.includes("perm")) usedJobRoles.add("Permanent");
-        else if (l.includes("contract")) usedJobRoles.add("Contract");
-      } else {
-        usedTypesThisWeek.add(label.toLowerCase());
-      }
+  const markUsed = (label, dayIndex) => {
+    if (!label) return;
+    if (isJobAdType(label)) {
+      jobSlotsUsedThisWeek += 1;
+      usedJobDays.push(dayIndex);
+      const l = label.toLowerCase();
+      if (l.includes("perm")) usedJobRoles.add("Permanent");
+      else if (l.includes("contract")) usedJobRoles.add("Contract");
+    } else {
+      usedTypesThisWeek.add(label.toLowerCase());
     }
+  };
+  for (const dayIndex of WEEKDAYS) {
+    for (const p of postedByDay[dayIndex] || []) markUsed(classifyPost(p).label, dayIndex);
+    for (const it of plannedByDay[dayIndex] || []) markUsed(it.content_type, dayIndex);
   }
 
   const todayOffset = mondayOffset(now.getDay());
-  const remainingDays = WEEKDAYS.filter(d => !postedByDay[d] && mondayOffset(d) >= todayOffset);
+  const remainingDays = WEEKDAYS.filter(d => !postedByDay[d] && !plannedByDay[d] && mondayOffset(d) >= todayOffset);
 
   // Per remaining day: the aggregated job-ad track record, and the ranked
   // non-job cells (types already used this week excluded, for variety).
@@ -323,12 +385,35 @@ export function buildWeekPlan(posts, { now = new Date(), minPerCell = 2 } = {}) 
     ? JOB_ROLE_LABELS.filter(r => !usedJobRoles.has(r))
     : JOB_ROLE_LABELS;
 
-  // Try every choice of which remaining days carry the remaining job ads;
-  // keep the split that maximizes total expected engagement (job days score
-  // their job rate, the rest get the best distinct-content assignment).
+  // A candidate set of new job days is only legal if every pair keeps the
+  // minimum gap from each other, *and* from any job ad already posted or
+  // planned earlier this week — a day that's fine on its own can still be
+  // too close to Monday's job ad, for instance.
+  const jobDaysValid = (jobDays) => {
+    for (let i = 0; i < jobDays.length; i++) {
+      for (let j = i + 1; j < jobDays.length; j++) {
+        if (!hasMinJobGap(jobDays[i], jobDays[j])) return false;
+      }
+    }
+    return jobDays.every(d => usedJobDays.every(u => hasMinJobGap(d, u)));
+  };
+
+  // Job ads are a fixed obligation, so the full remaining quota is placed
+  // whenever geometrically possible — but the gap rule can make the full
+  // count infeasible this late in the week (e.g. only 3 days left can't fit
+  // 2 job days 2+ days apart). Find the largest count that's still legal,
+  // then, among placements of that size, keep the split that maximizes
+  // total expected engagement (job days score their job rate, the rest get
+  // the best distinct-content assignment).
+  const maxJobK = Math.min(jobSlotsRemaining, remainingDays.length);
+  let feasibleK = 0;
+  for (let k = maxJobK; k >= 0; k--) {
+    if (combinations(remainingDays, k).some(jobDaysValid)) { feasibleK = k; break; }
+  }
+
   let bestPlan = null;
-  const jobK = Math.min(jobSlotsRemaining, remainingDays.length);
-  for (const jobDays of combinations(remainingDays, jobK)) {
+  for (const jobDays of combinations(remainingDays, feasibleK)) {
+    if (!jobDaysValid(jobDays)) continue;
     const contentDays = remainingDays.filter(d => !jobDays.includes(d));
     const jobScore = jobDays.reduce((a, d) => a + (jobByDay[d].rate ?? 0), 0);
     const { score: contentScore, picks } = assignDistinct(contentDays, contentByDay);
@@ -348,6 +433,14 @@ export function buildWeekPlan(posts, { now = new Date(), minPerCell = 2 } = {}) 
       return {
         dayIndex, dayName: DAY_NAMES[dayIndex], slot: "posted", roleLabel: null, bestType: null,
         posted: dayPosts.map(p => ({ label: classifyPost(p).label, postName: p.post_name || "" })),
+        confident: true,
+      };
+    }
+    const dayPlanned = plannedByDay[dayIndex];
+    if (dayPlanned) {
+      return {
+        dayIndex, dayName: DAY_NAMES[dayIndex], slot: "planned", roleLabel: null, bestType: null,
+        planned: dayPlanned.map(it => ({ label: it.content_type || "Planned", idea: it.idea || "" })),
         confident: true,
       };
     }
@@ -444,6 +537,47 @@ export function buildCadence(posts, { now = new Date(), quarterStart = null, qua
   };
 }
 
+// Content freshness — how long since each content type last went out, so a
+// format that's quietly dropped off (even one that once performed well)
+// gets flagged instead of just fading from view. Each type's own average
+// gap between posts sets its own staleness bar — a format that normally
+// goes out every ~10 days is stale at 20; one that's normally every ~30
+// days isn't stale until well past that — rather than one fixed threshold
+// for every type. FRESHNESS_MIN_GAP_DAYS floors that bar so a type posted
+// only once or twice isn't flagged over a single fluke gap.
+export const FRESHNESS_STALE_MULTIPLIER = 2;
+export const FRESHNESS_MIN_GAP_DAYS = 14;
+
+export function buildContentFreshness(posts, { now = new Date() } = {}) {
+  const valid = (posts || []).filter(p => p.post_date);
+  const byType = new Map();
+  for (const p of valid) {
+    const t = dateToLocalTs(p.post_date);
+    if (t === null) continue;
+    const { key, label } = classifyPost(p);
+    if (!byType.has(key)) byType.set(key, { key, label, dates: [] });
+    byType.get(key).dates.push(t);
+  }
+
+  const today = startOfDay(now);
+  const rows = [...byType.values()].map(({ key, label, dates }) => {
+    dates.sort((a, b) => a - b);
+    const count = dates.length;
+    const last = dates[count - 1];
+    const daysSinceLast = Math.max(0, Math.round((today - last) / DAY_MS));
+    let avgGap = null;
+    if (count >= 2) {
+      let totalGap = 0;
+      for (let i = 1; i < count; i++) totalGap += dates[i] - dates[i - 1];
+      avgGap = totalGap / DAY_MS / (count - 1);
+    }
+    const staleThreshold = Math.max(FRESHNESS_MIN_GAP_DAYS, (avgGap ?? FRESHNESS_MIN_GAP_DAYS) * FRESHNESS_STALE_MULTIPLIER);
+    return { key, label, count, daysSinceLast, avgGap, stale: daysSinceLast > staleThreshold };
+  }).sort((a, b) => b.daysSinceLast - a.daysSinceLast);
+
+  return { rows };
+}
+
 // Content mix — share of volume vs. share of performance, per type. Flags
 // where the two diverge: a type that out-performs the overall rate but is
 // rarely posted is an "opportunity" (post more); one that's posted a lot but
@@ -531,6 +665,10 @@ export function buildPlanNarrative(plan) {
         ? `${plan.bestDay.name}s are also your strongest posting day, and today is one — the timing lines up.`
         : `${plan.bestDay.name} is historically the strongest day to post (${pct(plan.bestDay.avgEngagementRate)} avg. engagement). Today is ${plan.todayName}.`
     );
+  }
+
+  if (plan.bestTime) {
+    parts.push(`${plan.bestTime.label} is the strongest time slot — averaging ${pct(plan.bestTime.avgEngagementRate)} engagement.`);
   }
 
   if (!plan.bestType && !plan.bestDay) {
