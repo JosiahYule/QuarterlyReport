@@ -1213,6 +1213,8 @@
 .admin-plan-today-tag { display: inline-block; margin-left: 8px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 99px; padding: 1px 7px; vertical-align: middle; }
 .admin-plan-nodata { color: var(--ink-4); font-style: italic; }
 .admin-plan-jobtag { display: inline-block; margin-right: 6px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); background: var(--paper-2); border: 1px solid var(--rule-soft); border-radius: 99px; padding: 1px 8px; }
+.admin-plan-postedtag { display: inline-block; margin-right: 6px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--up); background: var(--paper-2); border: 1px solid var(--up); border-radius: 99px; padding: 1px 8px; }
+.admin-plan-week tr.is-posted td:first-child { box-shadow: inset 2px 0 0 var(--up); }
 
 /* Scorecard */
 .admin-plan-scorecard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
