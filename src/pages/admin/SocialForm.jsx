@@ -22,7 +22,15 @@ const TOP_PLATFORMS  = ["linkedin", "facebook", "instagram"];
 const BLANK_KPI      = Object.fromEntries(KPI_FIELDS.map(f => [f.key, ""]));
 const BLANK_PLATFORM = { name: "", followers: "", engagement_rate: "", page_reach: "", page_clicks: "", note: "" };
 const BLANK_POST     = { title: "", impressions: "", likes: "", shares: "" };
-const BLANK_ALL_POST = { post_name: "", post_date: "", platforms: "", impressions: "", engagements: "", url: "", notes: "" };
+const BLANK_ALL_POST = { post_name: "", post_date: "", post_time: "", platforms: "", impressions: "", engagements: "", url: "", notes: "" };
+
+// "HH:MM" for right now, in the browser's local time — used to default a
+// freshly-added row's time, since you're typically logging a post right
+// when it goes out. Still editable for back-filled/imported rows.
+function nowTimeStr() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
 const BLANK_INSIGHTS = { working: "", not_working: "", actions: "", next_quarter: "" };
 
 const newAd       = () => ({ id: crypto.randomUUID(), name: "", impressions: "", clicks: "", cpc: "", engagement_rate: "", status: "active" });
@@ -37,6 +45,7 @@ function parseCsv(text) {
   const find = (...candidates) => candidates.reduce((found, c) => found !== -1 ? found : headers.findIndex(h => h.includes(c)), -1);
   const iName  = find("post name", "name", "title", "description");
   const iDate  = find("date");
+  const iTime  = find("time");
   const iPlat  = find("platform");
   const iImp   = find("impression");
   const iEng   = find("engagement");
@@ -47,6 +56,7 @@ function parseCsv(text) {
     return {
       post_name:   iName  !== -1 ? (cols[iName]  ?? "") : "",
       post_date:   iDate  !== -1 ? (cols[iDate]  ?? "") : "",
+      post_time:   iTime  !== -1 ? (cols[iTime]  ?? "") : "",
       platforms:   iPlat  !== -1 ? (cols[iPlat]  ?? "") : "",
       impressions: iImp   !== -1 ? (num(cols[iImp])   ?? 0) : 0,
       engagements: iEng   !== -1 ? (num(cols[iEng])   ?? 0) : 0,
@@ -162,7 +172,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
           }
           setTopPosts(tp);
           setAllPosts((data.social_posts || []).map(p => ({
-            post_name: p.post_name || "", post_date: p.post_date || "", platforms: p.platforms || "",
+            post_name: p.post_name || "", post_date: p.post_date || "", post_time: p.post_time || "", platforms: p.platforms || "",
             impressions: str(p.impressions), engagements: str(p.engagements), url: p.url || "", notes: p.notes || "",
           })));
           const ins = data.social_insights?.[0] || {};
@@ -226,7 +236,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
       await dbOp(supabase.from("social_posts").delete().eq("report_id", rid));
       if (allPosts.length) {
         await dbOp(supabase.from("social_posts").insert(allPosts.map(p => ({
-          report_id: rid, post_name: p.post_name, post_date: p.post_date || null,
+          report_id: rid, post_name: p.post_name, post_date: p.post_date || null, post_time: p.post_time || null,
           platforms: p.platforms, impressions: num(p.impressions), engagements: num(p.engagements),
           url: p.url, notes: p.notes,
         }))));
@@ -423,12 +433,12 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
               }}>Clear all</button>
             </div>
           </div>
-          <p className="admin-csv-hint">CSV columns: <code>Post Name, Date, Platforms, Impressions, Engagements, URL, Notes</code></p>
+          <p className="admin-csv-hint">CSV columns: <code>Post Name, Date, Time, Platforms, Impressions, Engagements, URL, Notes</code> (Time is optional)</p>
           <div className="admin-posts-table-wrap">
             <table className="admin-posts-table">
               <thead>
                 <tr>
-                  <th>Post name</th><th>Date</th><th>Platforms</th>
+                  <th>Post name</th><th>Date</th><th>Time</th><th>Platforms</th>
                   <th className="r">Impressions</th><th className="r">Engagements</th>
                   <th>URL</th><th>Notes</th><th />
                 </tr>
@@ -438,6 +448,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
                   <tr key={i}>
                     <td><input className="admin-input admin-input--cell" value={p.post_name} onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, post_name: e.target.value } : x)); dirty(); }} /></td>
                     <td><input type="date" className="admin-input admin-input--cell" value={p.post_date} onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, post_date: e.target.value } : x)); dirty(); }} /></td>
+                    <td><input type="time" className="admin-input admin-input--cell" value={p.post_time || ""} onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, post_time: e.target.value } : x)); dirty(); }} /></td>
                     <td><input className="admin-input admin-input--cell" value={p.platforms} placeholder="LinkedIn, Facebook…" onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, platforms: e.target.value } : x)); dirty(); }} /></td>
                     <td><input type="number" className="admin-input admin-input--cell r" value={p.impressions} onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, impressions: e.target.value } : x)); dirty(); }} /></td>
                     <td><input type="number" className="admin-input admin-input--cell r" value={p.engagements} onChange={e => { setAllPosts(ps => ps.map((x, j) => j === i ? { ...x, engagements: e.target.value } : x)); dirty(); }} /></td>
@@ -449,7 +460,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
               </tbody>
             </table>
           </div>
-          <button className="admin-btn-add" onClick={() => { setAllPosts(ps => [...ps, { ...BLANK_ALL_POST }]); dirty(); }}>+ Add row</button>
+          <button className="admin-btn-add" onClick={() => { setAllPosts(ps => [...ps, { ...BLANK_ALL_POST, post_time: nowTimeStr() }]); dirty(); }}>+ Add row</button>
           <p className="admin-list-hint" style={{ marginTop: 8 }}>{allPosts.length} post{allPosts.length !== 1 ? "s" : ""}</p>
         </div>
       )}

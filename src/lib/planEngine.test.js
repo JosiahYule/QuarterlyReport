@@ -3,12 +3,14 @@ import {
   classifyPost,
   dayOfWeekIndex,
   todayWeekdayIndex,
+  classifyTimeOfDay,
   buildPlanSuggestion,
   buildPlanNarrative,
   buildWeekPlan,
   thisWeekDates,
   buildScorecard,
   buildCadence,
+  buildContentFreshness,
   buildContentMix,
   buildPerformers,
   WEEKDAYS,
@@ -50,6 +52,25 @@ describe("todayWeekdayIndex", () => {
     // 2026-06-30 is a Tuesday
     const d = new Date(2026, 5, 30, 12, 0, 0);
     expect(todayWeekdayIndex(d, "America/Halifax")).toBe(2);
+  });
+});
+
+describe("classifyTimeOfDay", () => {
+  it("buckets a time into the matching window", () => {
+    expect(classifyTimeOfDay("08:30")).toEqual({ key: "early_morning", label: "Early Morning (6–9am)" });
+    expect(classifyTimeOfDay("10:15")).toEqual({ key: "late_morning", label: "Late Morning (9am–12pm)" });
+    expect(classifyTimeOfDay("13:00")).toEqual({ key: "afternoon", label: "Afternoon (12–3pm)" });
+    expect(classifyTimeOfDay("16:45")).toEqual({ key: "late_afternoon", label: "Late Afternoon (3–6pm)" });
+    expect(classifyTimeOfDay("19:00")).toEqual({ key: "evening", label: "Evening (6pm+)" });
+  });
+  it("folds pre-dawn hours into Evening rather than a sparse sixth bucket", () => {
+    expect(classifyTimeOfDay("02:00")).toEqual({ key: "evening", label: "Evening (6pm+)" });
+  });
+  it("returns null for missing/invalid input", () => {
+    expect(classifyTimeOfDay("")).toBeNull();
+    expect(classifyTimeOfDay(null)).toBeNull();
+    expect(classifyTimeOfDay(undefined)).toBeNull();
+    expect(classifyTimeOfDay("not-a-time")).toBeNull();
   });
 });
 
@@ -116,6 +137,32 @@ describe("buildPlanSuggestion", () => {
     const plan = buildPlanSuggestion(posts, { now: monday });
     expect(plan.bestDay.name).toBe("Monday");
     expect(plan.todayBucket.key).toBe(plan.bestDay.key);
+  });
+
+  it("picks the best time-of-day slot once it has enough samples, without gating confidence on it", () => {
+    const posts = [
+      { ...post("Morning A", "2026-06-01", 1000, 300), post_time: "09:00" },
+      { ...post("Morning B", "2026-06-08", 1000, 300), post_time: "09:15" },
+      { ...post("Morning C", "2026-06-15", 1000, 300), post_time: "09:30" },
+      { ...post("Evening A", "2026-06-02", 1000, 100), post_time: "19:00" },
+      { ...post("Evening B", "2026-06-09", 1000, 100), post_time: "19:15" },
+      { ...post("Evening C", "2026-06-16", 1000, 100), post_time: "19:30" },
+    ];
+    const plan = buildPlanSuggestion(posts);
+    expect(plan.bestTime.key).toBe("late_morning");
+    expect(plan.timeBreakdown).toHaveLength(2);
+  });
+
+  it("leaves bestTime null (not 'low' confidence) when no post has a recorded time", () => {
+    const posts = [
+      post("A", "2026-06-01", 1000, 200),
+      post("B", "2026-06-08", 1000, 220),
+      post("C", "2026-06-15", 1000, 180),
+    ];
+    const plan = buildPlanSuggestion(posts);
+    expect(plan.bestTime).toBeNull();
+    expect(plan.timeBreakdown).toEqual([]);
+    expect(plan.confidence).not.toBe("low"); // day/type patterns still found
   });
 });
 
@@ -259,6 +306,76 @@ describe("buildWeekPlan — this week's actual posts", () => {
     expect(jobDays[0].dayName).toBe("Thursday");
     expect(jobDays[0].roleLabel).toBe("Contract");
   });
+
+  it("shows a day as planned (not yet posted) when the planner has it scheduled", () => {
+    const plannedItems = [
+      { content_type: "Testimonial", planned_date: "2026-07-09", idea: "Client story", status: "planned" }, // this Thursday
+    ];
+    const week = buildWeekPlan([], { ...WED, plannedItems });
+    const thursday = week.find(d => d.dayName === "Thursday");
+    expect(thursday.slot).toBe("planned");
+    expect(thursday.planned).toEqual([{ label: "Testimonial", idea: "Client story" }]);
+    expect(thursday.confident).toBe(true);
+  });
+
+  it("lets a real post override a planned item on the same day", () => {
+    const posts = [post("Actual post", "2026-07-09", 500, 50, "tips")]; // this Thursday
+    const plannedItems = [
+      { content_type: "Testimonial", planned_date: "2026-07-09", idea: "Client story", status: "planned" },
+    ];
+    const week = buildWeekPlan(posts, { ...WED, plannedItems });
+    const thursday = week.find(d => d.dayName === "Thursday");
+    expect(thursday.slot).toBe("posted");
+    expect(thursday.posted).toEqual([{ label: "Tips", postName: "Actual post" }]);
+  });
+
+  it("excludes a content type already planned this week from the remaining days' suggestions", () => {
+    const posts = [
+      // Historical: testimonials are the strongest Friday content, tips second.
+      post("Story Fri 1", "2026-06-05", 1000, 300, "testimonial"),
+      post("Story Fri 2", "2026-06-12", 1000, 300, "testimonial"),
+      post("Tips Fri 1", "2026-06-19", 1000, 150, "tips"),
+      post("Tips Fri 2", "2026-06-26", 1000, 150, "tips"),
+    ];
+    // Already planned (not yet posted) a testimonial for this Monday.
+    const plannedItems = [
+      { content_type: "Testimonial", planned_date: "2026-07-06", idea: "Monday story", status: "planned" },
+    ];
+    const week = buildWeekPlan(posts, { ...WED, plannedItems });
+    const monday = week.find(d => d.dayName === "Monday");
+    expect(monday.slot).toBe("planned");
+    const friday = week.find(d => d.dayName === "Friday");
+    expect(friday.slot).toBe("content");
+    expect(friday.bestType.label).toBe("Tips");
+  });
+
+  it("reduces the remaining job-ad slots when one's already planned (not posted) this week", () => {
+    const posts = [
+      // Historical: job ads perform best on Thursday.
+      post("Hiring Thu 1", "2026-06-04", 1000, 300, "job posting"),
+      post("Hiring Thu 2", "2026-06-11", 1000, 300, "job posting"),
+    ];
+    const plannedItems = [
+      { content_type: "Job Posting", planned_date: "2026-07-06", idea: "Perm ad", status: "planned" }, // this Monday
+    ];
+    const week = buildWeekPlan(posts, { ...WED, plannedItems });
+    const monday = week.find(d => d.dayName === "Monday");
+    expect(monday.slot).toBe("planned");
+
+    const jobDays = week.filter(d => d.slot === "job");
+    expect(jobDays).toHaveLength(1); // only one job slot is left this week
+    expect(jobDays[0].dayName).toBe("Thursday");
+  });
+
+  it("ignores planner items that aren't in 'planned' status", () => {
+    const plannedItems = [
+      { content_type: "Testimonial", planned_date: "2026-07-09", idea: "Just an idea", status: "idea" },
+      { content_type: "Tips", planned_date: "2026-07-10", idea: "Already posted", status: "posted" },
+    ];
+    const week = buildWeekPlan([], { ...WED, plannedItems });
+    expect(week.find(d => d.dayName === "Thursday").slot).not.toBe("planned");
+    expect(week.find(d => d.dayName === "Friday").slot).not.toBe("planned");
+  });
 });
 
 describe("buildScorecard", () => {
@@ -313,6 +430,46 @@ describe("buildCadence", () => {
     const c = buildCadence(posts, { now: new Date(2026, 5, 29), quarterStart: new Date(2026, 5, 1), quarterEnd: new Date(2026, 8, 1) });
     expect(c.daysSinceLast).toBe(2);
     expect(c.goneDark).toBe(false);
+  });
+});
+
+describe("buildContentFreshness", () => {
+  it("flags a type as stale once it's gone well past its own usual gap", () => {
+    const posts = [
+      // Testimonial normally goes out every ~10 days, but it's been 30 since.
+      post("T1", "2026-05-01", 1000, 100, "testimonial"),
+      post("T2", "2026-05-11", 1000, 100, "testimonial"),
+      post("T3", "2026-05-21", 1000, 100, "testimonial"),
+      // Tips post regularly and recently — not stale.
+      post("Ti1", "2026-06-08", 1000, 100, "tips"),
+      post("Ti2", "2026-06-18", 1000, 100, "tips"),
+      post("Ti3", "2026-06-19", 1000, 100, "tips"),
+    ];
+    const freshness = buildContentFreshness(posts, { now: new Date(2026, 5, 20) });
+    const testimonial = freshness.rows.find(r => r.label === "Testimonial");
+    const tips = freshness.rows.find(r => r.label === "Tips");
+    expect(testimonial.avgGap).toBeCloseTo(10, 5);
+    expect(testimonial.daysSinceLast).toBe(30); // May 21 -> Jun 20
+    expect(testimonial.stale).toBe(true);
+    expect(tips.stale).toBe(false);
+  });
+
+  it("floors the staleness bar so a type posted once isn't flagged over a short gap", () => {
+    const posts = [post("V1", "2026-06-01", 1000, 100, "video")];
+    // Only 10 days since the one and only post — under the 14-day floor.
+    const freshness = buildContentFreshness(posts, { now: new Date(2026, 5, 11) });
+    expect(freshness.rows.find(r => r.label === "Video").stale).toBe(false);
+  });
+
+  it("still flags a single-post type once it's well past the floored threshold", () => {
+    const posts = [post("V1", "2026-06-01", 1000, 100, "video")];
+    // 40 days since the only post, well past the 2x14=28 day floor.
+    const freshness = buildContentFreshness(posts, { now: new Date(2026, 6, 11) });
+    expect(freshness.rows.find(r => r.label === "Video").stale).toBe(true);
+  });
+
+  it("returns no rows when there are no dated posts", () => {
+    expect(buildContentFreshness([]).rows).toEqual([]);
   });
 });
 

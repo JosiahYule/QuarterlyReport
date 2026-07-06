@@ -1215,6 +1215,8 @@
 .admin-plan-jobtag { display: inline-block; margin-right: 6px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); background: var(--paper-2); border: 1px solid var(--rule-soft); border-radius: 99px; padding: 1px 8px; }
 .admin-plan-postedtag { display: inline-block; margin-right: 6px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--up); background: var(--paper-2); border: 1px solid var(--up); border-radius: 99px; padding: 1px 8px; }
 .admin-plan-week tr.is-posted td:first-child { box-shadow: inset 2px 0 0 var(--up); }
+.admin-plan-plannedtag { display: inline-block; margin-right: 6px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); background: var(--paper-2); border: 1px solid var(--accent); border-radius: 99px; padding: 1px 8px; }
+.admin-plan-week tr.is-planned td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 
 /* Scorecard */
 .admin-plan-scorecard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
@@ -1231,6 +1233,9 @@
 .admin-plan-cadence.is-dark{ border-color: var(--down); }
 .admin-plan-cadence-alert { padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--down); border-bottom: 1px solid var(--rule-soft); background: rgba(180, 40, 40, 0.05); }
 .admin-plan-cadence-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 14px 16px; }
+
+/* Content freshness */
+.admin-plan-freshness-alert { padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--down); border: 1px solid var(--down); background: rgba(180, 40, 40, 0.05); margin-top: 8px; }
 
 /* Content-mix flags */
 .admin-plan-flag      { display: inline-block; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; padding: 2px 9px; border-radius: 99px; }
