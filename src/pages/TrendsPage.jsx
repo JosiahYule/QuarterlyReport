@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import Chart from "chart.js/auto";
-import { useTrendsData, METRICS, extractMetric, computeAdvancedPace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, blendCalibrationHistory, getWeekAgoProjection, getProjectionTimeline, annotateTimelineSpikes, projectionBand } from "../hooks/useTrendsData.js";
+import { useTrendsData, METRICS, extractMetric, computePace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, blendCalibrationHistory, getWeekAgoProjection, getProjectionTimeline, annotateTimelineSpikes, projectionBand } from "../hooks/useTrendsData.js";
 import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { fmt, fmtApprox } from "../utils.js";
 import { PageLoader } from "../components/PageLoader.jsx";
@@ -76,7 +76,7 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
   const histBaseline = metric.baselineFromQ2 && q2v !== null ? q2v : 0;
 
   let pace = metric.isPace && !done
-    ? computeAdvancedPace(q3input, q3.start, q3.end, q2Rate, getMetricHistory(snaps, metric.id), histBaseline, new Date(), calibrationFactor)
+    ? computePace(metric, q3input, q3.start, q3.end, q2Rate, getMetricHistory(snaps, metric.id), histBaseline, new Date(), calibrationFactor)
     : null;
 
   const projected = pace?.projected ?? null;
@@ -457,7 +457,7 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
     : null;
 
   let pace = metric.isPace && !q3done
-    ? computeAdvancedPace(q3input, tq3.start, tq3.end, q2Rate, getMetricHistory(snaps, metric.id), histBaseline, new Date(), calibrationFactor)
+    ? computePace(metric, q3input, tq3.start, tq3.end, q2Rate, getMetricHistory(snaps, metric.id), histBaseline, new Date(), calibrationFactor)
     : null;
 
   const projected = pace?.projected ?? null;
@@ -513,6 +513,14 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
     ? `±${avgAbsErr.toFixed(1)}% · ${errors.length}Q`
     : "—";
 
+  // Band coverage: of the past quarters audited, how many landed the actual
+  // final inside the range that was being shown. Validates the range itself,
+  // not just the point estimate — a narrow band that's always wrong is worse
+  // than a wider one that's honest.
+  const coverageEntries = (history ?? []).filter(h => typeof h.band_covered === "boolean");
+  const coverageHits = coverageEntries.filter(h => h.band_covered).length;
+  const coverageVal = coverageEntries.length ? `${coverageHits}/${coverageEntries.length}Q` : "—";
+
   // Build the stat rows, then drop any that have no value yet ("—"). Early in a
   // quarter the rate-derived stats and the past-accuracy row simply aren't
   // there; the card fills in as data accrues instead of showing empty dashes.
@@ -522,6 +530,7 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
     { label: `Rate vs ${tq2.label}`,  value: stat3Val,      cls: stat3Cls },
     { label: "vs Last Week",          value: wowVal,        cls: wowCls },
     { label: "Past Accuracy",         value: trackRecordVal },
+    { label: "Band Coverage",         value: coverageVal },
   ].filter(s => s.value !== "—");
 
   return (
@@ -530,8 +539,14 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
       <div className="proj-number serif">{headline}</div>
       <div className="proj-number-sub">{headlineSub}</div>
       {band && (
-        <div className="proj-range" title="Likely range, widens with method disagreement, time remaining, and past miss">
+        <div
+          className="proj-range"
+          title={metric.sporadic
+            ? "Likely range from a spike-aware model: a steady median background rate plus an expected bonus for occasional standout posts, based on how often those have shown up this quarter"
+            : "Likely range, widens with method disagreement, time remaining, and past miss"}
+        >
           {fmtApprox(band.low, metric.isPercent)} – {fmtApprox(band.high, metric.isPercent)} <span className="proj-range-tag">likely range</span>
+          {metric.sporadic && <span className="proj-range-tag">spike-aware model</span>}
         </div>
       )}
       <div className="proj-stats-grid">
@@ -561,7 +576,7 @@ function computeMetricRateVsQ2(metric, qdata, snaps, tq2, tq3, calibrationFactor
     ? (metric.baselineFromQ2 && q1v !== null ? (q2v - q1v) : q2v) / ((tq2.end - tq2.start) / 86400000)
     : null;
   if (!q2Rate) return null;
-  const pace = computeAdvancedPace(q3input, tq3.start, tq3.end, q2Rate, getMetricHistory(snaps, metric.id), histBaseline, new Date(), calibrationFactor);
+  const pace = computePace(metric, q3input, tq3.start, tq3.end, q2Rate, getMetricHistory(snaps, metric.id), histBaseline, new Date(), calibrationFactor);
   if (!pace) return null;
   return (pace.dailyRate - q2Rate) / q2Rate * 100;
 }

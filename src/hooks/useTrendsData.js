@@ -12,6 +12,8 @@ export {
   METRICS,
   extractMetric,
   computeAdvancedPace,
+  computeSporadicPace,
+  computePace,
   getMetricHistory,
   getWeekAgoProjection,
   getProjectionTimeline,
@@ -83,6 +85,8 @@ async function storeAudits(agency, qdata, snapsByQuarter) {
       accuracy_ratio: audit.accuracyRatio,
       calibration_confidence: audit.calibrationConfidence,
       calibration_factor: audit.calibrationFactor,
+      band_covered: audit.bandCovered,
+      band_rel_half: audit.bandRelHalf,
       sample_count: audit.sampleCount,
       first_day: audit.firstDay,
       last_day: audit.lastDay,
@@ -114,7 +118,7 @@ async function loadCalibrationHistory(agency, metricId, limit = 4) {
   try {
     const { data, error } = await supabase
       .from("projection_audits")
-      .select("calibration_factor, calibration_confidence, percent_error, computed_at")
+      .select("calibration_factor, calibration_confidence, percent_error, band_covered, band_rel_half, computed_at")
       .eq("agency", agency)
       .eq("metric_id", metricId)
       .order("computed_at", { ascending: false })

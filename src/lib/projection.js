@@ -11,7 +11,7 @@ export const METRICS = [
   { id: "reactions",   label: "Reactions",        needles: ["reactions and likes","reactions & likes","reactions","likes"],            isPercent: false, isPace: true, postsMultiplier: true },
   { id: "linkclicks",  label: "Link Clicks",      needles: ["post link clicks","link clicks","clicks"],                                isPercent: false, isPace: true, postsMultiplier: true },
   { id: "shares",      label: "Shares",           needles: ["post shares","shares"],                                                   isPercent: false, isPace: true, postsMultiplier: true },
-  { id: "comments",    label: "Comments",         needles: ["comments and replies","comments & replies","comments","replies"],         isPercent: false, isPace: true, postsMultiplier: true },
+  { id: "comments",    label: "Comments",         needles: ["comments and replies","comments & replies","comments","replies"],         isPercent: false, isPace: true, postsMultiplier: true, sporadic: true },
   { id: "posts",       label: "Posts Published",  needles: ["posts"],                                                                  isPercent: false, isPace: true },
   { id: "followers",   label: "Followers",        needles: ["followers total","followers (total)","followers"],                        isPercent: false, isPace: true, baselineFromQ2: true },
 ];
@@ -166,6 +166,105 @@ export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory
   return { projected, rawProjected, dailyRate: rollingRate ?? simpleRate, dElapsed, dTotal, calibrationFactor: safeCalibration, elapsedFraction, components };
 }
 
+function median(arr) {
+  if (!arr.length) return null;
+  const s = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+// ─── Sporadic-metric pace (median background + spike bonus) ──────────
+// Some metrics (comments) don't accrue at a steady rate — they sit near zero
+// on ordinary days and jump when a popular post lands. Feeding that into the
+// same simple/rolling/regression blend as a steady metric like impressions
+// over- or under-shoots badly: a quiet quarter linearly extrapolates toward
+// ~0, and the day right after a spike extrapolates *that* day's rate as the
+// new normal. Instead: separate the steady background (the *median* day-rate,
+// which one huge day can't drag around the way a mean or regression slope
+// can) from spike days (day-rates well above that background), then add back
+// an *expected* spike contribution for the remaining days based on how often
+// spikes have actually shown up this quarter — rather than assuming zero
+// more spikes, or assuming today's spike rate continues.
+//
+// A day-rate counts as a spike once it clears both a MAD-based floor (robust
+// to how noisy the background itself is) and a floor relative to the
+// background itself (so a near-zero background with tiny MAD doesn't flag
+// every ordinary uptick as a "spike").
+const SPIKE_MAD_MULTIPLE = 4;
+const SPIKE_BACKGROUND_MULTIPLE = 2;
+export function computeSporadicPace(current, qStart, qEnd, metricHistory, asOfDate = new Date(), calibrationFactor = 1) {
+  if (current === null || !Number.isFinite(current)) return null;
+  const now = asOfDate instanceof Date ? asOfDate : new Date(asOfDate);
+  const dElapsed = (now - qStart) / 86400000;
+  if (dElapsed < 7) return null;
+  const dTotal = (qEnd - qStart) / 86400000;
+  const dRemaining = Math.max(0, dTotal - dElapsed);
+  const elapsedFraction = dElapsed / dTotal;
+  const safeCalibration = Number.isFinite(calibrationFactor) && calibrationFactor > 0 ? calibrationFactor : 1;
+  const simpleRate = current / dElapsed;
+
+  // Day-rates between consecutive snapshots, normalized by the actual gap so
+  // unevenly-spaced snapshots don't distort a single day's rate.
+  const sorted = [...(metricHistory || [])].sort((a, b) => a.t - b.t);
+  const rates = [];
+  for (let i = 1; i < sorted.length; i++) {
+    const dt = (sorted[i].t - sorted[i - 1].t) / 86400000;
+    const dv = sorted[i].val - sorted[i - 1].val;
+    if (dt > 0 && Number.isFinite(dv)) rates.push(Math.max(0, dv) / dt);
+  }
+
+  if (!rates.length) {
+    // Not enough deltas yet to separate background from spikes — fall back
+    // to the plain average rate, same floor as the general model.
+    const simpleProj = simpleRate * dTotal;
+    const projected = Math.max(simpleProj * safeCalibration, current);
+    return {
+      projected, rawProjected: simpleProj, dailyRate: simpleRate, dElapsed, dTotal,
+      calibrationFactor: safeCalibration, elapsedFraction,
+      components: { simple: simpleProj * safeCalibration, rolling: null, reg: null },
+      background: simpleRate, spikeFrequency: 0, avgSpikeSize: 0,
+    };
+  }
+
+  const backgroundRate = median(rates);
+  const mad = median(rates.map(r => Math.abs(r - backgroundRate))) || 0;
+  const spikeThreshold = backgroundRate + Math.max(mad * SPIKE_MAD_MULTIPLE, backgroundRate * SPIKE_BACKGROUND_MULTIPLE, 1);
+  const spikeRates = rates.filter(r => r > spikeThreshold);
+  const spikeFrequency = spikeRates.length / rates.length;
+  const avgSpikeSize = spikeRates.length
+    ? spikeRates.reduce((a, r) => a + (r - backgroundRate), 0) / spikeRates.length
+    : 0;
+
+  const backgroundProj = current + backgroundRate * dRemaining;
+  const withSpikesProj = backgroundProj + spikeFrequency * avgSpikeSize * dRemaining;
+
+  const rawProjected = withSpikesProj;
+  const projected = Math.max(rawProjected * safeCalibration, current);
+
+  return {
+    projected, rawProjected, dailyRate: backgroundRate, dElapsed, dTotal,
+    calibrationFactor: safeCalibration, elapsedFraction,
+    // No-more-spikes floor vs. typical-spike-behavior-continues ceiling — the
+    // gap between the two IS the real uncertainty for a sporadic metric, so
+    // projectionBand's method-disagreement term picks it up for free.
+    components: {
+      simple:  Math.max(backgroundProj, 0) * safeCalibration,
+      rolling: null,
+      reg:     Math.max(withSpikesProj, 0) * safeCalibration,
+    },
+    background: backgroundRate, spikeFrequency, avgSpikeSize,
+  };
+}
+
+// Single entry point the call sites use: dispatches to the sporadic model
+// for metrics flagged `sporadic` (comments), else the general blend —
+// everything downstream (projectionBand, buildProjectionAudit, the
+// trajectory chart) consumes the same shape either way.
+export function computePace(metric, current, qStart, qEnd, q2Rate, metricHistory, histBaseline = 0, asOfDate = new Date(), calibrationFactor = 1) {
+  if (metric?.sporadic) return computeSporadicPace(current, qStart, qEnd, metricHistory, asOfDate, calibrationFactor);
+  return computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory, histBaseline, asOfDate, calibrationFactor);
+}
+
 // ─── History: pure helpers (operate on pre-fetched snapshot arrays) ──
 // snapshots: [{ t: number, vals: { metricId: number } }]
 
@@ -183,7 +282,7 @@ export function getWeekAgoProjection(snapshots, metric, tq3, q2Rate, histBaselin
   if (!pastHistory.length) return null;
   const snap = pastHistory[pastHistory.length - 1];
   const snapInput = snap.val - histBaseline;
-  const pace = computeAdvancedPace(snapInput, tq3.start, tq3.end, q2Rate, pastHistory, histBaseline, new Date(snap.t));
+  const pace = computePace(metric, snapInput, tq3.start, tq3.end, q2Rate, pastHistory, histBaseline, new Date(snap.t));
   if (!pace?.projected) return null;
   return pace.projected + (metric.baselineFromQ2 ? histBaseline : 0);
 }
@@ -196,7 +295,7 @@ export function getProjectionTimeline(snapshots, metric, tq3, q2Rate, histBaseli
     const pastHistory = allHistory.slice(0, i + 1);
     const snap = allHistory[i];
     const snapInput = snap.val - histBaseline;
-    const pace = computeAdvancedPace(snapInput, tq3.start, tq3.end, q2Rate, pastHistory, histBaseline, new Date(snap.t), calibrationFactor);
+    const pace = computePace(metric, snapInput, tq3.start, tq3.end, q2Rate, pastHistory, histBaseline, new Date(snap.t), calibrationFactor);
     if (pace?.projected != null) {
       const add = metric.baselineFromQ2 ? histBaseline : 0;
       const band = projectionBand(pace, { empiricalErrorPct, current: snapInput });
@@ -483,11 +582,23 @@ export function buildProjectionAudit({ metric, actualValue, completedQuarter, pr
     const sampleInput = metric.baselineFromQ2 ? sample.val - previousQuarterValue : sample.val;
     if (!Number.isFinite(sampleInput) || sampleInput < 0) continue;
     const sampleHistory = metricHistory.filter(s => s.t <= sample.t);
-    const pace = computeAdvancedPace(sampleInput, completedQuarter.start, completedQuarter.end, previousRate, sampleHistory, histBaseline, new Date(sample.t));
+    const pace = computePace(metric, sampleInput, completedQuarter.start, completedQuarter.end, previousRate, sampleHistory, histBaseline, new Date(sample.t));
     // `pace` is null for samples inside the first 7 days; guard before deref.
     if (pace && Number.isFinite(pace.projected) && pace.projected > 0) {
       const fraction = pace.dElapsed / (pace.dTotal || completedDays);
-      samples.push({ t: sample.t, projected: pace.projected, day: Math.round(pace.dElapsed), fraction, weight: stageWeight(fraction, targetElapsedFraction) });
+      // Also capture the band width (relHalf) this sample would have shown,
+      // so coverage can be checked against a stage-weighted average band
+      // the same way accuracy is checked against a stage-weighted average
+      // projection — no empirical term here since that would require the
+      // audit history that existed *at the time*, which isn't threaded
+      // through this retrospective pass; the band this checks is the more
+      // conservative "method disagreement + time remaining" one.
+      const band = projectionBand(pace, { elapsedFraction: fraction });
+      samples.push({
+        t: sample.t, projected: pace.projected, day: Math.round(pace.dElapsed), fraction,
+        weight: stageWeight(fraction, targetElapsedFraction),
+        relHalf: band ? band.relHalf : 0,
+      });
     }
   }
 
@@ -497,6 +608,17 @@ export function buildProjectionAudit({ metric, actualValue, completedQuarter, pr
   const error = avgProjected - actualInput;
   const percentError = actualInput !== 0 ? error / actualInput * 100 : null;
   const accuracyRatio = avgProjected > 0 ? actualInput / avgProjected : 1;
+
+  // Band coverage: did the actual final land inside the range this stage's
+  // average band would have shown? Built the same way avgProjected is —
+  // a stage-weighted average of each sample's relative half-width, applied
+  // symmetrically around avgProjected (the "can't end below what's already
+  // banked" floor that live bands apply doesn't make sense retrospectively
+  // here, since `current` was a moving target across samples).
+  const bandRelHalf = samples.reduce((sum, s) => sum + s.relHalf * s.weight, 0) / totalWeight;
+  const bandLow = Math.max(0, avgProjected * (1 - bandRelHalf));
+  const bandHigh = avgProjected * (1 + bandRelHalf);
+  const bandCovered = actualInput >= bandLow && actualInput <= bandHigh;
 
   // Self-dampening: trust the correction only as far as the prior quarter's
   // fit was reliable. A poor fit (scattered, or built from thin near-stage
@@ -508,6 +630,7 @@ export function buildProjectionAudit({ metric, actualValue, completedQuarter, pr
   return {
     actual: actualInput, avgProjected, error, percentError,
     accuracyRatio, calibrationConfidence: confidence, calibrationFactor,
+    bandLow, bandHigh, bandRelHalf, bandCovered,
     sampleCount: samples.length,
     firstDay: samples[0]?.day ?? null,
     lastDay:  samples[samples.length - 1]?.day ?? null,
