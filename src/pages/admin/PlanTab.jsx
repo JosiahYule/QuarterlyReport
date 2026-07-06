@@ -399,8 +399,9 @@ export function PlanTab({ agency, quarter }) {
             <div className="admin-section-heading">Your week at a glance</div>
             <p className="admin-list-hint">
               A balanced week: two days reserved for job ads (one permanent, one contract), placed where they
-              perform best, and the other three filled with your strongest <em>distinct</em> content types for
-              variety. Recent posts count more, so a format you've recently improved rises here. Days you've
+              perform best and always at least two clear days apart, and the other three filled with your
+              strongest <em>distinct</em> content types for variety. Recent posts count more, so a format you've
+              recently improved rises here. Days you've
               already posted this week show what went out, and days already scheduled in the planner below show
               that instead — the rest of the week is replanned around both, so a job ad or content type you've
               already covered or queued won't be suggested again.

@@ -8,6 +8,7 @@ import {
   buildPlanNarrative,
   buildWeekPlan,
   thisWeekDates,
+  JOB_AD_MIN_GAP_DAYS,
   buildScorecard,
   buildCadence,
   buildContentFreshness,
@@ -176,9 +177,9 @@ describe("buildWeekPlan", () => {
     expect(WEEKDAYS).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it("reserves exactly two job-ad days (perm + contract), even when job ads win more days", () => {
+  it("reserves exactly two job-ad days (perm + contract), even when job ads win more days back-to-back", () => {
     const posts = [
-      // Job ads perform best on Mon > Tue > Wed (3 strong job days)
+      // Job ads perform best on Mon > Tue > Wed — three strong days in a row.
       post("Hiring Mon 1", "2026-06-01", 1000, 300, "job posting"),
       post("Hiring Mon 2", "2026-06-08", 1000, 300, "job posting"),
       post("Hiring Tue 1", "2026-06-02", 1000, 250, "job posting"),
@@ -194,12 +195,20 @@ describe("buildWeekPlan", () => {
     const week = buildWeekPlan(posts, NOW);
     const jobDays = week.filter(d => d.slot === "job");
     expect(jobDays).toHaveLength(2); // capped at 2 despite 3 strong job days
-    // The two best job days are Monday and Tuesday, labeled in weekday order.
-    expect(jobDays.map(d => d.dayName)).toEqual(["Monday", "Tuesday"]);
+    // Monday+Tuesday scores highest on paper, but they're adjacent, and
+    // Monday+Wednesday is still only one day apart — the two-clear-days rule
+    // pushes the second slot out to Friday instead.
+    expect(jobDays.map(d => d.dayName)).toEqual(["Monday", "Friday"]);
     expect(jobDays.map(d => d.roleLabel)).toEqual(["Permanent", "Contract"]);
-    // The content days carry the non-job types.
+    // Thursday, freed up by Wednesday losing out, gets the best content type.
     expect(week.find(d => d.dayName === "Thursday").bestType.label).toBe("Testimonial");
-    expect(week.find(d => d.dayName === "Friday").bestType.label).toBe("Tips");
+  });
+
+  it("never places two job-ad days within the minimum gap of each other", () => {
+    const week = buildWeekPlan([], NOW); // no history — ties broken deterministically
+    const jobDays = week.filter(d => d.slot === "job").map(d => d.dayIndex);
+    expect(jobDays).toHaveLength(2);
+    expect(Math.abs(jobDays[0] - jobDays[1])).toBeGreaterThan(JOB_AD_MIN_GAP_DAYS);
   });
 
   it("fills the non-job days with distinct content types for diversity", () => {
@@ -305,6 +314,20 @@ describe("buildWeekPlan — this week's actual posts", () => {
     expect(jobDays).toHaveLength(1); // only the Contract slot is left this week
     expect(jobDays[0].dayName).toBe("Thursday");
     expect(jobDays[0].roleLabel).toBe("Contract");
+  });
+
+  it("keeps the gap from an already-posted job ad this week, not just among newly suggested days", () => {
+    const posts = [
+      // Already posted a job ad this Monday.
+      post("This week job ad", "2026-07-06", 1000, 300, "Permanent"),
+      // Historical: job ads do great on Wednesday — but that's only one clear
+      // day after Monday, too close under the spacing rule.
+      post("Hiring Wed 1", "2026-06-03", 1000, 500, "job posting"),
+      post("Hiring Wed 2", "2026-06-10", 1000, 500, "job posting"),
+    ];
+    const week = buildWeekPlan(posts, WED);
+    const wednesday = week.find(d => d.dayName === "Wednesday");
+    expect(wednesday.slot).not.toBe("job"); // too close to Monday's job ad, despite the best track record
   });
 
   it("shows a day as planned (not yet posted) when the planner has it scheduled", () => {
