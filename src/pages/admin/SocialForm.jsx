@@ -25,8 +25,9 @@ const BLANK_POST     = { title: "", impressions: "", likes: "", shares: "" };
 const BLANK_ALL_POST = { post_name: "", post_date: "", platforms: "", impressions: "", engagements: "", url: "", notes: "" };
 const BLANK_INSIGHTS = { working: "", not_working: "", actions: "", next_quarter: "" };
 
-const newAd       = () => ({ id: crypto.randomUUID(), name: "", impressions: "", clicks: "", cpc: "", engagement_rate: "" });
+const newAd       = () => ({ id: crypto.randomUUID(), name: "", impressions: "", clicks: "", cpc: "", engagement_rate: "", status: "active" });
 const newCampaign = () => ({ id: crypto.randomUUID(), name: "", ads: [] });
+const AD_STATUSES = ["active", "paused", "completed", "draft"];
 
 // ─── CSV import parser ────────────────────────────────────────────
 function parseCsv(text) {
@@ -170,7 +171,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
             id: c.id, name: c.name || "",
             ads: [...(c.paid_media_ads || [])].sort((a, b) => a.sort_order - b.sort_order).map(a => ({
               id: a.id, name: a.name || "", impressions: str(a.impressions), clicks: str(a.clicks),
-              cpc: str(a.cpc), engagement_rate: str(a.engagement_rate),
+              cpc: str(a.cpc), engagement_rate: str(a.engagement_rate), status: a.status || "active",
             })),
           })));
         }
@@ -241,7 +242,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
         const ads = campaigns.flatMap(c => c.ads.map((a, j) => ({
           id: a.id, campaign_id: c.id, sort_order: j, name: a.name,
           impressions: num(a.impressions), clicks: num(a.clicks),
-          cpc: num(a.cpc), engagement_rate: num(a.engagement_rate),
+          cpc: num(a.cpc), engagement_rate: num(a.engagement_rate), status: a.status || "active",
         })));
         if (ads.length) await dbOp(supabase.from("paid_media_ads").insert(ads));
       }
@@ -491,6 +492,12 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
                     <Field label="Engagement Rate (%)">
                       <input type="number" step="0.01" className="admin-input" value={a.engagement_rate}
                         onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, ads: x.ads.map((y, k) => k === ai ? { ...y, engagement_rate: e.target.value } : y) } : x)); dirty(); }} />
+                    </Field>
+                    <Field label="Status">
+                      <select className="admin-input" value={a.status}
+                        onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, ads: x.ads.map((y, k) => k === ai ? { ...y, status: e.target.value } : y) } : x)); dirty(); }}>
+                        {AD_STATUSES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                      </select>
                     </Field>
                   </div>
                   <button className="admin-btn-remove"

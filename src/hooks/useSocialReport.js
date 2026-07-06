@@ -28,6 +28,7 @@ function mapPaidMedia(rawCampaigns) {
           clicks: a.clicks,
           cpc: a.cpc,
           engagementRate: a.engagement_rate,
+          status: a.status || "active",
         })),
     }));
 }
