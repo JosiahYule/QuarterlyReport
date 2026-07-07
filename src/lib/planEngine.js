@@ -163,6 +163,7 @@ function groupAndScore(posts, keyFn, { now = null, halfLife = RECENCY_HALF_LIFE_
 }
 
 const byRateDesc = (a, b) => (b.avgEngagementRate ?? -1) - (a.avgEngagementRate ?? -1);
+const byRankDesc = (a, b) => (b.rankScore ?? -1) - (a.rankScore ?? -1);
 
 // ─── Plan suggestion ────────────────────────────────────────────────
 // posts: raw social_posts rows for the report (post_name, post_date,
@@ -295,10 +296,43 @@ function assignDistinct(days, cellsByDay) {
     const remaining = {};
     for (const d of rest) remaining[d] = (cellsByDay[d] || []).filter(c => c.key !== cell.key);
     const sub = assignDistinct(rest, remaining);
-    const score = (cell.avgEngagementRate ?? 0) + sub.score;
+    const score = (cell.rankScore ?? cell.avgEngagementRate ?? 0) + sub.score;
     if (score > best.score) best = { score, picks: { ...sub.picks, [day]: cell } };
   }
   return best;
+}
+
+// ─── Cross-page signal bias ─────────────────────────────────────────
+// buildWeekPlan's day-by-day picks are ranked on track record alone by
+// default. Passing a signal from planSignals.js (platformFocus, jobAdSignal,
+// webFunnel) nudges that ranking toward types with a real (weighted) tie to
+// the signal — without changing the `avgEngagementRate`/`rate` shown to the
+// user, which always stays the true historical number. Each boost is capped
+// well under 2x so a strong track record can't be buried by a secondary
+// signal, and every signal defaults to a no-op ("empty"/null) weight of 0,
+// so calling buildWeekPlan without them behaves exactly as before.
+export const PLATFORM_FOCUS_BOOST = 0.15;
+export const LINK_BIAS_BOOST = 0.15;
+export const JOB_BOOST_MAX = 0.2;
+
+// Weighted share (0..1) of each keyFn bucket's own posts that satisfy `test`,
+// using the same recency weighting as groupAndScore so a handful of old
+// posts can't swing a bucket's bias as much as a recent one would.
+function weightedShare(posts, keyFn, test, { now, halfLife = RECENCY_HALF_LIFE_DAYS } = {}) {
+  const nowTs = now ? startOfDay(now) : null;
+  const totals = new Map();
+  for (const p of posts) {
+    const meta = keyFn(p);
+    if (!meta) continue;
+    const w = recencyWeight(p.post_date, nowTs, halfLife) * (Number(p.impressions) || 0);
+    if (!totals.has(meta.key)) totals.set(meta.key, { w: 0, wMatch: 0 });
+    const t = totals.get(meta.key);
+    t.w += w;
+    if (test(p)) t.wMatch += w;
+  }
+  const shares = new Map();
+  for (const [key, t] of totals) shares.set(key, t.w > 0 ? t.wMatch / t.w : 0);
+  return shares;
 }
 
 // A recommended Mon–Fri schedule: up to JOB_AD_SLOTS job-ad days (labeled
@@ -315,7 +349,10 @@ function assignDistinct(days, cellsByDay) {
 // Days that are already past with nothing logged or planned are flagged as
 // missed. The plan for what's left is adjusted so it doesn't repeat a
 // job-ad slot or content type already posted or planned earlier this week.
-export function buildWeekPlan(posts, { now = new Date(), minPerCell = 2, plannedItems = [] } = {}) {
+export function buildWeekPlan(posts, {
+  now = new Date(), minPerCell = 2, plannedItems = [],
+  platformFocus = null, jobAdSignal = null, webFunnel = null,
+} = {}) {
   const allPosts = posts || [];
   const valid = allPosts.filter(p => p.post_date && Number(p.impressions) > 0);
 
@@ -373,11 +410,31 @@ export function buildWeekPlan(posts, { now = new Date(), minPerCell = 2, planned
   for (const dayIndex of remainingDays) {
     const dayPosts = valid.filter(p => dayOfWeekIndex(p.post_date) === dayIndex);
     const jobPosts = dayPosts.filter(p => isJobAdType(classifyPost(p).label));
+    const nonJobPosts = dayPosts.filter(p => !isJobAdType(classifyPost(p).label));
+
     const jobAgg = groupAndScore(jobPosts, () => ({ key: "job" }), { now })[0] || null;
-    jobByDay[dayIndex] = { rate: jobAgg?.avgEngagementRate ?? null, count: jobAgg?.count ?? 0 };
-    contentByDay[dayIndex] = groupAndScore(dayPosts.filter(p => !isJobAdType(classifyPost(p).label)), classifyPost, { now })
+    const jobRate = jobAgg?.avgEngagementRate ?? null;
+    const jobRankRate = jobAdSignal?.status === "ready" && jobRate !== null
+      ? jobRate * (1 + JOB_BOOST_MAX * jobAdSignal.weight)
+      : jobRate;
+    jobByDay[dayIndex] = { rate: jobRate, rankRate: jobRankRate, count: jobAgg?.count ?? 0 };
+
+    const platformShares = platformFocus?.status === "ready"
+      ? weightedShare(nonJobPosts, classifyPost, p => (p.platforms || "").toLowerCase().includes(platformFocus.platform.toLowerCase()), { now })
+      : null;
+    const linkedShares = webFunnel?.status === "ready"
+      ? weightedShare(nonJobPosts, classifyPost, p => !!String(p.url || "").trim(), { now })
+      : null;
+
+    contentByDay[dayIndex] = groupAndScore(nonJobPosts, classifyPost, { now })
       .filter(b => b.avgEngagementRate !== null && !usedTypesThisWeek.has(b.label.toLowerCase()))
-      .sort(byRateDesc);
+      .map(b => {
+        let rankScore = b.avgEngagementRate;
+        if (platformShares) rankScore *= 1 + PLATFORM_FOCUS_BOOST * platformFocus.weight * platformShares.get(b.key);
+        if (linkedShares) rankScore *= 1 + LINK_BIAS_BOOST * webFunnel.weight * linkedShares.get(b.key);
+        return { ...b, rankScore };
+      })
+      .sort(byRankDesc);
   }
 
   const jobSlotsRemaining = Math.max(0, JOB_AD_SLOTS - jobSlotsUsedThisWeek);
@@ -415,7 +472,7 @@ export function buildWeekPlan(posts, { now = new Date(), minPerCell = 2, planned
   for (const jobDays of combinations(remainingDays, feasibleK)) {
     if (!jobDaysValid(jobDays)) continue;
     const contentDays = remainingDays.filter(d => !jobDays.includes(d));
-    const jobScore = jobDays.reduce((a, d) => a + (jobByDay[d].rate ?? 0), 0);
+    const jobScore = jobDays.reduce((a, d) => a + (jobByDay[d].rankRate ?? jobByDay[d].rate ?? 0), 0);
     const { score: contentScore, picks } = assignDistinct(contentDays, contentByDay);
     const total = jobScore + contentScore;
     if (!bestPlan || total > bestPlan.total) bestPlan = { total, jobDays, picks };
@@ -433,7 +490,7 @@ export function buildWeekPlan(posts, { now = new Date(), minPerCell = 2, planned
       return {
         dayIndex, dayName: DAY_NAMES[dayIndex], slot: "posted", roleLabel: null, bestType: null,
         posted: dayPosts.map(p => ({ label: classifyPost(p).label, postName: p.post_name || "" })),
-        confident: true,
+        confident: true, recommendBoost: false,
       };
     }
     const dayPlanned = plannedByDay[dayIndex];
@@ -441,11 +498,11 @@ export function buildWeekPlan(posts, { now = new Date(), minPerCell = 2, planned
       return {
         dayIndex, dayName: DAY_NAMES[dayIndex], slot: "planned", roleLabel: null, bestType: null,
         planned: dayPlanned.map(it => ({ label: it.content_type || "Planned", idea: it.idea || "" })),
-        confident: true,
+        confident: true, recommendBoost: false,
       };
     }
     if (mondayOffset(dayIndex) < todayOffset) {
-      return { dayIndex, dayName: DAY_NAMES[dayIndex], slot: "missed", roleLabel: null, bestType: null, confident: false };
+      return { dayIndex, dayName: DAY_NAMES[dayIndex], slot: "missed", roleLabel: null, bestType: null, confident: false, recommendBoost: false };
     }
     if (bestPlan.jobDays.includes(dayIndex)) {
       const job = jobByDay[dayIndex];
@@ -453,6 +510,7 @@ export function buildWeekPlan(posts, { now = new Date(), minPerCell = 2, planned
         dayIndex, dayName: DAY_NAMES[dayIndex], slot: "job", roleLabel: roleByDay[dayIndex],
         bestType: { label: "Job Posting", count: job.count, avgEngagementRate: job.rate },
         confident: job.count >= minPerCell,
+        recommendBoost: jobAdSignal?.status === "ready",
       };
     }
     const cell = bestPlan.picks[dayIndex] || null;
@@ -460,6 +518,7 @@ export function buildWeekPlan(posts, { now = new Date(), minPerCell = 2, planned
       dayIndex, dayName: DAY_NAMES[dayIndex], slot: "content", roleLabel: null,
       bestType: cell ? { label: cell.label, count: cell.count, avgEngagementRate: cell.avgEngagementRate } : null,
       confident: !!cell && cell.count >= minPerCell,
+      recommendBoost: false,
     };
   });
 }
