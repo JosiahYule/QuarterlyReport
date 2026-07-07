@@ -1192,7 +1192,6 @@
 
 /* Plan tab */
 .admin-plan-empty       { font-size: 14px; color: var(--ink-3); line-height: 1.6; padding: 20px; border: 1px dashed var(--rule-soft); }
-.admin-plan-headline    { display: flex; flex-direction: column; gap: 10px; }
 .admin-plan-headline-top{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .admin-plan-narrative   { font-size: 15px; color: var(--ink); line-height: 1.6; margin: 0; }
 .admin-plan-confidence  { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding: 3px 10px; border-radius: 99px; white-space: nowrap; }
@@ -1207,16 +1206,28 @@
 .admin-plan-table tr:last-child td { border-bottom: none; }
 .admin-plan-table tr.is-thin td { color: var(--ink-4); }
 
-/* Week-at-a-glance */
-.admin-plan-week tr.is-today td      { background: var(--paper-2); font-weight: 500; }
-.admin-plan-week tr.is-today td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+/* Signals strip — today's pick plus any actionable cross-page/cadence/
+   freshness call-out, each one line, only rendered when there's something
+   worth saying. */
+.admin-plan-signals    { display: flex; flex-direction: column; gap: 8px; }
+.admin-plan-signal     { font-size: 13px; color: var(--ink-2); line-height: 1.5; padding: 10px 14px; border: 1px solid var(--rule-soft); background: var(--paper-2); }
+.admin-plan-signal.is-down { color: var(--down); border-color: var(--down); background: rgba(180, 40, 40, 0.05); font-weight: 500; }
+.admin-plan-signal--today  { display: flex; flex-direction: column; gap: 8px; padding: 16px 20px; }
+.admin-plan-signal--today .admin-plan-narrative { font-size: 14px; }
+
+/* Full-breakdown disclosure — everything below the calendar, tucked away by default */
+.admin-plan-details        { border: 1px solid var(--rule-soft); }
+.admin-plan-details > summary { cursor: pointer; padding: 12px 16px; font-size: 13px; font-weight: 500; color: var(--ink-2); list-style: none; }
+.admin-plan-details > summary::-webkit-details-marker { display: none; }
+.admin-plan-details > summary::before { content: "▸ "; color: var(--ink-4); }
+.admin-plan-details[open] > summary::before { content: "▾ "; }
+.admin-plan-details[open] > summary { border-bottom: 1px solid var(--rule-soft); }
+.admin-plan-details-body   { display: flex; flex-direction: column; gap: 20px; padding: 20px; }
+
+/* Shared day/post tags (calendar day cells) */
 .admin-plan-today-tag { display: inline-block; margin-left: 8px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 99px; padding: 1px 7px; vertical-align: middle; }
-.admin-plan-nodata { color: var(--ink-4); font-style: italic; }
-.admin-plan-jobtag { display: inline-block; margin-right: 6px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); background: var(--paper-2); border: 1px solid var(--rule-soft); border-radius: 99px; padding: 1px 8px; }
+.admin-plan-nodata { color: var(--ink-4); font-style: italic; font-size: 13px; }
 .admin-plan-postedtag { display: inline-block; margin-right: 6px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--up); background: var(--paper-2); border: 1px solid var(--up); border-radius: 99px; padding: 1px 8px; }
-.admin-plan-week tr.is-posted td:first-child { box-shadow: inset 2px 0 0 var(--up); }
-.admin-plan-plannedtag { display: inline-block; margin-right: 6px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); background: var(--paper-2); border: 1px solid var(--accent); border-radius: 99px; padding: 1px 8px; }
-.admin-plan-week tr.is-planned td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 
 /* Scorecard */
 .admin-plan-scorecard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
@@ -1233,9 +1244,6 @@
 .admin-plan-cadence.is-dark{ border-color: var(--down); }
 .admin-plan-cadence-alert { padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--down); border-bottom: 1px solid var(--rule-soft); background: rgba(180, 40, 40, 0.05); }
 .admin-plan-cadence-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 14px 16px; }
-
-/* Content freshness */
-.admin-plan-freshness-alert { padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--down); border: 1px solid var(--down); background: rgba(180, 40, 40, 0.05); margin-top: 8px; }
 
 /* Content-mix flags */
 .admin-plan-flag      { display: inline-block; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; padding: 2px 9px; border-radius: 99px; }
@@ -1257,8 +1265,32 @@
 .admin-plan-perf-meta { font-size: 11px; color: var(--ink-3); }
 .admin-plan-perf-rate { font-size: 13px; font-weight: 500; color: var(--ink); white-space: nowrap; }
 
-/* Planner */
-.admin-planner-add     { display: grid; grid-template-columns: 1fr 180px 160px auto; gap: 8px; margin-bottom: 10px; }
+/* Weekly calendar */
+.admin-cal-nav      { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.admin-cal-range    { font-size: 13px; font-weight: 500; color: var(--ink); min-width: 140px; text-align: center; }
+.admin-cal-today    { font-size: 12px; }
+.admin-cal-grid     { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: stretch; }
+.admin-cal-day      { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--rule-soft); background: var(--paper-2); min-height: 120px; }
+.admin-cal-day.is-today  { border-color: var(--accent); box-shadow: inset 2px 0 0 var(--accent); }
+.admin-cal-day.is-missed { opacity: .6; }
+.admin-cal-day-head { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.admin-cal-day-name { font-size: 13px; font-weight: 500; color: var(--ink); }
+.admin-cal-day-date { font-size: 11px; color: var(--ink-3); }
+.admin-cal-posted   { font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+.admin-cal-item     { display: flex; flex-direction: column; gap: 4px; }
+.admin-cal-item.is-posted .admin-cal-item-idea { text-decoration: line-through; color: var(--ink-4); }
+.admin-cal-item-idea{ height: 30px; font-size: 12px; }
+.admin-cal-item-row { display: flex; gap: 4px; align-items: center; }
+.admin-cal-item-row .admin-input  { height: 28px; font-size: 11px; padding: 0 6px; }
+.admin-cal-item-row .admin-btn-remove { width: 22px; height: 22px; margin-top: 0; }
+.admin-cal-suggestion { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.admin-cal-ghost    { font-size: 12px; color: var(--ink-3); font-style: italic; }
+.admin-cal-add      { height: 26px; padding: 0 10px; font-size: 11px; }
+.admin-cal-addbox   { height: 30px; font-size: 12px; }
+
+/* Backlog + planner rows (shared with the calendar's undated-idea list) */
+.admin-cal-backlog     { margin-top: 4px; }
+.admin-planner-add     { display: grid; grid-template-columns: 1fr 180px auto; gap: 8px; margin-bottom: 10px; }
 .admin-planner-quickadd{ margin-bottom: 12px; }
 .admin-planner-list    { list-style: none; margin: 8px 0 0; padding: 0; }
 .admin-planner-row     { display: grid; grid-template-columns: 120px 1fr 180px 160px auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--rule-soft); }
@@ -1268,6 +1300,10 @@
 .admin-planner-row.is-planned .admin-planner-status { color: var(--accent); }
 .admin-planner-row.is-posted  .admin-planner-status { color: var(--up); }
 
+@media (max-width: 900px) {
+  .admin-cal-grid { grid-template-columns: 1fr; }
+  .admin-cal-day  { min-height: 0; }
+}
 @media (max-width: 720px) {
   .admin-plan-scorecard { grid-template-columns: repeat(2, 1fr); }
   .admin-plan-perf-grid { grid-template-columns: 1fr; gap: 20px; }

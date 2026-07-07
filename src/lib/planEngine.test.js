@@ -260,6 +260,89 @@ describe("thisWeekDates", () => {
   });
 });
 
+describe("buildWeekPlan — cross-page signal bias", () => {
+  const NOW = { now: new Date(2026, 5, 15) }; // Monday
+
+  it("without any signal, ranks purely on historical engagement (baseline)", () => {
+    const posts = [
+      post("Story Wed", "2026-06-03", 1000, 310, "testimonial"),
+      post("Tips Wed", "2026-06-10", 1000, 280, "tips"),
+    ];
+    const wed = buildWeekPlan(posts, NOW).find(d => d.dayName === "Wednesday");
+    // Wednesday can never be a job day — it's never >2 days from both ends
+    // of a Mon-Fri week — so this isolates the content-type pick cleanly.
+    expect(wed.slot).toBe("content");
+    expect(wed.bestType.label).toBe("Testimonial"); // higher raw rate wins
+  });
+
+  it("platformFocus tips a near-tied pick toward the type with a track record on that platform", () => {
+    const posts = [
+      { ...post("Story Wed", "2026-06-03", 1000, 310, "testimonial"), platforms: "Facebook" },
+      { ...post("Tips Wed", "2026-06-10", 1000, 280, "tips"), platforms: "LinkedIn" },
+    ];
+    const platformFocus = { status: "ready", platform: "LinkedIn", weight: 1 };
+    const wed = buildWeekPlan(posts, { ...NOW, platformFocus }).find(d => d.dayName === "Wednesday");
+    expect(wed.bestType.label).toBe("Tips");
+    // The displayed track record is always the true historical rate, never the boosted rank score.
+    expect(wed.bestType.avgEngagementRate).toBeCloseTo(0.28, 5);
+  });
+
+  it("platformFocus doesn't touch the ranking when the signal is empty", () => {
+    const posts = [
+      { ...post("Story Wed", "2026-06-03", 1000, 310, "testimonial"), platforms: "Facebook" },
+      { ...post("Tips Wed", "2026-06-10", 1000, 280, "tips"), platforms: "LinkedIn" },
+    ];
+    const wed = buildWeekPlan(posts, { ...NOW, platformFocus: { status: "empty", weight: 0 } }).find(d => d.dayName === "Wednesday");
+    expect(wed.bestType.label).toBe("Testimonial");
+  });
+
+  it("webFunnel tips a near-tied pick toward the type that actually links back to the site", () => {
+    const posts = [
+      post("Story Wed", "2026-06-03", 1000, 310, "testimonial"),
+      { ...post("Tips Wed", "2026-06-10", 1000, 280, "tips"), url: "https://example.com/careers" },
+    ];
+    const webFunnel = { status: "ready", weight: 1, favorLinked: true };
+    const wed = buildWeekPlan(posts, { ...NOW, webFunnel }).find(d => d.dayName === "Wednesday");
+    expect(wed.bestType.label).toBe("Tips");
+    expect(wed.bestType.avgEngagementRate).toBeCloseTo(0.28, 5);
+  });
+
+  it("jobAdSignal marks chosen job days with recommendBoost, and leaves other slots false", () => {
+    const week = buildWeekPlan([], { ...NOW, jobAdSignal: { status: "ready", weight: 0.5 } });
+    const jobDays = week.filter(d => d.slot === "job");
+    expect(jobDays.length).toBeGreaterThan(0);
+    expect(jobDays.every(d => d.recommendBoost === true)).toBe(true);
+    expect(week.filter(d => d.slot !== "job").every(d => d.recommendBoost === false)).toBe(true);
+  });
+
+  it("jobAdSignal can shift which day gets the job-ad slot by boosting every day's job score alike", () => {
+    // Tuned tightly to JOB_BOOST_MAX (currently 0.2): Friday's organic job
+    // rate (.30) beats Thursday's (.10) by .20, and Friday's own content
+    // ("Company Update", .32) beats Thursday's ("Video", .10) by .22 — just
+    // enough that, at baseline, keeping Friday for content and running the
+    // job ad on Thursday wins narrowly. A full-weight job signal boosts every
+    // day's job score by (1 + JOB_BOOST_MAX), which is enough to flip that:
+    // Friday's much stronger job rate now outweighs its content slot instead.
+    const posts = [
+      post("Hiring Mon", "2026-06-01", 1000, 100, "job posting"), // Monday job rate .10 (common to both combos)
+      post("Hiring Thu", "2026-06-04", 1000, 100, "job posting"), // Thursday job rate .10
+      post("Hiring Fri", "2026-06-05", 1000, 300, "job posting"), // Friday job rate .30
+      post("Story Tue",  "2026-06-02", 1000, 500, "testimonial"), // Tuesday content .50 (common to both combos)
+      post("Clip Thu",   "2026-06-04", 1000, 100, "video"),       // Thursday content, if freed up: .10
+      post("News Fri",   "2026-06-05", 1000, 320, "company update"), // Friday content, if freed up: .32
+    ];
+
+    const baseline = buildWeekPlan(posts, NOW);
+    expect(baseline.find(d => d.dayName === "Thursday").slot).toBe("job");
+    expect(baseline.find(d => d.dayName === "Friday").slot).toBe("content");
+
+    const jobAdSignal = { status: "ready", weight: 1 };
+    const boosted = buildWeekPlan(posts, { ...NOW, jobAdSignal });
+    expect(boosted.find(d => d.dayName === "Friday").slot).toBe("job");
+    expect(boosted.find(d => d.dayName === "Thursday").slot).toBe("content");
+  });
+});
+
 describe("buildWeekPlan — this week's actual posts", () => {
   // 2026-07-08 is a Wednesday; this week runs Mon 7/6 - Fri 7/10.
   const WED = { now: new Date(2026, 6, 8) };
