@@ -5,15 +5,10 @@ import {
   todayWeekdayIndex,
   classifyTimeOfDay,
   buildPlanSuggestion,
-  buildPlanNarrative,
   buildWeekPlan,
   thisWeekDates,
   JOB_AD_MIN_GAP_DAYS,
-  buildScorecard,
   buildCadence,
-  buildContentFreshness,
-  buildContentMix,
-  buildPerformers,
   WEEKDAYS,
   MIN_SAMPLE_SIZE,
 } from "./planEngine.js";
@@ -484,30 +479,6 @@ describe("buildWeekPlan — this week's actual posts", () => {
   });
 });
 
-describe("buildScorecard", () => {
-  it("computes quarter-over-quarter deltas", () => {
-    const cur = [
-      post("A", "2026-06-01", 1000, 200),
-      post("B", "2026-06-08", 1000, 200),
-    ];
-    const prev = [post("C", "2026-03-01", 1000, 100)];
-    const sc = buildScorecard(cur, prev);
-    expect(sc.hasPrev).toBe(true);
-    const posts = sc.metrics.find(m => m.key === "posts");
-    expect(posts.value).toBe(2);
-    expect(posts.delta).toBe(100); // 1 → 2 posts = +100%
-    const eng = sc.metrics.find(m => m.key === "engagement");
-    expect(eng.value).toBeCloseTo(0.2, 5); // 400/2000
-    expect(eng.delta).toBeCloseTo(100, 5); // 0.1 → 0.2 = +100%
-  });
-
-  it("reports hasPrev false and null deltas with no prior quarter", () => {
-    const sc = buildScorecard([post("A", "2026-06-01", 1000, 200)], []);
-    expect(sc.hasPrev).toBe(false);
-    expect(sc.metrics.every(m => m.delta === null)).toBe(true);
-  });
-});
-
 describe("buildCadence", () => {
   it("returns empty status when there are no dated posts", () => {
     expect(buildCadence([]).status).toBe("empty");
@@ -536,123 +507,5 @@ describe("buildCadence", () => {
     const c = buildCadence(posts, { now: new Date(2026, 5, 29), quarterStart: new Date(2026, 5, 1), quarterEnd: new Date(2026, 8, 1) });
     expect(c.daysSinceLast).toBe(2);
     expect(c.goneDark).toBe(false);
-  });
-});
-
-describe("buildContentFreshness", () => {
-  it("flags a type as stale once it's gone well past its own usual gap", () => {
-    const posts = [
-      // Testimonial normally goes out every ~10 days, but it's been 30 since.
-      post("T1", "2026-05-01", 1000, 100, "testimonial"),
-      post("T2", "2026-05-11", 1000, 100, "testimonial"),
-      post("T3", "2026-05-21", 1000, 100, "testimonial"),
-      // Tips post regularly and recently — not stale.
-      post("Ti1", "2026-06-08", 1000, 100, "tips"),
-      post("Ti2", "2026-06-18", 1000, 100, "tips"),
-      post("Ti3", "2026-06-19", 1000, 100, "tips"),
-    ];
-    const freshness = buildContentFreshness(posts, { now: new Date(2026, 5, 20) });
-    const testimonial = freshness.rows.find(r => r.label === "Testimonial");
-    const tips = freshness.rows.find(r => r.label === "Tips");
-    expect(testimonial.avgGap).toBeCloseTo(10, 5);
-    expect(testimonial.daysSinceLast).toBe(30); // May 21 -> Jun 20
-    expect(testimonial.stale).toBe(true);
-    expect(tips.stale).toBe(false);
-  });
-
-  it("floors the staleness bar so a type posted once isn't flagged over a short gap", () => {
-    const posts = [post("V1", "2026-06-01", 1000, 100, "video")];
-    // Only 10 days since the one and only post — under the 14-day floor.
-    const freshness = buildContentFreshness(posts, { now: new Date(2026, 5, 11) });
-    expect(freshness.rows.find(r => r.label === "Video").stale).toBe(false);
-  });
-
-  it("still flags a single-post type once it's well past the floored threshold", () => {
-    const posts = [post("V1", "2026-06-01", 1000, 100, "video")];
-    // 40 days since the only post, well past the 2x14=28 day floor.
-    const freshness = buildContentFreshness(posts, { now: new Date(2026, 6, 11) });
-    expect(freshness.rows.find(r => r.label === "Video").stale).toBe(true);
-  });
-
-  it("returns no rows when there are no dated posts", () => {
-    expect(buildContentFreshness([]).rows).toEqual([]);
-  });
-});
-
-describe("buildContentMix", () => {
-  it("flags an under-posted, over-performing type as an opportunity", () => {
-    // 8 company updates (low engagement) + 2 testimonials (high engagement)
-    const posts = [
-      ...Array.from({ length: 8 }, (_, i) => post(`U${i}`, "2026-06-01", 1000, 30, "company update")),
-      post("T1", "2026-06-02", 1000, 300, "testimonial"),
-      post("T2", "2026-06-03", 1000, 320, "testimonial"),
-    ];
-    const mix = buildContentMix(posts);
-    const testimonial = mix.rows.find(r => r.label === "Testimonial");
-    const update = mix.rows.find(r => r.label === "Company Update");
-    expect(testimonial.flag).toBe("opportunity"); // 20% share, well above overall rate
-    expect(update.flag).toBe("overinvested");      // 80% share, below overall rate
-  });
-
-  it("returns empty rows with no posts", () => {
-    expect(buildContentMix([]).rows).toEqual([]);
-  });
-
-  it("weights recent posts more heavily in a type's engagement rate", () => {
-    // An old weak post and a recent strong post of the same type.
-    const posts = [
-      post("Old blog", "2026-01-01", 1000, 50,  "blog"), // 5%, ~5.5 months old
-      post("New blog", "2026-06-15", 1000, 300, "blog"), // 30%, recent
-    ];
-    const flat     = buildContentMix(posts, { now: null }).rows[0];           // no weighting
-    const weighted = buildContentMix(posts, { now: new Date(2026, 5, 20) }).rows[0];
-    expect(flat.avgEngagementRate).toBeCloseTo(0.175, 3);   // plain impression-weighted mean
-    expect(weighted.avgEngagementRate).toBeGreaterThan(0.25); // pulled toward the recent 30%
-  });
-});
-
-describe("buildPerformers", () => {
-  it("ranks posts by engagement rate, top and bottom", () => {
-    const posts = [
-      post("Best", "2026-06-01", 1000, 500),   // 50%
-      post("Mid", "2026-06-02", 1000, 200),    // 20%
-      post("Worst", "2026-06-03", 1000, 50),   // 5%
-      post("Low", "2026-06-04", 1000, 80),     // 8%
-    ];
-    const perf = buildPerformers(posts, { limit: 2 });
-    expect(perf.total).toBe(4);
-    expect(perf.top.map(p => p.postName)).toEqual(["Best", "Mid"]);
-    expect(perf.bottom.map(p => p.postName)).toEqual(["Worst", "Low"]);
-  });
-
-  it("omits the bottom list when there aren't enough posts", () => {
-    const posts = [post("A", "2026-06-01", 1000, 200), post("B", "2026-06-02", 1000, 100)];
-    expect(buildPerformers(posts, { limit: 3 }).bottom).toEqual([]);
-  });
-});
-
-describe("buildPlanNarrative", () => {
-  it("returns empty string for a non-ready plan", () => {
-    expect(buildPlanNarrative({ status: "empty" })).toBe("");
-    expect(buildPlanNarrative(null)).toBe("");
-  });
-
-  it("calls out low-confidence data explicitly", () => {
-    const plan = { status: "ready", bestType: null, bestDay: null };
-    expect(buildPlanNarrative(plan)).toMatch(/not enough posts/i);
-  });
-
-  it("mentions both best type and best day when available", () => {
-    const plan = {
-      status: "ready",
-      overallRate: 0.1,
-      bestType: { key: "job_posting", label: "Job Posting", avgEngagementRate: 0.2, count: 3 },
-      bestDay: { key: 1, name: "Monday", avgEngagementRate: 0.18 },
-      todayName: "Tuesday",
-      todayBucket: { key: 2 },
-    };
-    const text = buildPlanNarrative(plan);
-    expect(text).toMatch(/Job Posting/);
-    expect(text).toMatch(/Monday/);
   });
 });

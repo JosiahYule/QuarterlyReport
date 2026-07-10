@@ -9,19 +9,6 @@
 import { classifyPost, isJobAdType, MIN_SAMPLE_SIZE } from "./planEngine.js";
 import { calcAutoDelta, sumPaidMediaAds } from "../utils.js";
 
-// For engagement rates computed here as impressions/engagements fractions
-// (organicRate, paidRate — both normalized to 0..1 before this point).
-function pct(rate) {
-  return Number.isFinite(rate) ? `${(rate * 100).toFixed(1)}%` : null;
-}
-
-// For engagement rates read straight from the DB, already stored as plain
-// percent numbers (e.g. 4.53 meaning 4.53%) — social_platforms.engagement_rate,
-// paid_media_ads.engagement_rate. No /100 round-trip, unlike pct() above.
-function pctNumber(n) {
-  return Number.isFinite(n) ? `${n.toFixed(1)}%` : null;
-}
-
 const EMPTY_PLATFORM_FOCUS = { status: "empty", platform: null, engagementRate: null, weight: 0 };
 const EMPTY_JOB_AD_SIGNAL  = { status: "empty", organicRate: null, paidRate: null, weight: 0 };
 const EMPTY_WEB_FUNNEL     = { status: "empty", weight: 0, favorLinked: false, sessionsPct: null, formsPct: null };
@@ -122,35 +109,4 @@ export function buildWebFunnelSignal(webData, prevWebData) {
   if (weight <= 0) return EMPTY_WEB_FUNNEL;
 
   return { status: "ready", weight, favorLinked: true, sessionsPct, formsPct };
-}
-
-// ─── Narratives ─────────────────────────────────────────────────────
-// One plain-English line per active signal, ready for the Plan tab's
-// signals strip. Same spirit as buildPlanNarrative: no line at all for
-// a signal that came back "empty".
-export function buildSignalNarratives({ platformFocus, jobAdSignal, webFunnel } = {}) {
-  const lines = [];
-
-  if (platformFocus?.status === "ready") {
-    lines.push(
-      `${platformFocus.platform} is pulling ahead of your other platforms this quarter ` +
-      `(${pctNumber(platformFocus.engagementRate)} engagement) — this week's picks lean toward content that's worked there.`
-    );
-  }
-
-  if (jobAdSignal?.status === "ready") {
-    lines.push(
-      `Boosted job ads are outperforming organic ones (${pct(jobAdSignal.paidRate)} vs ${pct(jobAdSignal.organicRate)}) — ` +
-      `worth pairing this week's job-ad slot with paid promotion.`
-    );
-  }
-
-  if (webFunnel?.status === "ready") {
-    lines.push(
-      `Site traffic is up ${webFunnel.sessionsPct.toFixed(0)}% but form submissions aren't keeping pace — ` +
-      `this week's picks lean toward posts that link back to the site.`
-    );
-  }
-
-  return lines;
 }

@@ -3,7 +3,6 @@ import {
   buildPlatformFocusSignal,
   buildJobAdSignal,
   buildWebFunnelSignal,
-  buildSignalNarratives,
 } from "./planSignals.js";
 import { MIN_SAMPLE_SIZE } from "./planEngine.js";
 
@@ -115,26 +114,5 @@ describe("buildWebFunnelSignal", () => {
     expect(signal.weight).toBe(1);
     expect(signal.sessionsPct).toBeCloseTo(50);
     expect(signal.formsPct).toBeCloseTo(0);
-  });
-});
-
-describe("buildSignalNarratives", () => {
-  it("returns no lines when every signal is empty or missing", () => {
-    expect(buildSignalNarratives({})).toEqual([]);
-    expect(buildSignalNarratives({
-      platformFocus: { status: "empty" }, jobAdSignal: { status: "empty" }, webFunnel: { status: "empty" },
-    })).toEqual([]);
-  });
-
-  it("renders one line per ready signal", () => {
-    const lines = buildSignalNarratives({
-      platformFocus: { status: "ready", platform: "LinkedIn", engagementRate: 10 },
-      jobAdSignal: { status: "ready", organicRate: 0.03, paidRate: 0.06 },
-      webFunnel: { status: "ready", sessionsPct: 50, formsPct: 0 },
-    });
-    expect(lines).toHaveLength(3);
-    expect(lines[0]).toMatch(/LinkedIn/);
-    expect(lines[1]).toMatch(/Boosted job ads/);
-    expect(lines[2]).toMatch(/Site traffic/);
   });
 });

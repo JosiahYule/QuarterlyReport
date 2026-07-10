@@ -1192,78 +1192,18 @@
 
 /* Plan tab */
 .admin-plan-empty       { font-size: 14px; color: var(--ink-3); line-height: 1.6; padding: 20px; border: 1px dashed var(--rule-soft); }
-.admin-plan-headline-top{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.admin-plan-narrative   { font-size: 15px; color: var(--ink); line-height: 1.6; margin: 0; }
-.admin-plan-confidence  { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding: 3px 10px; border-radius: 99px; white-space: nowrap; }
-.admin-plan-confidence.is-high   { color: var(--up);    border: 1px solid var(--up); }
-.admin-plan-confidence.is-medium { color: #7a5c00;      border: 1px solid rgba(122, 92, 0, 0.35); }
-.admin-plan-confidence.is-low    { color: var(--ink-3); border: 1px solid var(--rule-soft); }
-.admin-plan-table       { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
-.admin-plan-table th    { padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); border-bottom: 1px solid var(--rule-soft); }
-.admin-plan-table th.r  { text-align: right; }
-.admin-plan-table td    { padding: 8px 10px; border-bottom: 1px solid var(--rule-soft); }
-.admin-plan-table td.r  { text-align: right; }
-.admin-plan-table tr:last-child td { border-bottom: none; }
-.admin-plan-table tr.is-thin td { color: var(--ink-4); }
 
-/* Signals strip — today's pick plus any actionable cross-page/cadence/
-   freshness call-out, each one line, only rendered when there's something
-   worth saying. */
+/* Week guidance — at most a "get something out" nudge plus the strongest
+   content type, each one line, only rendered when there's something worth
+   saying. The full per-day intelligence lives in the calendar below. */
 .admin-plan-signals    { display: flex; flex-direction: column; gap: 8px; }
 .admin-plan-signal     { font-size: 13px; color: var(--ink-2); line-height: 1.5; padding: 10px 14px; border: 1px solid var(--rule-soft); background: var(--paper-2); }
 .admin-plan-signal.is-down { color: var(--down); border-color: var(--down); background: rgba(180, 40, 40, 0.05); font-weight: 500; }
-.admin-plan-signal--today  { display: flex; flex-direction: column; gap: 8px; padding: 16px 20px; }
-.admin-plan-signal--today .admin-plan-narrative { font-size: 14px; }
-
-/* Full-breakdown disclosure — everything below the calendar, tucked away by default */
-.admin-plan-details        { border: 1px solid var(--rule-soft); }
-.admin-plan-details > summary { cursor: pointer; padding: 12px 16px; font-size: 13px; font-weight: 500; color: var(--ink-2); list-style: none; }
-.admin-plan-details > summary::-webkit-details-marker { display: none; }
-.admin-plan-details > summary::before { content: "▸ "; color: var(--ink-4); }
-.admin-plan-details[open] > summary::before { content: "▾ "; }
-.admin-plan-details[open] > summary { border-bottom: 1px solid var(--rule-soft); }
-.admin-plan-details-body   { display: flex; flex-direction: column; gap: 20px; padding: 20px; }
 
 /* Shared day/post tags (calendar day cells) */
 .admin-plan-today-tag { display: inline-block; margin-left: 8px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 99px; padding: 1px 7px; vertical-align: middle; }
 .admin-plan-nodata { color: var(--ink-4); font-style: italic; font-size: 13px; }
 .admin-plan-postedtag { display: inline-block; margin-right: 6px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--up); background: var(--paper-2); border: 1px solid var(--up); border-radius: 99px; padding: 1px 8px; }
-
-/* Scorecard */
-.admin-plan-scorecard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-.admin-plan-stat      { display: flex; flex-direction: column; gap: 3px; padding: 14px 16px; border: 1px solid var(--rule-soft); background: var(--paper-2); }
-.admin-plan-stat-label{ font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
-.admin-plan-stat-value{ font-size: 24px; font-weight: 500; color: var(--ink); line-height: 1.1; }
-.admin-plan-delta     { font-size: 12px; }
-.admin-plan-delta.is-up   { color: var(--up); }
-.admin-plan-delta.is-down { color: var(--down); }
-.admin-plan-delta.is-flat { color: var(--ink-4); }
-
-/* Cadence */
-.admin-plan-cadence       { border: 1px solid var(--rule-soft); }
-.admin-plan-cadence.is-dark{ border-color: var(--down); }
-.admin-plan-cadence-alert { padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--down); border-bottom: 1px solid var(--rule-soft); background: rgba(180, 40, 40, 0.05); }
-.admin-plan-cadence-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 14px 16px; }
-
-/* Content-mix flags */
-.admin-plan-flag      { display: inline-block; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; padding: 2px 9px; border-radius: 99px; }
-.admin-plan-flag.is-opp  { color: var(--up);   border: 1px solid var(--up); }
-.admin-plan-flag.is-over { color: #7a5c00;     border: 1px solid rgba(122, 92, 0, 0.35); }
-
-/* Performers */
-.admin-plan-perf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
-.admin-plan-perf-head { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 8px; }
-.admin-plan-perf-head.is-up   { color: var(--up); }
-.admin-plan-perf-head.is-down { color: var(--down); }
-.admin-plan-perf-list { list-style: none; margin: 0; padding: 0; }
-.admin-plan-perf-row  { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--rule-soft); }
-.admin-plan-perf-row:last-child { border-bottom: none; }
-.admin-plan-perf-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.admin-plan-perf-name { font-size: 13px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.admin-plan-perf-name a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--rule); }
-.admin-plan-perf-name a:hover { border-bottom-color: var(--ink); }
-.admin-plan-perf-meta { font-size: 11px; color: var(--ink-3); }
-.admin-plan-perf-rate { font-size: 13px; font-weight: 500; color: var(--ink); white-space: nowrap; }
 
 /* Weekly calendar */
 .admin-cal-nav      { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
@@ -1305,8 +1245,6 @@
   .admin-cal-day  { min-height: 0; }
 }
 @media (max-width: 720px) {
-  .admin-plan-scorecard { grid-template-columns: repeat(2, 1fr); }
-  .admin-plan-perf-grid { grid-template-columns: 1fr; gap: 20px; }
   .admin-planner-add    { grid-template-columns: 1fr 1fr; }
   .admin-planner-row    { grid-template-columns: 100px 1fr auto; }
   .admin-planner-type, .admin-planner-date { display: none; }
