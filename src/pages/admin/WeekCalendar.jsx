@@ -240,7 +240,6 @@ export function WeekCalendar({ agency, quarter, posts, week, quarterStart, quart
                       <span className="admin-cal-ghost">
                         {suggestion.slot === "job" ? `${suggestion.roleLabel} job ad` : (suggestion.bestType?.label || "Mix it up — any fresh content")}
                       </span>
-                      {suggestion.recommendBoost && <span className="admin-plan-flag is-opp">Boost this</span>}
                       <button
                         className="admin-btn-secondary admin-cal-add"
                         onClick={() => add({
