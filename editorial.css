@@ -139,6 +139,10 @@
     background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(14px) saturate(1.4);
     -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    transition: box-shadow .25s ease;
+  }
+  .app-nav.is-scrolled {
+    box-shadow: 0 8px 24px -18px rgba(20, 17, 13, 0.35);
   }
   .app-nav-row {
     display: flex; align-items: center; justify-content: space-between; gap: 24px;
@@ -193,16 +197,43 @@
 
   .app-nav-divider { width: 1px; height: 18px; background: var(--rule); flex-shrink: 0; }
 
-  .app-nav-tabs { display: flex; gap: 24px; flex-shrink: 0; }
+  .app-nav-tabs { display: flex; gap: 24px; flex-shrink: 0; position: relative; }
   .app-nav-tabs button {
     font-size: 13px; color: var(--ink-3);
     position: relative; padding: 4px 0;
     border-bottom: 2px solid transparent; margin-bottom: -2px;
-    transition: color .15s ease, border-color .15s ease;
+    transition: color .15s ease;
     white-space: nowrap;
   }
   .app-nav-tabs button:hover     { color: var(--ink); }
-  .app-nav-tabs button.is-active { color: var(--ink); border-bottom-color: var(--ink); }
+  .app-nav-tabs button.is-active { color: var(--ink); }
+  /* Sliding underline — positioned by Nav.jsx against the active tab */
+  .app-nav-tab-indicator {
+    position: absolute; bottom: -2px; height: 2px;
+    background: var(--ink); border-radius: 99px;
+    transition: left .28s var(--ease-out), width .28s var(--ease-out);
+    pointer-events: none;
+  }
+
+  /* Command palette trigger */
+  .nav-cmdk {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 30px; padding: 0 9px;
+    border: 1px solid var(--rule); border-radius: var(--radius-s);
+    background: var(--paper); color: var(--ink-3); font-size: 13px;
+    transition: color .15s ease, border-color .15s ease, box-shadow .15s ease;
+  }
+  .nav-cmdk:hover { color: var(--ink); border-color: var(--ink); box-shadow: var(--shadow-soft); }
+  .nav-cmdk:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+  .nav-cmdk-icon { display: inline-flex; font-size: 14px; }
+
+  /* Keycap chips (palette hints, nav shortcut) */
+  .kbd, .nav-cmdk-kbd {
+    font-family: var(--sans); font-size: 10px; font-weight: 500; letter-spacing: .04em;
+    color: var(--ink-3); background: var(--paper-2);
+    border: 1px solid var(--rule-soft); border-bottom-width: 2px; border-radius: 4px;
+    padding: 1px 5px; line-height: 1.4; white-space: nowrap;
+  }
 
   .app-nav-range { font-size: 13px; color: var(--ink-3); white-space: nowrap; }
   .qchooser {
@@ -241,6 +272,67 @@
   .menu .menu-item:hover,
   .menu .menu-item:focus-visible { background: var(--paper-2); color: var(--ink); outline: none; }
   .menu .menu-item.active  { color: var(--accent); font-weight: 500; }
+
+  /* Command palette (⌘K) */
+  .cmdk-overlay {
+    position: fixed; inset: 0; z-index: 700;
+    background: rgba(20, 17, 13, 0.4);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 14vh 16px 16px;
+  }
+  .cmdk-panel {
+    width: 100%; max-width: 560px;
+    background: var(--paper); border: 1px solid var(--rule);
+    border-radius: var(--radius-l); box-shadow: var(--shadow-pop);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .cmdk-input-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 16px 18px; border-bottom: 1px solid var(--rule-soft);
+  }
+  .cmdk-search-icon { display: inline-flex; color: var(--ink-4); font-size: 16px; flex-shrink: 0; }
+  .cmdk-input {
+    flex: 1; min-width: 0; border: 0; outline: none; background: transparent;
+    font-family: var(--sans); font-size: 16px; color: var(--ink);
+  }
+  .cmdk-input::placeholder { color: var(--ink-4); }
+  .cmdk-list { max-height: min(420px, 52vh); overflow-y: auto; padding: 8px; overscroll-behavior: contain; }
+  .cmdk-group-label {
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--ink-4); padding: 10px 10px 6px;
+  }
+  .cmdk-option {
+    width: 100%; display: flex; align-items: center; gap: 10px;
+    padding: 10px; border-radius: var(--radius-s);
+    font-size: 14px; color: var(--ink-2); text-align: left;
+  }
+  .cmdk-option.is-active { background: var(--paper-2); color: var(--ink); }
+  .cmdk-option-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cmdk-option-meta  { font-size: 11px; color: var(--ink-4); flex-shrink: 0; }
+  .cmdk-option-check { display: inline-flex; color: var(--accent); font-size: 13px; flex-shrink: 0; }
+  .cmdk-empty { padding: 28px 16px; text-align: center; color: var(--ink-4); font-size: 14px; }
+  .cmdk-foot {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 16px; border-top: 1px solid var(--rule-soft);
+    font-size: 11px; color: var(--ink-4); background: var(--paper-2);
+  }
+  .cmdk-foot span { display: inline-flex; align-items: center; gap: 5px; }
+  .cmdk-foot .kbd { background: var(--paper); }
+
+  /* Reading progress — scroll-driven, CSS-only; stays hidden where the
+     browser doesn't support scroll timelines */
+  .scroll-progress { display: none; }
+  @supports (animation-timeline: scroll()) {
+    .scroll-progress {
+      display: block; position: fixed; top: 0; left: 0; right: 0; height: 2px;
+      background: var(--accent); transform-origin: 0 50%; transform: scaleX(0);
+      z-index: 60; pointer-events: none;
+      animation: scrollProgress linear both;
+      animation-timeline: scroll(root);
+    }
+  }
 
   /* Colophon */
   .colophon { border-top: 1px solid var(--rule); padding-top: 24px; padding-bottom: 56px; color: var(--ink-4); font-size: 13px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: wrap; }
@@ -386,7 +478,9 @@
   .page-tile {
     padding: 28px 24px;
     border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    transition: background .15s ease;
   }
+  .page-tile:hover { background: var(--paper-2); }
   .page-tile:nth-child(4n)       { border-right: 0; }
   .page-tile:nth-last-child(-n+4) { border-bottom: 0; }
   .page-tile-name  { font-family: var(--serif); font-size: 18px; margin-bottom: 20px; color: var(--ink); line-height: 1.2; }
@@ -640,6 +734,7 @@
   /* Slim scrollbars on scrolling tables, matching the hairline chrome */
   .all-posts-list-wrap,
   .table-wrap,
+  .cmdk-list,
   .admin-posts-table-wrap {
     scrollbar-width: thin;
     scrollbar-color: var(--ink-4) transparent;
@@ -725,6 +820,8 @@
   .agency-menu, .menu   { animation: popIn 0.16s var(--ease-out) both; transform-origin: top; }
   .admin-confirm-overlay { animation: overlayIn 0.18s ease both; }
   .admin-confirm-box     { animation: modalIn 0.2s var(--ease-out) both; }
+  .cmdk-overlay          { animation: overlayIn 0.15s ease both; }
+  .cmdk-panel            { animation: modalIn 0.18s var(--ease-out) both; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -789,6 +886,8 @@
   .app-nav-agency-btn { font-size: 16px; }
   .app-nav-left  { gap: 16px; }
   .app-nav-right { gap: 12px; }
+  .nav-cmdk-kbd  { display: none; }
+  .nav-cmdk      { padding: 0 8px; }
 
   .all-posts-controls { flex-direction: column; align-items: stretch; gap: 12px; }
   .all-posts-controls-left { flex-wrap: nowrap; flex-direction: column; gap: 10px; }
@@ -1391,5 +1490,10 @@
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scrollProgress {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
 }
 

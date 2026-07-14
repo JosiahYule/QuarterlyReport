@@ -53,6 +53,10 @@ export const IconSort = (props) => (
   <Svg {...props}><path d="M5 6.5 8 3.5l3 3M5 9.5l3 3 3-3" /></Svg>
 );
 
+export const IconSearch = (props) => (
+  <Svg {...props}><circle cx="7" cy="7" r="4.25" /><path d="M13 13l-2.8-2.8" /></Svg>
+);
+
 export function DirIcon({ dir, ...props }) {
   if (dir === "up") return <IconArrowUp {...props} />;
   if (dir === "down") return <IconArrowDown {...props} />;

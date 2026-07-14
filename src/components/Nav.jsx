@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { AGENCIES, QUARTERS } from "../config.js";
-import { IconCaret, IconCheck } from "./Icons.jsx";
+import { IconCaret, IconCheck, IconSearch } from "./Icons.jsx";
+import { isMacLike } from "./CommandPalette.jsx";
 
 const TABS = [
   { id: "social",  label: "Social Media" },
@@ -145,12 +146,15 @@ function QuarterMenu({ current, onSelect, onClose }) {
 }
 
 // ─── Single combined nav bar ──────────────────────────────────────
-export function AppNav({ agency, view, quarter, onNavigate }) {
+export function AppNav({ agency, view, quarter, onNavigate, onOpenPalette }) {
   const [agencyOpen,  setAgencyOpen]  = useState(false);
   const [quarterOpen, setQuarterOpen] = useState(false);
+  const [scrolled,    setScrolled]    = useState(false);
+  const [indicator,   setIndicator]   = useState(null);
 
   const agencyRef  = useRef();
   const quarterRef = useRef();
+  const tabsRef    = useRef();
 
   const closeAgency  = useCallback(() => setAgencyOpen(false),  []);
   const closeQuarter = useCallback(() => setQuarterOpen(false), []);
@@ -158,11 +162,34 @@ export function AppNav({ agency, view, quarter, onNavigate }) {
   useCloseOnOutside(agencyRef,  closeAgency);
   useCloseOnOutside(quarterRef, closeQuarter);
 
+  // Elevation: the nav casts a soft shadow once the page scrolls under it
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Sliding underline: measure the active tab and glide the indicator to it
+  const measureIndicator = useCallback(() => {
+    const el = tabsRef.current?.querySelector("button.is-active");
+    if (el) setIndicator({ left: el.offsetLeft, width: el.offsetWidth });
+  }, []);
+
+  useLayoutEffect(measureIndicator, [view, measureIndicator]);
+
+  useEffect(() => {
+    window.addEventListener("resize", measureIndicator);
+    // Re-measure once webfonts land — tab widths shift when Inter Tight loads
+    document.fonts?.ready?.then(measureIndicator);
+    return () => window.removeEventListener("resize", measureIndicator);
+  }, [measureIndicator]);
+
   const cfg = AGENCIES[agency] || AGENCIES.isl;
   const q   = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];
 
   return (
-    <header className="app-nav">
+    <header className={"app-nav" + (scrolled ? " is-scrolled" : "")}>
       <div className="wrap app-nav-row">
 
         <div className="app-nav-left">
@@ -189,7 +216,7 @@ export function AppNav({ agency, view, quarter, onNavigate }) {
 
           <div className="app-nav-divider" aria-hidden="true" />
 
-          <nav className="app-nav-tabs" aria-label="Report views">
+          <nav className="app-nav-tabs" aria-label="Report views" ref={tabsRef}>
             {TABS.map(t => (
               <button
                 key={t.id}
@@ -200,11 +227,28 @@ export function AppNav({ agency, view, quarter, onNavigate }) {
                 {t.label}
               </button>
             ))}
+            {indicator && (
+              <span
+                className="app-nav-tab-indicator"
+                style={{ left: indicator.left, width: indicator.width }}
+                aria-hidden="true"
+              />
+            )}
           </nav>
 
         </div>
 
         <div className="app-nav-right">
+          {onOpenPalette && (
+            <button
+              className="nav-cmdk"
+              onClick={onOpenPalette}
+              aria-label={`Open command menu (${isMacLike ? "Command" : "Control"}+K)`}
+            >
+              <span className="nav-cmdk-icon" aria-hidden="true"><IconSearch /></span>
+              <kbd className="nav-cmdk-kbd" aria-hidden="true">{isMacLike ? "⌘" : "Ctrl"} K</kbd>
+            </button>
+          )}
           <span className="app-nav-range" aria-hidden="true">{q.rangeLabel}</span>
           <div ref={quarterRef} style={{ position: "relative" }}>
             <button
