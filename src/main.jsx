@@ -3,6 +3,7 @@ import { AdminApp } from "./pages/admin/AdminApp.jsx";
 import ReactDOM from "react-dom/client";
 import { useUrlState } from "./hooks/useUrlState.js";
 import { AppNav } from "./components/Nav.jsx";
+import { CommandPalette } from "./components/CommandPalette.jsx";
 import { LoadingScreen } from "./components/LoadingScreen.jsx";
 import { PageSkeleton } from "./components/Skeleton.jsx";
 import { AGENCIES, QUARTERS, CURRENT_QUARTER, REPORT_AUTHOR } from "./config.js";
@@ -19,8 +20,21 @@ function App() {
   const [urlState, navigate] = useUrlState();
   const { agency, quarter, view } = urlState;
   const [appReady, setAppReady] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const announcementTimer = useRef(null);
+
+  // ⌘K / Ctrl+K toggles the command palette from anywhere
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen(o => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const handleReady = useCallback(() => {
     setAppReady(true);
@@ -69,7 +83,27 @@ function App() {
       </div>
 
       <LoadingScreen visible={!appReady} />
-      <AppNav agency={agency} view={view} quarter={quarter} onNavigate={navigate} />
+
+      {/* Scroll-driven reading progress (CSS-only; hidden where unsupported) */}
+      <div className="scroll-progress" aria-hidden="true" />
+
+      <AppNav
+        agency={agency}
+        view={view}
+        quarter={quarter}
+        onNavigate={navigate}
+        onOpenPalette={() => setPaletteOpen(true)}
+      />
+
+      {paletteOpen && (
+        <CommandPalette
+          agency={agency}
+          quarter={quarter}
+          view={view}
+          onNavigate={navigate}
+          onClose={() => setPaletteOpen(false)}
+        />
+      )}
 
       <Suspense fallback={<PageSkeleton view={skelView} />}>
         {view === "social" && (
