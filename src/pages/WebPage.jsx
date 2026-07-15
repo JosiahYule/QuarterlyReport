@@ -6,7 +6,7 @@ import { Delta } from "../components/Delta.jsx";
 import { PageLoader } from "../components/PageLoader.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { EmptyNote } from "../components/EmptyState.jsx";
-import { fmtInt, fmtPct, fmtTime, calcAutoDelta, parseDelta, invertDir, FLAT } from "../utils.js";
+import { fmtInt, fmtPct, fmtTime, calcAutoDelta, parseDelta, FLAT } from "../utils.js";
 import { AGENCIES, QUARTERS } from "../config.js";
 import { CountUp } from "../components/CountUp.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
@@ -140,7 +140,7 @@ function TopPages({ data, prevData }) {
         {pages.map(p => {
           const prev = prevMap[(p.key || p.name || "").toLowerCase()] || null;
           const vd = calcAutoDelta(p.pageViews, prev?.pageViews);
-          const bd = invertDir(calcAutoDelta(p.bounceRate, prev?.bounceRate));
+          const bd = calcAutoDelta(p.bounceRate, prev?.bounceRate);
           const td = calcAutoDelta(p.avgTimeOnPageSec, prev?.avgTimeOnPageSec);
           return (
             <div className="page-tile" key={p.key}>
@@ -153,7 +153,7 @@ function TopPages({ data, prevData }) {
               <div className="page-stat">
                 <div className="page-stat-label">Bounce Rate</div>
                 <div className="page-stat-value serif">{fmtPct(p.bounceRate)}</div>
-                {bd && <Delta d={bd} className="page-delta" />}
+                {bd && <Delta d={bd} invertGood className="page-delta" />}
               </div>
               <div className="page-stat">
                 <div className="page-stat-label">Avg Time</div>

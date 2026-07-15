@@ -25,6 +25,19 @@
     --radius-l: 14px;
     --shadow-soft: 0 1px 2px rgba(20, 17, 13, 0.04), 0 3px 10px -2px rgba(20, 17, 13, 0.07);
     --shadow-pop:  0 1px 2px rgba(20, 17, 13, 0.05), 0 8px 24px -6px rgba(20, 17, 13, 0.13), 0 20px 48px -12px rgba(20, 17, 13, 0.12);
+
+    /* Frosted-glass chrome: translucent white over a heavy blur, an inset
+       top highlight for the "lit edge", and a hairline border. Content
+       surfaces stay flat paper — glass is reserved for floating/sticky
+       chrome (nav, menus, palettes, tooltips, modals, save bar). */
+    --glass:        rgba(255, 255, 255, 0.58);
+    --glass-strong: rgba(255, 255, 255, 0.72);
+    --glass-blur:   blur(26px) saturate(1.9);
+    --glass-edge:   inset 0 1px 0 rgba(255, 255, 255, 0.75);
+    --shadow-glass: inset 0 1px 0 rgba(255, 255, 255, 0.75),
+                    0 1px 2px rgba(20, 17, 13, 0.05),
+                    0 8px 24px -6px rgba(20, 17, 13, 0.13),
+                    0 20px 48px -12px rgba(20, 17, 13, 0.12);
     --focus-ring:  0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
     --ease-out:    cubic-bezier(0.22, 0.61, 0.36, 1);
 
@@ -56,6 +69,16 @@
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { background: var(--paper); color: var(--ink); }
+  /* Faint accent wash pinned behind the page — gives the glass chrome
+     something to refract without breaking the paper-first look. Follows
+     the agency accent via body[data-agency]. */
+  body {
+    background:
+      radial-gradient(1100px 540px at 12% -8%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 62%),
+      radial-gradient(900px 480px at 92% 2%, color-mix(in srgb, var(--accent) 4%, transparent), transparent 58%),
+      var(--paper);
+    background-attachment: fixed;
+  }
   html { scroll-behavior: smooth; }
   body {
     font-family: var(--sans);
@@ -142,14 +165,15 @@
   /* Nav */
   .app-nav {
     position: sticky; top: 0; z-index: 50;
-    border-bottom: 1px solid var(--rule);
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(14px) saturate(1.4);
-    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    border-bottom: 1px solid rgba(20, 17, 13, 0.10);
+    background: var(--glass);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-edge);
     transition: box-shadow .25s ease;
   }
   .app-nav.is-scrolled {
-    box-shadow: 0 8px 24px -18px rgba(20, 17, 13, 0.35);
+    box-shadow: var(--glass-edge), 0 8px 24px -18px rgba(20, 17, 13, 0.35);
   }
   .app-nav-row {
     display: flex; align-items: center; justify-content: space-between; gap: 24px;
@@ -179,8 +203,10 @@
 
   .agency-menu {
     position: absolute; top: calc(100% + 8px); left: 0; z-index: 200;
-    background: var(--paper); border: 1px solid var(--rule);
-    border-radius: var(--radius-m); box-shadow: var(--shadow-pop);
+    background: var(--glass-strong); border: 1px solid var(--rule);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-radius: var(--radius-l); box-shadow: var(--shadow-glass);
     min-width: 230px; padding: 6px;
   }
   .agency-option {
@@ -264,8 +290,10 @@
 
   .menu {
     position: absolute; top: calc(100% + 6px); right: 0;
-    background: var(--paper); border: 1px solid var(--rule);
-    border-radius: var(--radius-m); box-shadow: var(--shadow-pop);
+    background: var(--glass-strong); border: 1px solid var(--rule);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-radius: var(--radius-l); box-shadow: var(--shadow-glass);
     min-width: 220px; padding: 6px; z-index: 100;
   }
   .menu.is-open { display: block; }
@@ -283,16 +311,18 @@
   /* Command palette (⌘K) */
   .cmdk-overlay {
     position: fixed; inset: 0; z-index: 700;
-    background: rgba(20, 17, 13, 0.4);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    background: rgba(20, 17, 13, 0.32);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
     display: flex; align-items: flex-start; justify-content: center;
     padding: 14vh 16px 16px;
   }
   .cmdk-panel {
     width: 100%; max-width: 560px;
-    background: var(--paper); border: 1px solid var(--rule);
-    border-radius: var(--radius-l); box-shadow: var(--shadow-pop);
+    background: var(--glass-strong); border: 1px solid var(--rule);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-radius: var(--radius-l); box-shadow: var(--shadow-glass);
     display: flex; flex-direction: column; overflow: hidden;
   }
   .cmdk-input-row {
@@ -390,7 +420,6 @@
     line-height: 1.05; letter-spacing: -0.02em; color: var(--ink);
   }
   .section-title em { font-style: normal; color: inherit; }
-  .section-sub   { font-size: 14px; color: var(--ink-3); margin-top: 8px; }
 
   /* KPI grid — container queries handle reflow */
   .kpi-section { container-type: inline-size; }
@@ -1125,10 +1154,11 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(14px) saturate(1.4);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4);
-  border-bottom: 1px solid var(--rule);
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-edge);
+  border-bottom: 1px solid rgba(20, 17, 13, 0.10);
 }
 
 .admin-header-inner {
@@ -1429,9 +1459,9 @@
 .admin-save-bar  {
   position: sticky; bottom: 0; display: flex; align-items: center; justify-content: flex-end; gap: 14px;
   padding: 14px 0; border-top: 1px solid var(--rule-soft); margin-top: 32px;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 .admin-save-msg  { font-size: 13px; color: var(--up); }
 .admin-save-msg.is-error { color: var(--down); }
@@ -1463,18 +1493,20 @@
 
 .admin-confirm-overlay {
   position: fixed; inset: 0;
-  background: rgba(20, 17, 13, 0.5);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  background: rgba(20, 17, 13, 0.38);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
   display: flex; align-items: center; justify-content: center;
   z-index: 600; padding: 16px;
 }
 
 .admin-confirm-box {
-  background: var(--paper);
+  background: var(--glass-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--rule);
   border-radius: var(--radius-l);
-  box-shadow: var(--shadow-pop);
+  box-shadow: var(--shadow-glass);
   padding: 36px 40px;
   max-width: 420px; width: 100%;
   display: flex; flex-direction: column; gap: 28px;
@@ -1507,16 +1539,15 @@
 
 /* ═══ Contact forms — public report section ══════════════════════ */
 .cf-kpi-grid   { margin-bottom: 56px; }
-/* Five tiles — keep them on one line where the page is wide enough */
-@media (min-width: 981px) { .cf-kpi-grid { grid-template-columns: repeat(5, 1fr); } }
 .cf-chart-wrap { display: grid; gap: 16px; margin-bottom: 56px; }
-.cf-chart-modes { display: flex; gap: 8px; flex-wrap: wrap; }
 .cf-chart-area { position: relative; }
 .cf-chart-svg, .cf-heatmap-svg { display: block; width: 100%; height: auto; }
 .cf-tooltip {
   position: absolute; top: 6px; transform: translateX(-50%);
-  background: var(--paper); border: 1px solid var(--rule);
-  border-radius: var(--radius-s); box-shadow: var(--shadow-pop);
+  background: var(--glass-strong); border: 1px solid var(--rule);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-m); box-shadow: var(--shadow-glass);
   padding: 8px 12px; font-size: 12px; color: var(--ink-2);
   pointer-events: none; white-space: nowrap; z-index: 5;
 }
@@ -1578,3 +1609,10 @@
 .admin-posts-table td a { color: var(--accent); text-decoration: none; }
 @media (max-width: 900px) { .admin-lead-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 620px) { .admin-lead-grid { grid-template-columns: 1fr; } }
+
+/* Glass fallback — solidify the translucent chrome where the browser
+   can't blur what's behind it, so text never sits on see-through noise. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .app-nav, .admin-header, .admin-save-bar { background: rgba(255, 255, 255, 0.96); }
+  .agency-menu, .menu, .cmdk-panel, .admin-confirm-box, .cf-tooltip { background: var(--paper); }
+}

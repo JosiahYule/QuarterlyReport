@@ -5,7 +5,7 @@ import { Delta } from "../components/Delta.jsx";
 import { PageLoader } from "../components/PageLoader.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { EmptyNote, EmptyData } from "../components/EmptyState.jsx";
-import { fmt, fmtExact, FLAT, sumPaidMediaAds, invertDir } from "../utils.js";
+import { fmt, fmtExact, FLAT, sumPaidMediaAds } from "../utils.js";
 import { IconSort, IconArrowUp, IconArrowDown } from "../components/Icons.jsx";
 import { CountUp } from "../components/CountUp.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
@@ -377,7 +377,6 @@ function TopPosts({ data }) {
     <section id="top-posts" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Top <em>Posts</em></h2>
-        <p className="section-sub">The three highest-reach posts this quarter, pulled automatically from the full post log.</p>
       </header>
       {topPosts.length === 0
         ? <EmptyData label="No posts recorded this quarter." />
@@ -772,12 +771,11 @@ function PaidMediaKpis({ totals, deltas }) {
   return (
     <div className="paid-media-kpis">
       {PAID_MEDIA_KPI_DEFS.map((k, i) => {
-        const d = k.invert ? invertDir(deltas[k.key]) : deltas[k.key];
         return (
           <div className="paid-media-kpi" key={k.key} style={{ "--i": i }}>
             <div className="paid-media-kpi-label">{k.label}</div>
             <div className="paid-media-kpi-value num"><CountUp value={totals[k.key]} format={k.fmt} /></div>
-            <div className="paid-media-kpi-foot"><Delta d={d} /></div>
+            <div className="paid-media-kpi-foot"><Delta d={deltas[k.key]} invertGood={!!k.invert} /></div>
           </div>
         );
       })}

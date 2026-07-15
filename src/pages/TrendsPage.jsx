@@ -346,9 +346,6 @@ function ProjectionTrajectory({ qdata, snaps, calibrationFactors, calibrationHis
     return annotateTimelineSpikes(raw, posts);
   }, [d1, d2, metric, tq2, tq3, snaps, calibrationFactors, calibrationHistory, posts]);
 
-  const hasSpikes = timeline.some(p => p.spike);
-  const hasBand = timeline.some(p => Number.isFinite(p.low) && Number.isFinite(p.high));
-
   // Show the section once any metric has enough snapshot history to plot.
   const hasData = METRICS.some(m => getMetricHistory(snaps, m.id).length >= 2);
   if (!hasData) return null;
@@ -357,11 +354,6 @@ function ProjectionTrajectory({ qdata, snaps, calibrationFactors, calibrationHis
     <section id="projection-trajectory" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Projection <em>Trajectory</em></h2>
-        <p className="section-sub">
-          How each metric’s projected {tq3.label} final has shifted as the quarter has accrued daily snapshots.
-          {hasBand ? " The shaded band is the likely range; it narrows as the quarter fills in." : ""}
-          {hasSpikes ? " Highlighted points mark a sharp jump. Hover to see the post published as it moved." : ""}
-        </p>
       </header>
       <div className="kpi-history-body">
         <nav className="kpi-history-nav" aria-label="Select metric">
@@ -406,15 +398,11 @@ function CalibrationAccuracy({ calibrationHistory }) {
   const withHistory = rows.filter(r => r.quarters > 0);
   // Only render once at least one metric has a completed-quarter audit to show.
   if (!withHistory.length) return null;
-  const overallAvg = withHistory.reduce((a, r) => a + r.avgAbs, 0) / withHistory.length;
 
   return (
     <section id="accuracy" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Projection <em>Accuracy</em></h2>
-        <p className="section-sub">
-          {`Across completed quarters, projections have landed within ±${overallAvg.toFixed(1)}% of the final on average. Each quarter the dashboard re-scores itself and feeds the miss back into the next projection.`}
-        </p>
       </header>
         <div className="proj-grid">
           {withHistory.map(({ metric, quarters, avgAbs, latest, trend }) => (
@@ -582,7 +570,7 @@ function computeMetricRateVsQ2(metric, qdata, snaps, tq2, tq3, calibrationFactor
 }
 
 // ─── Drivers (auto-surfaced highlights) ────────────────────────────
-function Drivers({ drivers, pacing, tq3 }) {
+function Drivers({ drivers, pacing }) {
   const post = drivers?.topPost;
   const leader = drivers?.platformLeader;
   const laggard = drivers?.platformLaggard;
@@ -594,7 +582,6 @@ function Drivers({ drivers, pacing, tq3 }) {
     <section id="drivers" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">What’s <em>Driving This</em></h2>
-        <p className="section-sub">Auto-surfaced highlights from {tq3.label} so far, no curation required.</p>
       </header>
       <div className="proj-grid">
         {post && (
@@ -671,7 +658,6 @@ function PlatformBreakdown({ platforms, tq2 }) {
     <section id="platforms" className="section wrap">
       <header className="section-head">
         <h2 className="section-title serif">Platform <em>Breakdown</em></h2>
-        <p className="section-sub">Where each platform stands this quarter and how it’s moved since {tq2.label}. Quarter-over-quarter standings: there’s one data point per quarter per platform, so this isn’t a daily-paced forecast like the metrics above.</p>
       </header>
       <div className="proj-grid">
         {rows.map(p => (
@@ -788,12 +774,6 @@ export function TrendsPage({ agency, onReady }) {
   const q3comp = quarterCompletion(q3);
   const q3done = quarterComplete(q3);
 
-  // Projections only begin once the quarter is a week in (computeAdvancedPace
-  // returns null before day 7). Until then the cards show current totals, so
-  // the section explains the wait rather than looking half-empty.
-  const q3DaysElapsed = q3comp * ((q3.end - q3.start) / 86400000);
-  const preProjection = !q3done && q3DaysElapsed < 7;
-
   const pacingRanked = METRICS
     .map(m => ({ metric: m, rateVsQ2: computeMetricRateVsQ2(m, qdata, snapsByQuarter[q3.suffix] ?? [], TRENDS_QUARTERS[1], q3, calibrationFactors[m.id]) }))
     .filter(r => Number.isFinite(r.rateVsQ2))
@@ -813,16 +793,13 @@ export function TrendsPage({ agency, onReady }) {
       <ErrorBoundary><Hero agency={agency} q3comp={q3comp} q3done={q3done} /></ErrorBoundary>
 
       <ErrorBoundary>
-        <Drivers drivers={drivers} pacing={pacing} tq3={q3} />
+        <Drivers drivers={drivers} pacing={pacing} />
       </ErrorBoundary>
 
       <ErrorBoundary>
         <section id="projections" className="section wrap">
           <header className="section-head">
             <h2 className="section-title serif">{TRENDS_QUARTERS[2].label} Projected <em>Finals</em></h2>
-            <p className="section-sub">{preProjection
-              ? "Projections begin after the first week, once a few daily snapshots have accrued. Showing current totals so far."
-              : "Estimated end-of-quarter totals based on observed daily rate × total quarter days."}</p>
           </header>
           <div className="proj-grid">
             {METRICS.map(m => (
@@ -848,7 +825,6 @@ export function TrendsPage({ agency, onReady }) {
         <section id="quarterly-trends" className="section wrap">
           <header className="section-head">
             <h2 className="section-title serif">Quarterly <em>Trends</em></h2>
-            <p className="section-sub">Quarter-over-quarter trajectory with {TRENDS_QUARTERS[2].label} pace projections.</p>
           </header>
           <div className="charts-grid">
             {METRICS.map(m => (
