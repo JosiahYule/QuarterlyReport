@@ -11,9 +11,9 @@ Each quarter, this dashboard gives a single source of truth for how each agency 
 **Three views, one app:**
 
 - **Social Media** — KPIs (impressions, engagements, followers, etc.), quarter-by-quarter KPI chart, platform-by-platform breakdown, top posts, a searchable/filterable all-posts table with calendar view, and editor's insights
-- **Website** — traffic KPIs, channel breakdown (organic, direct, referral, paid, social), top pages with deltas vs. prior quarter
+- **Website** — traffic KPIs, channel breakdown (organic, direct, referral, paid, social), top pages with deltas vs. prior quarter, and a contact-forms section (submission KPIs, weekly trend by intent, branch + source breakdowns, day×hour heatmap) fed by aggregate-only stats so no submitter PII reaches the public page
 - **Trends** — quarter-over-quarter trajectory for key metrics, with a pace-based projection for where the current quarter will finish
-- **Admin** (`/admin`) — magic-link sign-in, tabbed forms for every section of both report types, CSV import for the post log, unsaved-changes guards
+- **Admin** (`/admin`) — magic-link sign-in, tabbed forms for every section of both report types, CSV import for the post log, unsaved-changes guards, and a Submissions tab (auth-only, since rows carry PII) with contact-form CSV import (dedup-safe re-imports), an employer-lead spotlight, and a searchable/filterable submissions table
 
 Any combination of agency and quarter is a URL. You can switch between them instantly without a page reload.
 

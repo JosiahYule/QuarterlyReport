@@ -30,6 +30,13 @@
 
     /* Contrast-verified (WCAG 4.5:1) at all usage sizes */
     --accent:     #0a4d8c;
+
+    /* Contact-form chart series — fixed pair, deliberately independent of
+       the agency accent so the two intents stay distinguishable under every
+       accent. Colorblind-validated against paper (protan ΔE 20.3, normal 27.5,
+       both ≥ 3:1 contrast); identity is always doubled with labels/legend. */
+    --chart-work:  #0d5c9e;
+    --chart-staff: #b3541e;
     --up:         #155c34;   /* darkened from #1a6a3c for 11px sub-text safety */
     --down:       #8a1f18;   /* darkened from #9a2820 for 11px sub-text safety */
     --flat:       #6a655d;
@@ -1497,3 +1504,77 @@
   to   { transform: scaleX(1); }
 }
 
+
+/* ═══ Contact forms — public report section ══════════════════════ */
+.cf-kpi-grid   { margin-bottom: 56px; }
+/* Five tiles — keep them on one line where the page is wide enough */
+@media (min-width: 981px) { .cf-kpi-grid { grid-template-columns: repeat(5, 1fr); } }
+.cf-chart-wrap { display: grid; gap: 16px; margin-bottom: 56px; }
+.cf-chart-modes { display: flex; gap: 8px; flex-wrap: wrap; }
+.cf-chart-area { position: relative; }
+.cf-chart-svg, .cf-heatmap-svg { display: block; width: 100%; height: auto; }
+.cf-tooltip {
+  position: absolute; top: 6px; transform: translateX(-50%);
+  background: var(--paper); border: 1px solid var(--rule);
+  border-radius: var(--radius-s); box-shadow: var(--shadow-pop);
+  padding: 8px 12px; font-size: 12px; color: var(--ink-2);
+  pointer-events: none; white-space: nowrap; z-index: 5;
+}
+.cf-tooltip-title { font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.cf-tooltip-row    { display: flex; align-items: center; gap: 6px; }
+.cf-tooltip-row strong { margin-left: auto; padding-left: 14px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.cf-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.cf-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-bottom: 56px; }
+.cf-panel--wide  { margin-bottom: 8px; }
+.cf-panel-title  { font-size: 20px; letter-spacing: -0.01em; margin-bottom: 18px; }
+.cf-bars    { display: grid; gap: 10px; }
+.cf-bar-row { display: grid; grid-template-columns: 170px 1fr 52px; align-items: center; gap: 12px; }
+.cf-bar-label { font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cf-bar-track { display: flex; gap: 2px; height: 14px; }
+/* Bars anchor flat to the left baseline; only the data end is rounded */
+.cf-bar-seg { display: inline-block; height: 100%; min-width: 3px; }
+.cf-bar-seg:last-child { border-radius: 0 4px 4px 0; }
+.cf-bar-value { font-size: 13px; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+.cf-note { font-size: 12px; color: var(--ink-4); margin-top: 14px; }
+@media (max-width: 720px) {
+  .cf-panels  { grid-template-columns: 1fr; gap: 40px; }
+  .cf-bar-row { grid-template-columns: 104px 1fr 44px; }
+}
+
+/* ═══ Admin — Submissions tab ════════════════════════════════════ */
+.admin-lead-block { margin: 24px 0 32px; }
+.admin-lead-grid  { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+.admin-lead-card {
+  border: 1px solid var(--rule); border-top: 3px solid var(--chart-staff);
+  border-radius: var(--radius-m); padding: 14px 16px;
+  display: grid; gap: 8px; align-content: start;
+}
+.admin-lead-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.admin-lead-name  { font-weight: 600; font-size: 14px; color: var(--ink); }
+.admin-lead-date  { font-size: 11px; color: var(--ink-4); white-space: nowrap; }
+.admin-lead-contact { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--ink-3); }
+.admin-lead-contact a { color: var(--accent); text-decoration: none; }
+.admin-lead-contact a:hover { text-decoration: underline; }
+.admin-lead-comment {
+  font-size: 12px; color: var(--ink-2); line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+.admin-sub-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; scroll-margin-top: 80px; }
+.admin-sub-filters .admin-input { width: auto; }
+.admin-sub-search  { flex: 1; min-width: 220px; }
+.admin-sub-nowrap  { white-space: nowrap; }
+.admin-sub-contact { display: grid; font-size: 12px; }
+.admin-sub-contact a { color: var(--accent); text-decoration: none; }
+.admin-sub-intent  { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.admin-sub-intent::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--chart-work); flex-shrink: 0; }
+.admin-sub-intent.is-staff { color: var(--ink); font-weight: 500; }
+.admin-sub-intent.is-staff::before { background: var(--chart-staff); }
+.admin-sub-row--expandable { cursor: pointer; }
+.admin-sub-caret   { color: var(--ink-4); width: 24px; text-align: center; }
+.admin-sub-detail td { background: var(--paper-2); font-size: 12px; padding: 12px 14px; }
+.admin-sub-detail p  { margin: 0 0 8px; }
+.admin-sub-comment-text { white-space: pre-wrap; color: var(--ink-2); line-height: 1.55; }
+.admin-sub-empty   { text-align: center; color: var(--ink-4); padding: 28px 10px; }
+.admin-posts-table td a { color: var(--accent); text-decoration: none; }
+@media (max-width: 900px) { .admin-lead-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 620px) { .admin-lead-grid { grid-template-columns: 1fr; } }

@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useWebReport } from "../hooks/useWebReport.js";
+import { useFormStats } from "../hooks/useFormStats.js";
+import { ContactFormsSection } from "../components/ContactFormsSection.jsx";
 import { Delta } from "../components/Delta.jsx";
 import { PageLoader } from "../components/PageLoader.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
@@ -203,16 +205,25 @@ function Notes({ data }) {
 }
 
 const WEB_SECTIONS = [
-  { id: "numbers",   label: "The Numbers" },
-  { id: "channels",  label: "Channels" },
-  { id: "top-pages", label: "Top Pages" },
-  { id: "insights",  label: "Insights" },
+  { id: "numbers",       label: "The Numbers" },
+  { id: "channels",      label: "Channels" },
+  { id: "top-pages",     label: "Top Pages" },
+  { id: "contact-forms", label: "Contact Forms" },
+  { id: "insights",      label: "Insights" },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────
 export function WebPage({ agency, quarter, onReady }) {
   const [retryKey, setRetryKey] = useState(0);
   const { data, prevData, status, error } = useWebReport(agency, quarter, retryKey);
+  const { stats: formStats, prevStats: prevFormStats } = useFormStats(agency, quarter);
+
+  // Fresh array identity once the form stats land, so SectionRail re-checks
+  // the DOM and picks up the (conditionally rendered) Contact Forms section.
+  const railSections = useMemo(
+    () => WEB_SECTIONS.filter(s => s.id !== "contact-forms" || formStats?.totals?.total > 0),
+    [formStats]
+  );
 
   useEffect(() => {
     if (status === "ready" || status === "error") onReady?.();
@@ -249,11 +260,12 @@ export function WebPage({ agency, quarter, onReady }) {
 
   return (
     <main className="report-wrap">
-      <SectionRail sections={WEB_SECTIONS} />
+      <SectionRail sections={railSections} />
       <ErrorBoundary><Hero agency={agency} quarter={quarter} data={data} /></ErrorBoundary>
       <ErrorBoundary><Numbers data={data} prevData={prevData} /></ErrorBoundary>
       <ErrorBoundary><Channels data={data} prevData={prevData} /></ErrorBoundary>
       <ErrorBoundary><TopPages data={data} prevData={prevData} /></ErrorBoundary>
+      <ErrorBoundary><ContactFormsSection stats={formStats} prevStats={prevFormStats} quarter={quarter} /></ErrorBoundary>
       <ErrorBoundary><Notes data={data} /></ErrorBoundary>
     </main>
   );
