@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { QUARTERS } from "../config.js";
-import { fmtInt, fmtPct, calcAutoDelta, FLAT } from "../utils.js";
+import { fmtInt, calcAutoDelta, FLAT } from "../utils.js";
 import { CountUp } from "./CountUp.jsx";
 import { Delta } from "./Delta.jsx";
 
@@ -31,7 +31,7 @@ function fillWeeks(weekly, q) {
   for (let m = mondayOf(q.start); m.getTime() <= stop; m.setDate(m.getDate() + 7)) {
     const key = `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, "0")}-${String(m.getDate()).padStart(2, "0")}`;
     const w = byKey[key] || {};
-    out.push({ date: new Date(m), work: w.work || 0, staff: w.staff || 0, optIn: w.optIn || 0, total: w.total || 0 });
+    out.push({ date: new Date(m), work: w.work || 0, staff: w.staff || 0, total: w.total || 0 });
   }
   return out;
 }
@@ -42,22 +42,15 @@ function weeksElapsed(q) {
 }
 
 // ─── Weekly trend ─────────────────────────────────────────────────
-const MODES = [
-  { id: "intent", label: "By intent" },
-  { id: "optin",  label: "Marketing opt-ins" },
+const SERIES = [
+  { key: "work",  name: "Job seekers",    color: WORK },
+  { key: "staff", name: "Employer leads", color: STAFF },
 ];
 
 function WeeklyChart({ weeks }) {
-  const [mode,  setMode]  = useState("intent");
   const [hover, setHover] = useState(null);
   const W = 1100, H = 300, pL = 44, pR = 110, pT = 24, pB = 36;
-
-  const series = mode === "intent"
-    ? [
-        { key: "work",  name: "Job seekers",    color: WORK },
-        { key: "staff", name: "Employer leads", color: STAFF },
-      ]
-    : [{ key: "optIn", name: "Marketing opt-ins", color: WORK }];
+  const series = SERIES;
 
   const rawMax = Math.max(1, ...weeks.flatMap(w => series.map(s => w[s.key])));
   const max    = rawMax * 1.15;
@@ -77,17 +70,9 @@ function WeeklyChart({ weeks }) {
 
   return (
     <div className="cf-chart-wrap">
-      <div className="cf-chart-modes" role="group" aria-label="Chart view">
-        {MODES.map(m => (
-          <button key={m.id} className={"kpi-history-nav-item" + (mode === m.id ? " is-active" : "")}
-            aria-pressed={mode === m.id} onClick={() => { setMode(m.id); setHover(null); }}>
-            {m.label}
-          </button>
-        ))}
-      </div>
       <div className="cf-chart-area">
         <svg className="cf-chart-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
-          role="img" aria-label={`Contact form submissions week by week — ${mode === "intent" ? "job seekers vs employer leads" : "marketing opt-ins"}`}
+          role="img" aria-label="Contact form submissions week by week — job seekers vs employer leads"
           onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
           {ticks.map((t, i) => (
             <g key={i}>
@@ -269,15 +254,12 @@ export function ContactFormsSection({ stats, prevStats, quarter }) {
   const p = prevStats?.totals;
   const perWeek     = t.total / weeksElapsed(q);
   const prevPerWeek = p?.total ? p.total / 13 : null;
-  const optRate     = (t.optIn / t.total) * 100;
-  const prevOptRate = p?.total ? (p.optIn / p.total) * 100 : null;
 
   const kpis = [
     { label: "Total Submissions", value: t.total,  prev: p?.total, fmt: fmtInt, note: "contact forms this quarter" },
     { label: "Job Seekers",       value: t.work,   prev: p?.work,  fmt: fmtInt, note: "people looking for work" },
     { label: "Employer Leads",    value: t.staff,  prev: p?.staff, fmt: fmtInt, note: "businesses looking for staff" },
     { label: "Per Week",          value: perWeek,  prev: prevPerWeek, fmt: n => (typeof n === "number" ? n.toFixed(1) : "—"), note: "average weekly volume" },
-    { label: "Marketing Opt-in",  value: optRate,  prev: prevOptRate, fmt: fmtPct, note: "agreed to future contact" },
   ];
 
   return (

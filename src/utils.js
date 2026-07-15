@@ -19,13 +19,6 @@ export function arrow(dir) {
   return dir === "up" ? "↑" : dir === "down" ? "↓" : "—";
 }
 
-// Flips a delta's direction for "lower is better" metrics (bounce rate, CPC)
-// so Delta's color/sign still reads as good/bad rather than literal up/down.
-export function invertDir(d) {
-  if (!d) return null;
-  return { ...d, dir: d.dir === "up" ? "down" : d.dir === "down" ? "up" : "flat" };
-}
-
 export function calcAutoDelta(cur, prev) {
   if (typeof cur !== "number" || typeof prev !== "number" || prev === 0) return null;
   const pct = ((cur - prev) / Math.abs(prev)) * 100;
