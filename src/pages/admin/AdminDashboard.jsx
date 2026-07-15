@@ -3,6 +3,7 @@ import { AGENCIES, QUARTERS } from "../../config.js";
 import { SocialForm } from "./SocialForm.jsx";
 import { WebForm } from "./WebForm.jsx";
 import { PlanTab } from "./PlanTab.jsx";
+import { SubmissionsTab } from "./SubmissionsTab.jsx";
 import { setFavicon } from "../../lib/favicon.js";
 
 function ConfirmModal({ onConfirm, onCancel }) {
@@ -88,6 +89,7 @@ export function AdminDashboard({ onSignOut }) {
                 { id: "social", label: "Social" },
                 { id: "web",    label: "Website" },
                 { id: "plan",   label: "Plan" },
+                { id: "subs",   label: "Submissions" },
               ].map(t => (
                 <button key={t.id} role="tab" aria-selected={type === t.id}
                   className={"admin-type-tab" + (type === t.id ? " is-active" : "")}
@@ -105,6 +107,7 @@ export function AdminDashboard({ onSignOut }) {
         {type === "social" && <SocialForm key={agency + quarter} agency={agency} quarter={quarter} onDirtyChange={setIsDirty} />}
         {type === "web"    && <WebForm    key={agency + quarter} agency={agency} quarter={quarter} onDirtyChange={setIsDirty} />}
         {type === "plan"   && <PlanTab    key={agency + quarter} agency={agency} quarter={quarter} />}
+        {type === "subs"   && <SubmissionsTab key={agency} agency={agency} />}
       </main>
     </div>
   );
