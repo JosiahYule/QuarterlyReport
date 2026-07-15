@@ -15,8 +15,89 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/editorial.css" />
+  <script>
+    // Edge-refraction glass relies on SVG filters inside backdrop-filter,
+    // which only Chromium renders. Safari passes the @supports test but
+    // paints nothing, so feature-detect + engine-check and gate via class;
+    // everyone else keeps the plain frosted blur.
+    if (CSS.supports("backdrop-filter", "url(#g)") && "chrome" in window) {
+      document.documentElement.classList.add("glass-refract");
+    }
+  </script>
 </head>
 <body>
+  <!-- Liquid-glass filters (Chromium only, gated by .glass-refract).
+       Each filter refracts the backdrop at the rim like a lens while the
+       middle keeps the heavy frost, and bakes in the saturate(1.9) the
+       flat --glass-blur token used, so it's a drop-in replacement.
+
+       The displacement map is built from the backdrop itself so it fits
+       any element size (feImage maps don't stretch inside
+       backdrop-filter): erode the opaque backdrop alpha inward and blur
+       it into a smooth "field" that ramps 0 at the rim to 1 inside, then
+       take its horizontal/vertical slopes (offset copies subtracted via
+       arithmetic composites, biased around 0.5) as the R/G channels
+       feDisplacementMap reads. Slopes are zero in the middle, so only
+       the rim warps — always toward the interior, which reads as lens
+       magnification. The same field, inverted, masks the warped layer
+       over the frosted one. The slope/field math rides in the alpha
+       channel until the final feColorMatrix so premultiplied-color
+       clamping can't distort it.
+
+       The "panel" variant (menus, palette, modals, tooltips) refracts on
+       all four edges; the "bar" variant (nav, admin header, save bar)
+       erodes vertically only, so full-width chrome warps just along its
+       top and bottom. The feFuncA slope=4 boosts after each blur undo
+       the transparency that feGaussianBlur pulls in past the element
+       edge (SVG filters don't get the edge-duplication treatment CSS
+       blur() enjoys in backdrop-filter). -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <filter id="glass-warp-panel" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feMorphology in="SourceAlpha" operator="erode" radius="14" result="inset"/>
+      <feGaussianBlur in="inset" stdDeviation="7" result="field"/>
+      <feOffset in="field" dx="8" dy="0" result="fxl"/>
+      <feOffset in="field" dx="-8" dy="0" result="fxr"/>
+      <feComposite in="fxl" in2="fxr" operator="arithmetic" k1="0" k2="-0.5" k3="0.5" k4="0.5" result="fx"/>
+      <feColorMatrix in="fx" values="0 0 0 1 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0 1" result="mapx"/>
+      <feOffset in="field" dx="0" dy="8" result="fyt"/>
+      <feOffset in="field" dx="0" dy="-8" result="fyb"/>
+      <feComposite in="fyt" in2="fyb" operator="arithmetic" k1="0" k2="-0.5" k3="0.5" k4="0.5" result="fy"/>
+      <feColorMatrix in="fy" values="0 0 0 0 0  0 0 0 1 0  0 0 0 0 0  0 0 0 0 1" result="mapy"/>
+      <feComposite in="mapx" in2="mapy" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="map"/>
+      <feDisplacementMap in="SourceGraphic" in2="map" scale="64" xChannelSelector="R" yChannelSelector="G" result="warped"/>
+      <feGaussianBlur in="warped" stdDeviation="2.5" result="rimBlur"/>
+      <feComponentTransfer in="rimBlur" result="rimGlass"><feFuncA type="linear" slope="4" intercept="0"/></feComponentTransfer>
+      <feComponentTransfer in="field" result="ring"><feFuncA type="table" tableValues="1 0"/></feComponentTransfer>
+      <feComposite in="rimGlass" in2="ring" operator="in" result="rim"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="26" result="frostBlur"/>
+      <feComponentTransfer in="frostBlur" result="frost"><feFuncA type="linear" slope="4" intercept="0"/></feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="frost"/>
+        <feMergeNode in="rim"/>
+      </feMerge>
+      <feColorMatrix type="saturate" values="1.9"/>
+    </filter>
+    <filter id="glass-warp-bar" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feMorphology in="SourceAlpha" operator="erode" radius="0 12" result="inset"/>
+      <feGaussianBlur in="inset" stdDeviation="0 6" result="field"/>
+      <feOffset in="field" dx="0" dy="6" result="fyt"/>
+      <feOffset in="field" dx="0" dy="-6" result="fyb"/>
+      <feComposite in="fyt" in2="fyb" operator="arithmetic" k1="0" k2="-0.5" k3="0.5" k4="0.5" result="fy"/>
+      <feColorMatrix in="fy" values="0 0 0 0 0.5  0 0 0 1 0  0 0 0 0 0  0 0 0 0 1" result="map"/>
+      <feDisplacementMap in="SourceGraphic" in2="map" scale="30" xChannelSelector="R" yChannelSelector="G" result="warped"/>
+      <feGaussianBlur in="warped" stdDeviation="2" result="rimBlur"/>
+      <feComponentTransfer in="rimBlur" result="rimGlass"><feFuncA type="linear" slope="4" intercept="0"/></feComponentTransfer>
+      <feComponentTransfer in="field" result="ring"><feFuncA type="table" tableValues="1 0"/></feComponentTransfer>
+      <feComposite in="rimGlass" in2="ring" operator="in" result="rim"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="16" result="frostBlur"/>
+      <feComponentTransfer in="frostBlur" result="frost"><feFuncA type="linear" slope="4" intercept="0"/></feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="frost"/>
+        <feMergeNode in="rim"/>
+      </feMerge>
+      <feColorMatrix type="saturate" values="1.9"/>
+    </filter>
+  </svg>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>

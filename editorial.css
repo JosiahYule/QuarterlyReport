@@ -1616,3 +1616,26 @@
   .app-nav, .admin-header, .admin-save-bar { background: rgba(255, 255, 255, 0.96); }
   .agency-menu, .menu, .cmdk-panel, .admin-confirm-box, .cf-tooltip { background: var(--paper); }
 }
+
+/* Glass edge refraction — Chromium only; index.html sets .glass-refract
+   after checking that SVG filters actually render inside backdrop-filter.
+   The #glass-warp-* filters (defined inline in index.html) bend the
+   backdrop at the rim like a lens while keeping the heavy frost in the
+   middle, and bake in the same blur(26px) saturate(1.9) as --glass-blur,
+   so this is a drop-in replacement for the flat token. Panels (menus,
+   palette, modals, tooltips) refract on all four edges; full-width bars
+   (nav, admin header, save bar) only top and bottom, so the warp band
+   doesn't scale up with their width.
+
+   The displacement map is derived from the backdrop's own alpha (erode +
+   blur + directional slopes), so one filter fits every element size —
+   see the comment on the <svg> block in index.html for the full story. */
+html.glass-refract {
+  --glass-blur: url(#glass-warp-panel);
+}
+html.glass-refract .app-nav,
+html.glass-refract .admin-header,
+html.glass-refract .admin-save-bar {
+  backdrop-filter: url(#glass-warp-bar);
+  -webkit-backdrop-filter: url(#glass-warp-bar);
+}
