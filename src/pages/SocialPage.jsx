@@ -5,7 +5,7 @@ import { Delta } from "../components/Delta.jsx";
 import { PageLoader } from "../components/PageLoader.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { EmptyNote, EmptyData } from "../components/EmptyState.jsx";
-import { fmt, fmtExact, FLAT, sumPaidMediaAds } from "../utils.js";
+import { fmt, fmtExact, FLAT } from "../utils.js";
 import { IconSort, IconArrowUp, IconArrowDown } from "../components/Icons.jsx";
 import { CountUp } from "../components/CountUp.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
@@ -727,141 +727,6 @@ function AllPosts({ data }) {
   );
 }
 
-// ─── Paid Media ───────────────────────────────────────────────────
-// Ad "health" reads on click-through rate rather than engagement rate — CTR
-// is the metric paid social is optimized against, and typical paid-social
-// benchmarks (LinkedIn/Facebook) run far below organic engagement rates, so
-// the thresholds here are tuned lower than healthForPost's.
-function healthForAd(ad) {
-  const impressions = ad.impressions;
-  const clicks = ad.clicks;
-  if (!impressions || impressions <= 0 || clicks == null) {
-    return { label: "No data", color: "var(--ink-4)", ctr: null, hasData: false };
-  }
-  const ctr = (clicks / impressions) * 100;
-  const label = ctr >= 2 ? "Very Strong" : ctr >= 1 ? "Strong" : ctr >= 0.5 ? "Moderate" : "Low";
-  const color = ctr >= 2 ? "var(--accent)" : ctr >= 1 ? "var(--up)" : ctr >= 0.5 ? "#b87000" : "var(--down)";
-  return { label, color, ctr, hasData: true };
-}
-
-const AD_STATUS_META = {
-  active:    { label: "Active",    className: "is-active" },
-  paused:    { label: "Paused",    className: "is-paused" },
-  completed: { label: "Completed", className: "is-completed" },
-  draft:     { label: "Draft",     className: "is-draft" },
-};
-
-function AdStatusTag({ status }) {
-  const meta = AD_STATUS_META[status];
-  if (!meta) return null;
-  return <span className={"paid-media-status " + meta.className}>{meta.label}</span>;
-}
-
-const PAID_MEDIA_KPI_DEFS = [
-  { key: "spend",          label: "Total Spend",  fmt: v => v != null ? "$" + fmt(v) : "—" },
-  { key: "impressions",    label: "Impressions",  fmt: fmt },
-  { key: "clicks",         label: "Clicks",       fmt: fmtExact },
-  { key: "ctr",            label: "Blended CTR",  fmt: v => v != null ? v.toFixed(2) + "%" : "—" },
-  // Lower CPC is the win, so its delta color/sign is inverted to still read as good/bad.
-  { key: "cpc",            label: "Blended CPC",  fmt: v => v != null ? "$" + v.toFixed(2) : "—", invert: true },
-  { key: "engagementRate", label: "Eng. Rate",    fmt: v => v != null ? v.toFixed(2) + "%" : "—" },
-];
-
-function PaidMediaKpis({ totals, deltas }) {
-  return (
-    <div className="paid-media-kpis">
-      {PAID_MEDIA_KPI_DEFS.map((k, i) => {
-        return (
-          <div className="paid-media-kpi" key={k.key} style={{ "--i": i }}>
-            <div className="paid-media-kpi-label">{k.label}</div>
-            <div className="paid-media-kpi-value num"><CountUp value={totals[k.key]} format={k.fmt} /></div>
-            <div className="paid-media-kpi-foot"><Delta d={deltas[k.key]} invertGood={!!k.invert} /></div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function PaidMediaCampaign({ c }) {
-  const totals = useMemo(() => sumPaidMediaAds(c.ads), [c.ads]);
-  return (
-    <div className="paid-media-campaign">
-      <h3 className="paid-media-campaign-name serif">{c.name || "Untitled campaign"}</h3>
-      {c.ads.length === 0 ? (
-        <EmptyData label="No ads added to this campaign yet." />
-      ) : (
-        <div className="table-wrap">
-          <table className="table table--wide">
-            <thead>
-              <tr>
-                <th scope="col">Ad</th>
-                <th scope="col" className="r">Impressions</th>
-                <th scope="col" className="r">Clicks</th>
-                <th scope="col" className="r">CTR</th>
-                <th scope="col" className="r">CPC</th>
-                <th scope="col" className="r">Eng. Rate</th>
-                <th scope="col" className="health-col">Health</th>
-              </tr>
-            </thead>
-            <tbody>
-              {c.ads.map(ad => {
-                const { label, color, ctr, hasData } = healthForAd(ad);
-                return (
-                  <tr key={ad.id}>
-                    <td>
-                      <span className="campaign-name serif">{ad.name || "Untitled ad"}</span>
-                      <AdStatusTag status={ad.status} />
-                    </td>
-                    <td className="r num">{fmtExact(ad.impressions)}</td>
-                    <td className="r num">{fmtExact(ad.clicks)}</td>
-                    <td className="r num">{hasData ? ctr.toFixed(2) + "%" : "—"}</td>
-                    <td className="r num">{ad.cpc != null ? "$" + ad.cpc.toFixed(2) : "—"}</td>
-                    <td className="r num">{ad.engagementRate != null ? ad.engagementRate.toFixed(2) + "%" : "—"}</td>
-                    <td className="health-col"><span className="health-label" style={{ color }}>{label}</span></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="paid-media-totals-row">
-                <td>Campaign total</td>
-                <td className="r num">{fmtExact(totals.impressions)}</td>
-                <td className="r num">{fmtExact(totals.clicks)}</td>
-                <td className="r num">{totals.ctr != null ? totals.ctr.toFixed(2) + "%" : "—"}</td>
-                <td className="r num">{totals.cpc != null ? "$" + totals.cpc.toFixed(2) : "—"}</td>
-                <td className="r num">{totals.engagementRate != null ? totals.engagementRate.toFixed(2) + "%" : "—"}</td>
-                <td className="health-col" />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PaidMedia({ data }) {
-  const campaigns = data.paidMedia || [];
-  return (
-    <section id="paid-media" className="section wrap">
-      <header className="section-head">
-        <h2 className="section-title serif">Paid <em>Media</em></h2>
-      </header>
-      {campaigns.length === 0 ? (
-        <EmptyData label="No paid media campaigns recorded this quarter." />
-      ) : (
-        <>
-          <PaidMediaKpis totals={data.paidMediaTotals} deltas={data.paidMediaDeltas || {}} />
-          <div className="paid-media-campaigns">
-            {campaigns.map(c => <PaidMediaCampaign c={c} key={c.id} />)}
-          </div>
-        </>
-      )}
-    </section>
-  );
-}
-
 // ─── Notes ────────────────────────────────────────────────────────
 function NoteList({ items }) {
   if (!items.length) return <EmptyNote />;
@@ -892,7 +757,6 @@ const SOCIAL_SECTIONS = [
   { id: "platforms",          label: "Platforms" },
   { id: "top-posts",          label: "Top Posts" },
   { id: "all-posts",          label: "All Posts" },
-  { id: "paid-media",         label: "Paid Media" },
   { id: "insights",           label: "Insights" },
 ];
 
@@ -945,7 +809,6 @@ export function SocialPage({ agency, quarter, onReady }) {
       <ErrorBoundary><Platforms data={data} /></ErrorBoundary>
       <ErrorBoundary><TopPosts data={data} /></ErrorBoundary>
       <ErrorBoundary><AllPosts data={data} /></ErrorBoundary>
-      <ErrorBoundary><PaidMedia data={data} /></ErrorBoundary>
       <ErrorBoundary><Notes data={data} /></ErrorBoundary>
     </main>
   );

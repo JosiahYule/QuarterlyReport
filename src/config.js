@@ -4,7 +4,7 @@ export const AGENCIES = {
   ads: { label: "ADS", name: "Administrative Staffing", prefix: "ads", url: "https://administrativestaffing.ca" },
 };
 
-export const VIEWS = ["social", "web", "trends"];
+export const VIEWS = ["social", "web", "paid", "trends"];
 
 export const REPORT_AUTHOR = "Josiah Yule";
 

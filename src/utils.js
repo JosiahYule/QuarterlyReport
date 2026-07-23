@@ -70,18 +70,36 @@ export function nfk(s) {
   return String(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-// Rolls up a list of paid-media ads ({ impressions, clicks, cpc, engagementRate })
-// into blended totals. Spend isn't stored directly — it's derived per ad as
-// cpc × clicks, so a total is only meaningful once at least one ad has both.
-// Engagement rate is weighted by impressions rather than averaged plainly, so
-// a high-reach ad's rate counts for more than a low-reach one's.
+// Spend for a single ad. Not stored directly — derived as cpc × clicks, so it's
+// only defined once an ad has both. Kept as a helper so the report table and the
+// blended rollup agree on exactly one definition of spend.
+export function adSpend(ad) {
+  return typeof ad?.cpc === "number" && typeof ad?.clicks === "number"
+    ? ad.cpc * ad.clicks
+    : null;
+}
+
+// Rolls up a list of paid-media ads into blended totals. Each rate is derived
+// from the summed raw counts (not averaged across ads) so it stays honest when
+// ads differ wildly in size:
+//   ctr        clicks ÷ impressions
+//   cpc        spend ÷ clicks
+//   cpm        spend ÷ impressions × 1000
+//   frequency  impressions ÷ reach
+//   convRate   conversions ÷ clicks
+//   cpa        spend ÷ conversions   (cost per conversion)
+// Engagement rate is the one exception — weighted by impressions, so a
+// high-reach ad's rate counts for more than a low-reach one's. Every field is
+// null until at least one ad supplies the inputs it needs.
 export function sumPaidMediaAds(ads) {
-  let impressions = 0, clicks = 0, spend = 0;
-  let hasImpressions = false, hasClicks = false, hasSpend = false;
+  let impressions = 0, clicks = 0, spend = 0, reach = 0, conversions = 0;
+  let hasImpressions = false, hasClicks = false, hasSpend = false, hasReach = false, hasConversions = false;
   let engWeighted = 0, engWeightBase = 0;
   for (const ad of ads) {
     if (typeof ad.impressions === "number") { impressions += ad.impressions; hasImpressions = true; }
     if (typeof ad.clicks === "number") { clicks += ad.clicks; hasClicks = true; }
+    if (typeof ad.reach === "number") { reach += ad.reach; hasReach = true; }
+    if (typeof ad.conversions === "number") { conversions += ad.conversions; hasConversions = true; }
     if (typeof ad.cpc === "number" && typeof ad.clicks === "number") { spend += ad.cpc * ad.clicks; hasSpend = true; }
     if (typeof ad.engagementRate === "number" && typeof ad.impressions === "number") {
       engWeighted += ad.engagementRate * ad.impressions;
@@ -91,9 +109,15 @@ export function sumPaidMediaAds(ads) {
   return {
     impressions: hasImpressions ? impressions : null,
     clicks: hasClicks ? clicks : null,
+    reach: hasReach ? reach : null,
+    conversions: hasConversions ? conversions : null,
     ctr: hasImpressions && hasClicks && impressions > 0 ? (clicks / impressions) * 100 : null,
     spend: hasSpend ? spend : null,
     cpc: hasSpend && clicks > 0 ? spend / clicks : null,
+    cpm: hasSpend && hasImpressions && impressions > 0 ? (spend / impressions) * 1000 : null,
+    frequency: hasImpressions && hasReach && reach > 0 ? impressions / reach : null,
+    conversionRate: hasConversions && hasClicks && clicks > 0 ? (conversions / clicks) * 100 : null,
+    cpa: hasSpend && hasConversions && conversions > 0 ? spend / conversions : null,
     engagementRate: engWeightBase > 0 ? engWeighted / engWeightBase : null,
   };
 }

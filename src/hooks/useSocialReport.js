@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
 import { AGENCIES, QUARTERS } from "../config.js";
-import { calcAutoDelta, FLAT, sumPaidMediaAds } from "../utils.js";
+import { calcAutoDelta, FLAT } from "../utils.js";
 import { withRetry, friendlyError, getCached, setCached } from "../lib/fetching.js";
 
 function getQuarterMeta(suffix) {
@@ -13,26 +13,6 @@ function getPrevSuffix(suffix) {
   return idx >= 0 && idx < QUARTERS.length - 1 ? QUARTERS[idx + 1].suffix : null;
 }
 
-function mapPaidMedia(rawCampaigns) {
-  return [...(rawCampaigns || [])]
-    .sort((a, b) => a.sort_order - b.sort_order)
-    .map(c => ({
-      id: c.id,
-      name: c.name,
-      ads: [...(c.paid_media_ads || [])]
-        .sort((a, b) => a.sort_order - b.sort_order)
-        .map(a => ({
-          id: a.id,
-          name: a.name,
-          impressions: a.impressions,
-          clicks: a.clicks,
-          cpc: a.cpc,
-          engagementRate: a.engagement_rate,
-          status: a.status || "active",
-        })),
-    }));
-}
-
 async function fetchReport(agency, quarter) {
   const { data, error } = await supabase
     .from("social_reports")
@@ -42,8 +22,7 @@ async function fetchReport(agency, quarter) {
       social_platforms(*),
       social_top_posts(*),
       social_posts(*),
-      social_insights(*),
-      paid_media_campaigns(*, paid_media_ads(*))
+      social_insights(*)
     `)
     .eq("agency", agency)
     .eq("quarter", quarter)
@@ -137,16 +116,6 @@ function normalize(report, agency, quarter, prev) {
     Notes:        p.notes,
   }));
 
-  const paidMedia = mapPaidMedia(report.paid_media_campaigns);
-  const prevPaidMedia = mapPaidMedia(prev?.paid_media_campaigns);
-  const paidMediaTotals = sumPaidMediaAds(paidMedia.flatMap(c => c.ads));
-  const prevPaidMediaTotals = sumPaidMediaAds(prevPaidMedia.flatMap(c => c.ads));
-  const paidMediaDeltas = {};
-  for (const key of Object.keys(paidMediaTotals)) {
-    const d = calcAutoDelta(paidMediaTotals[key], prevPaidMediaTotals[key]);
-    if (d) paidMediaDeltas[key] = d;
-  }
-
   return {
     meta: {
       quarter:    qMeta.label,
@@ -161,9 +130,6 @@ function normalize(report, agency, quarter, prev) {
     topPostsByPlatform,
     notes,
     allPosts,
-    paidMedia,
-    paidMediaTotals,
-    paidMediaDeltas,
     weekly: Array.from({ length: 13 }, (_, i) => ({ wk: i + 1, imp: 0, leads: 0, spend: 0 })),
   };
 }

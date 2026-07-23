@@ -626,6 +626,30 @@
   .paid-media-status.is-completed { color: var(--ink-3); border: 1px solid var(--rule-soft); }
   .paid-media-status.is-draft     { color: var(--ink-4); border: 1px solid var(--rule-soft); }
 
+  /* Paid Media page — campaign cards */
+  .paid-campaign            { padding-top: 30px; border-top: 1px solid var(--rule); }
+  .paid-campaign:first-child { padding-top: 0; border-top: 0; }
+  .paid-campaign-head       { display: flex; align-items: baseline; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; margin-bottom: 16px; }
+  .paid-campaign-name       { font-size: 24px; color: var(--ink); }
+  .paid-campaign-tags       { display: flex; gap: 8px; flex-wrap: wrap; }
+  .paid-tag                 { display: inline-flex; align-items: center; font-family: var(--sans); font-size: 11px; letter-spacing: 0.04em; color: var(--ink-2); padding: 3px 11px; border: 1px solid var(--rule); border-radius: 99px; background: var(--paper); white-space: nowrap; }
+  .paid-tag--platform       { border-color: var(--accent); color: var(--accent); font-weight: 500; }
+  .paid-tag--muted          { color: var(--ink-4); }
+
+  /* Budget pacing */
+  .paid-budget              { max-width: 520px; margin-bottom: 22px; }
+  .paid-budget-track        { height: 8px; border-radius: 99px; background: var(--paper-2); border: 1px solid var(--rule-soft); overflow: hidden; }
+  .paid-budget-fill         { height: 100%; background: var(--accent); border-radius: 99px; transition: width .6s cubic-bezier(.4,0,.1,1); }
+  .paid-budget-fill.is-over { background: var(--down); }
+  .paid-budget-foot         { display: flex; justify-content: space-between; gap: 12px; margin-top: 7px; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums lining-nums; }
+  .paid-budget-foot strong  { color: var(--ink); font-weight: 600; }
+
+  /* Derived per-campaign stat strip */
+  .paid-stat-strip          { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 18px; margin-bottom: 24px; }
+  .paid-stat                { display: flex; flex-direction: column; gap: 5px; padding-top: 10px; border-top: 1px solid var(--rule-soft); }
+  .paid-stat-label          { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
+  .paid-stat-value          { font-size: 21px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums lining-nums; }
+
   /* Calendar */
   .calendar-view { display: flex; flex-direction: column; gap: 30px; }
   .calendar-month-title { font-family: var(--serif); font-size: 28px; margin-bottom: 14px; border-bottom: 1px solid var(--rule); padding-bottom: 8px; }
@@ -1376,12 +1400,13 @@
 .admin-channel-grid    { grid-template-columns: 1.6fr repeat(3, 1fr); }
 .admin-page-grid       { grid-template-columns: 2fr 1fr 1fr 1fr; }
 .admin-toppost-grid    { grid-template-columns: 3fr 1fr 1fr 1fr; }
-.admin-ad-grid         { grid-template-columns: 1.6fr repeat(4, 1fr) 1fr; }
+.admin-ad-grid         { grid-template-columns: 1.6fr repeat(6, 1fr) 1fr; }
 
 /* Paid media campaign cards */
 .admin-campaign-card      { border: 1px solid var(--rule); background: var(--paper-2); padding: 16px; margin-bottom: 12px; border-radius: var(--radius-m); }
 .admin-campaign-card-head { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 14px; }
 .admin-campaign-card-head .admin-field { flex: 1; }
+.admin-campaign-meta      { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 14px; }
 .admin-campaign-card .admin-list-row { background: var(--paper); }
 
 /* All posts table */
@@ -1479,6 +1504,7 @@
   .admin-page-grid      { grid-template-columns: 1fr 1fr; }
   .admin-toppost-grid   { grid-template-columns: 1fr 1fr; }
   .admin-ad-grid        { grid-template-columns: 1fr 1fr; }
+  .admin-campaign-meta  { grid-template-columns: 1fr 1fr; }
   .admin-header-selects { flex-direction: column; gap: 4px; }
 }
 @media (max-width: 480px) {

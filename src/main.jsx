@@ -7,6 +7,7 @@ import { CommandPalette } from "./components/CommandPalette.jsx";
 import { LoadingScreen } from "./components/LoadingScreen.jsx";
 import { PageSkeleton } from "./components/Skeleton.jsx";
 import { AGENCIES, QUARTERS, CURRENT_QUARTER, REPORT_AUTHOR } from "./config.js";
+import { VIEW_LABELS } from "./lib/commands.js";
 import { installGlobalErrorReporting } from "./lib/monitor.js";
 import { setFavicon } from "./lib/favicon.js";
 
@@ -14,6 +15,7 @@ installGlobalErrorReporting();
 
 const SocialPage = lazy(() => import("./pages/SocialPage.jsx").then(m => ({ default: m.SocialPage })));
 const WebPage    = lazy(() => import("./pages/WebPage.jsx").then(m => ({ default: m.WebPage })));
+const PaidPage   = lazy(() => import("./pages/PaidPage.jsx").then(m => ({ default: m.PaidPage })));
 const TrendsPage = lazy(() => import("./pages/TrendsPage.jsx").then(m => ({ default: m.TrendsPage })));
 
 function App() {
@@ -40,7 +42,7 @@ function App() {
     setAppReady(true);
     const cfg = AGENCIES[agency] || AGENCIES.isl;
     const q = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];
-    const viewLabel = view === "social" ? "Social Media" : view === "web" ? "Website" : "Trends";
+    const viewLabel = VIEW_LABELS[view] || VIEW_LABELS.social;
     const msg = `${cfg.name} ${q.label} ${viewLabel} report loaded`;
     clearTimeout(announcementTimer.current);
     setAnnouncement(msg);
@@ -50,7 +52,7 @@ function App() {
   useEffect(() => {
     const cfg = AGENCIES[agency] || AGENCIES.isl;
     const q   = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];
-    const viewLabel = view === "social" ? "Social Media" : view === "web" ? "Website" : "Trends";
+    const viewLabel = VIEW_LABELS[view] || VIEW_LABELS.social;
     document.title = `${cfg.name} ${q.label} ${q.year} — ${viewLabel}`;
   }, [agency, quarter, view]);
 
@@ -68,7 +70,7 @@ function App() {
 
   useEffect(() => () => clearTimeout(announcementTimer.current), []);
 
-  const skelView = view === "web" ? "web" : view === "trends" ? "trends" : "social";
+  const skelView = view === "web" ? "web" : view === "paid" ? "paid" : view === "trends" ? "trends" : "social";
 
   return (
     <>
@@ -111,6 +113,9 @@ function App() {
         )}
         {view === "web" && (
           <WebPage key={`web-${agency}-${quarter}`} agency={agency} quarter={quarter} onReady={handleReady} />
+        )}
+        {view === "paid" && (
+          <PaidPage key={`paid-${agency}-${quarter}`} agency={agency} quarter={quarter} onReady={handleReady} />
         )}
         {view === "trends" && (
           <TrendsPage key={agency} agency={agency} onReady={handleReady} />
