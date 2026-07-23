@@ -29,7 +29,7 @@ function RowSkel() {
 }
 
 export function PageSkeleton({ view = "social" }) {
-  const kpiCount = view === "web" ? 6 : 8;
+  const kpiCount = view === "web" ? 6 : view === "paid" ? 10 : 8;
   return (
     <main className="report-wrap" aria-hidden="true" aria-busy="true">
       {/* Hero */}

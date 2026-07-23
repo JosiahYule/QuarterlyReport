@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fmt, fmtExact, fmtPct, fmtTime, toNumber, calcAutoDelta, parseDelta } from "./utils.js";
+import { fmt, fmtExact, fmtPct, fmtTime, toNumber, calcAutoDelta, parseDelta, adSpend, sumPaidMediaAds } from "./utils.js";
 
 describe("fmt", () => {
   it("abbreviates large numbers", () => {
@@ -56,6 +56,50 @@ describe("calcAutoDelta", () => {
     expect(calcAutoDelta(100, 0)).toBeNull();
     expect(calcAutoDelta(null, 100)).toBeNull();
     expect(calcAutoDelta("100", 50)).toBeNull();
+  });
+});
+
+describe("adSpend", () => {
+  it("derives spend from cpc × clicks", () => {
+    expect(adSpend({ cpc: 2, clicks: 50 })).toBe(100);
+  });
+  it("is null unless both cpc and clicks are present", () => {
+    expect(adSpend({ cpc: 2 })).toBeNull();
+    expect(adSpend({ clicks: 50 })).toBeNull();
+    expect(adSpend(null)).toBeNull();
+  });
+});
+
+describe("sumPaidMediaAds", () => {
+  it("blends raw counts and derives every rate from the summed totals", () => {
+    const t = sumPaidMediaAds([
+      { impressions: 1000, reach: 500, clicks: 20, cpc: 2, conversions: 4, engagementRate: 3 },
+      { impressions: 3000, reach: 1500, clicks: 30, cpc: 1, conversions: 6, engagementRate: 5 },
+    ]);
+    expect(t.impressions).toBe(4000);
+    expect(t.reach).toBe(2000);
+    expect(t.clicks).toBe(50);
+    expect(t.conversions).toBe(10);
+    expect(t.spend).toBe(70);                 // 20×2 + 30×1
+    expect(t.ctr).toBeCloseTo(1.25);          // 50 / 4000
+    expect(t.cpc).toBeCloseTo(1.4);           // 70 / 50
+    expect(t.cpm).toBeCloseTo(17.5);          // 70 / 4000 × 1000
+    expect(t.frequency).toBeCloseTo(2);       // 4000 / 2000
+    expect(t.conversionRate).toBeCloseTo(20); // 10 / 50 × 100
+    expect(t.cpa).toBeCloseTo(7);             // 70 / 10
+    expect(t.engagementRate).toBeCloseTo(4.5); // impression-weighted: (3×1000 + 5×3000)/4000
+  });
+
+  it("leaves a metric null when its inputs are absent", () => {
+    const t = sumPaidMediaAds([{ impressions: 1000 }]);
+    expect(t.impressions).toBe(1000);
+    expect(t.reach).toBeNull();
+    expect(t.clicks).toBeNull();
+    expect(t.conversions).toBeNull();
+    expect(t.spend).toBeNull();
+    expect(t.cpm).toBeNull();
+    expect(t.frequency).toBeNull();
+    expect(t.cpa).toBeNull();
   });
 });
 

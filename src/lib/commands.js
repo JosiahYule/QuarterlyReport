@@ -3,6 +3,7 @@ import { AGENCIES, QUARTERS } from "../config.js";
 export const VIEW_LABELS = {
   social: "Social Media",
   web: "Website",
+  paid: "Paid Media",
   trends: "Trends",
 };
 

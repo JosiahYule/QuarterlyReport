@@ -33,9 +33,10 @@ function nowTimeStr() {
 }
 const BLANK_INSIGHTS = { working: "", not_working: "", actions: "", next_quarter: "" };
 
-const newAd       = () => ({ id: crypto.randomUUID(), name: "", impressions: "", clicks: "", cpc: "", engagement_rate: "", status: "active" });
-const newCampaign = () => ({ id: crypto.randomUUID(), name: "", ads: [] });
+const newAd       = () => ({ id: crypto.randomUUID(), name: "", impressions: "", reach: "", clicks: "", cpc: "", conversions: "", engagement_rate: "", status: "active" });
+const newCampaign = () => ({ id: crypto.randomUUID(), name: "", objective: "", platform: "", budget: "", start_date: "", end_date: "", ads: [] });
 const AD_STATUSES = ["active", "paused", "completed", "draft"];
+const PAID_PLATFORM_OPTIONS = ["LinkedIn", "Facebook", "Instagram", "Google", "TikTok", "YouTube"];
 
 // ─── CSV import parser ────────────────────────────────────────────
 function parseCsv(text) {
@@ -178,10 +179,11 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
           const ins = data.social_insights?.[0] || {};
           setInsights({ working: ins.working || "", not_working: ins.not_working || "", actions: ins.actions || "", next_quarter: ins.next_quarter || "" });
           setCampaigns([...(data.paid_media_campaigns || [])].sort((a, b) => a.sort_order - b.sort_order).map(c => ({
-            id: c.id, name: c.name || "",
+            id: c.id, name: c.name || "", objective: c.objective || "", platform: c.platform || "",
+            budget: str(c.budget), start_date: c.start_date || "", end_date: c.end_date || "",
             ads: [...(c.paid_media_ads || [])].sort((a, b) => a.sort_order - b.sort_order).map(a => ({
-              id: a.id, name: a.name || "", impressions: str(a.impressions), clicks: str(a.clicks),
-              cpc: str(a.cpc), engagement_rate: str(a.engagement_rate), status: a.status || "active",
+              id: a.id, name: a.name || "", impressions: str(a.impressions), reach: str(a.reach), clicks: str(a.clicks),
+              cpc: str(a.cpc), conversions: str(a.conversions), engagement_rate: str(a.engagement_rate), status: a.status || "active",
             })),
           })));
         }
@@ -248,11 +250,14 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
       if (campaigns.length) {
         await dbOp(supabase.from("paid_media_campaigns").insert(campaigns.map((c, i) => ({
           id: c.id, report_id: rid, sort_order: i, name: c.name,
+          objective: c.objective, platform: c.platform, budget: num(c.budget),
+          start_date: c.start_date || null, end_date: c.end_date || null,
         }))));
         const ads = campaigns.flatMap(c => c.ads.map((a, j) => ({
           id: a.id, campaign_id: c.id, sort_order: j, name: a.name,
-          impressions: num(a.impressions), clicks: num(a.clicks),
-          cpc: num(a.cpc), engagement_rate: num(a.engagement_rate), status: a.status || "active",
+          impressions: num(a.impressions), reach: num(a.reach), clicks: num(a.clicks),
+          cpc: num(a.cpc), conversions: num(a.conversions),
+          engagement_rate: num(a.engagement_rate), status: a.status || "active",
         })));
         if (ads.length) await dbOp(supabase.from("paid_media_ads").insert(ads));
       }
@@ -469,6 +474,9 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
       {tab === "paidmedia" && (
         <div className="admin-form-section">
           <div className="admin-list-hint">Group ads under a campaign, then add each ad with its metrics.</div>
+          <datalist id="paid-platform-options">
+            {PAID_PLATFORM_OPTIONS.map(p => <option key={p} value={p} />)}
+          </datalist>
           {campaigns.map((c, ci) => (
             <div key={c.id} className="admin-campaign-card">
               <div className="admin-campaign-card-head">
@@ -479,6 +487,29 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
                 <button className="admin-btn-remove"
                   onClick={() => { setCampaigns(cs => cs.filter((_, j) => j !== ci)); dirty(); }}
                   aria-label="Remove campaign"><IconClose /></button>
+              </div>
+
+              <div className="admin-campaign-meta">
+                <Field label="Objective">
+                  <input type="text" className="admin-input" value={c.objective} placeholder="Leads, Traffic, Awareness…"
+                    onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, objective: e.target.value } : x)); dirty(); }} />
+                </Field>
+                <Field label="Platform">
+                  <input type="text" className="admin-input" list="paid-platform-options" value={c.platform} placeholder="LinkedIn, Facebook…"
+                    onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, platform: e.target.value } : x)); dirty(); }} />
+                </Field>
+                <Field label="Budget ($)">
+                  <input type="number" step="0.01" className="admin-input" value={c.budget}
+                    onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, budget: e.target.value } : x)); dirty(); }} />
+                </Field>
+                <Field label="Start date">
+                  <input type="date" className="admin-input" value={c.start_date}
+                    onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, start_date: e.target.value } : x)); dirty(); }} />
+                </Field>
+                <Field label="End date">
+                  <input type="date" className="admin-input" value={c.end_date}
+                    onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, end_date: e.target.value } : x)); dirty(); }} />
+                </Field>
               </div>
 
               {c.ads.map((a, ai) => (
@@ -492,6 +523,10 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
                       <input type="number" className="admin-input" value={a.impressions}
                         onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, ads: x.ads.map((y, k) => k === ai ? { ...y, impressions: e.target.value } : y) } : x)); dirty(); }} />
                     </Field>
+                    <Field label="Reach">
+                      <input type="number" className="admin-input" value={a.reach}
+                        onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, ads: x.ads.map((y, k) => k === ai ? { ...y, reach: e.target.value } : y) } : x)); dirty(); }} />
+                    </Field>
                     <Field label="Clicks">
                       <input type="number" className="admin-input" value={a.clicks}
                         onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, ads: x.ads.map((y, k) => k === ai ? { ...y, clicks: e.target.value } : y) } : x)); dirty(); }} />
@@ -499,6 +534,10 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
                     <Field label="CPC ($)">
                       <input type="number" step="0.01" className="admin-input" value={a.cpc}
                         onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, ads: x.ads.map((y, k) => k === ai ? { ...y, cpc: e.target.value } : y) } : x)); dirty(); }} />
+                    </Field>
+                    <Field label="Conversions">
+                      <input type="number" className="admin-input" value={a.conversions}
+                        onChange={e => { setCampaigns(cs => cs.map((x, j) => j === ci ? { ...x, ads: x.ads.map((y, k) => k === ai ? { ...y, conversions: e.target.value } : y) } : x)); dirty(); }} />
                     </Field>
                     <Field label="Engagement Rate (%)">
                       <input type="number" step="0.01" className="admin-input" value={a.engagement_rate}

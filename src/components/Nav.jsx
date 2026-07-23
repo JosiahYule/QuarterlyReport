@@ -6,6 +6,7 @@ import { isMacLike } from "./CommandPalette.jsx";
 const TABS = [
   { id: "social",  label: "Social Media" },
   { id: "web",     label: "Website" },
+  { id: "paid",    label: "Paid Media" },
   { id: "trends",  label: "Trends" },
 ];
 
