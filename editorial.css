@@ -1409,6 +1409,16 @@
 .admin-campaign-meta      { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 14px; }
 .admin-campaign-card .admin-list-row { background: var(--paper); }
 
+/* Audience demographics editor */
+.admin-demo-block  { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--rule); }
+.admin-demo-title  { font-family: var(--serif); font-size: 20px; margin: 0 0 4px; color: var(--ink); }
+.admin-demo-dim    { margin-bottom: 18px; }
+.admin-demo-dim-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.admin-demo-dim-name  { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink); }
+.admin-demo-dim-count { font-size: 11px; color: var(--ink-4); }
+.admin-demo-dim-head .admin-btn-remove { margin-left: auto; }
+.admin-demo-table th:first-child, .admin-demo-table td:first-child { width: 55%; }
+
 /* All posts table */
 .admin-allposts-toolbar    { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
 .admin-posts-table-wrap    { overflow-x: auto; border: 1px solid var(--rule-soft); border-radius: var(--radius-m); }
@@ -1596,6 +1606,66 @@
 @media (max-width: 720px) {
   .cf-panels  { grid-template-columns: 1fr; gap: 40px; }
   .cf-bar-row { grid-template-columns: 104px 1fr 44px; }
+}
+
+/* ═══ Paid Media — Audience (LinkedIn demographics) ══════════════ */
+.section-sub {
+  max-width: 62ch; margin: 10px 0 0; font-size: 14px; line-height: 1.55; color: var(--ink-3);
+}
+.aud-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 40px 56px; }
+.aud-panel  { min-width: 0; }
+.aud-panel-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding-bottom: 10px; margin-bottom: 14px; border-bottom: 1px solid var(--rule);
+}
+.aud-panel-title { font-size: 19px; letter-spacing: -0.01em; }
+.aud-panel-cols {
+  display: flex; gap: 18px; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-4); font-weight: 500; white-space: nowrap;
+}
+.aud-rows { display: grid; gap: 11px; }
+/* label | share bar | share % | CTR (meter + value) */
+.aud-row {
+  display: grid; grid-template-columns: minmax(0, 150px) 1fr 46px 96px;
+  align-items: center; gap: 12px;
+}
+.aud-label {
+  font-size: 13px; color: var(--ink-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.aud-share-track {
+  height: 14px; background: var(--paper-2); border-radius: 0 4px 4px 0; overflow: hidden;
+}
+.aud-share-fill {
+  display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0;
+  transition: width .6s cubic-bezier(.4,0,.1,1);
+}
+.aud-share-val {
+  font-size: 13px; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums lining-nums;
+}
+.aud-ctr { display: grid; grid-template-columns: 1fr 42px; align-items: center; gap: 8px; }
+.aud-ctr-track {
+  height: 6px; background: var(--paper-2); border-radius: 99px; overflow: hidden;
+}
+.aud-ctr-fill {
+  display: block; height: 100%; background: var(--ink-3); border-radius: 99px;
+  transition: width .6s cubic-bezier(.4,0,.1,1);
+}
+.aud-ctr-val {
+  font-size: 12px; color: var(--ink-3); text-align: right; font-variant-numeric: tabular-nums lining-nums;
+}
+.aud-more {
+  margin-top: 12px; font-family: var(--sans); font-size: 12px; letter-spacing: 0.02em;
+  color: var(--accent); background: none; border: none; padding: 2px 0; cursor: pointer;
+}
+.aud-more:hover { text-decoration: underline; }
+.aud-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+@media (max-width: 860px) {
+  .aud-panels { grid-template-columns: 1fr; gap: 36px; }
+}
+@media (max-width: 520px) {
+  .aud-row { grid-template-columns: minmax(0, 96px) 1fr 40px 78px; gap: 8px; }
+  .aud-ctr { grid-template-columns: 1fr 36px; gap: 6px; }
 }
 
 /* ═══ Admin — Submissions tab ════════════════════════════════════ */

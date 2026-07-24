@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase.js";
 import { AGENCIES, QUARTERS } from "../config.js";
 import { calcAutoDelta, sumPaidMediaAds } from "../utils.js";
 import { withRetry, friendlyError, getCached, setCached } from "../lib/fetching.js";
+import { AUDIENCE_DIMENSIONS } from "../lib/linkedinDemographics.js";
 
 function getQuarterMeta(suffix) {
   return QUARTERS.find(q => q.suffix === suffix) || QUARTERS[0];
@@ -19,7 +20,7 @@ function getPrevSuffix(suffix) {
 async function fetchPaid(agency, quarter) {
   const { data, error } = await supabase
     .from("social_reports")
-    .select("id, paid_media_campaigns(*, paid_media_ads(*))")
+    .select("id, paid_media_campaigns(*, paid_media_ads(*)), paid_media_demographics(*)")
     .eq("agency", agency)
     .eq("quarter", quarter)
     .maybeSingle();
@@ -76,9 +77,41 @@ function rollUpPlatforms(campaigns) {
     .sort((a, b) => (b.spend || 0) - (a.spend || 0) || (b.impressions || 0) - (a.impressions || 0));
 }
 
+// Group demographic rows into per-dimension panels, in the canonical
+// dimension order. Segments sort by impressions (descending), each carrying
+// its CTR and share of the dimension's impressions so the report can show
+// both who saw the ads and who responded.
+function rollUpAudience(rawRows) {
+  const byDimension = new Map();
+  for (const r of rawRows || []) {
+    if (typeof r.impressions !== "number") continue;
+    if (!byDimension.has(r.dimension)) byDimension.set(r.dimension, []);
+    byDimension.get(r.dimension).push(r);
+  }
+  return AUDIENCE_DIMENSIONS
+    .filter(d => byDimension.has(d.key))
+    .map(d => {
+      const rows = byDimension.get(d.key);
+      const total = rows.reduce((a, r) => a + r.impressions, 0);
+      const segments = rows
+        .map(r => ({
+          name: r.segment,
+          impressions: r.impressions,
+          clicks: typeof r.clicks === "number" ? r.clicks : null,
+          ctr: typeof r.clicks === "number" && r.impressions > 0
+            ? (r.clicks / r.impressions) * 100
+            : null,
+          share: total > 0 ? (r.impressions / total) * 100 : null,
+        }))
+        .sort((a, b) => b.impressions - a.impressions);
+      return { dimension: d.key, label: d.label, totalImpressions: total, segments };
+    });
+}
+
 function normalize(report, agency, quarter, prev) {
   const qMeta = getQuarterMeta(quarter);
   const campaigns = mapCampaigns(report?.paid_media_campaigns);
+  const audience = rollUpAudience(report?.paid_media_demographics);
   const totals = sumPaidMediaAds(campaigns.flatMap(c => c.ads));
 
   const prevCampaigns = mapCampaigns(prev?.paid_media_campaigns);
@@ -100,7 +133,8 @@ function normalize(report, agency, quarter, prev) {
     totals,
     deltas,
     platforms: rollUpPlatforms(campaigns),
-    hasData: campaigns.length > 0,
+    audience,
+    hasData: campaigns.length > 0 || audience.length > 0,
   };
 }
 
