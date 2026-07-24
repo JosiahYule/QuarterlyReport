@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../lib/supabase.js";
 import { IconClose } from "../../components/Icons.jsx";
+import { parseLinkedInDemographics, AUDIENCE_DIMENSIONS, AUDIENCE_DIMENSION_LABELS } from "../../lib/linkedinDemographics.js";
 
 const num = v => (v === "" || v === null || v === undefined) ? null : (isFinite(Number(v)) ? Number(v) : null);
 const str = v => (v == null ? "" : String(v));
@@ -118,6 +119,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
   const [topPosts,    setTopPosts]    = useState({ linkedin: [], facebook: [], instagram: [] });
   const [allPosts,    setAllPosts]    = useState([]);
   const [campaigns,   setCampaigns]   = useState([]);
+  const [demographics, setDemographics] = useState([]);
   const [insights,    setInsights]    = useState(BLANK_INSIGHTS);
   const [topTab,      setTopTab]      = useState("linkedin");
   const [postsAsc,    setPostsAsc]    = useState(false);
@@ -138,6 +140,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
     dirty();
   };
   const csvRef   = useRef();
+  const demoCsvRef = useRef();
   // Gate that prevents the initial data load from marking the form dirty
   const canDirty = useRef(false);
 
@@ -154,7 +157,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
       try {
         const { data, error } = await supabase
           .from("social_reports")
-          .select("id, editors_note, social_kpis(*), social_platforms(*), social_top_posts(*), social_posts(*), social_insights(*), paid_media_campaigns(*, paid_media_ads(*))")
+          .select("id, editors_note, social_kpis(*), social_platforms(*), social_top_posts(*), social_posts(*), social_insights(*), paid_media_campaigns(*, paid_media_ads(*)), paid_media_demographics(*)")
           .eq("agency", agency)
           .eq("quarter", quarter)
           .maybeSingle();
@@ -176,6 +179,12 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
             post_name: p.post_name || "", post_date: p.post_date || "", post_time: p.post_time || "", platforms: p.platforms || "",
             impressions: str(p.impressions), engagements: str(p.engagements), url: p.url || "", notes: p.notes || "",
           })));
+          setDemographics([...(data.paid_media_demographics || [])]
+            .sort((a, b) => a.dimension.localeCompare(b.dimension) || a.sort_order - b.sort_order)
+            .map(d => ({
+              id: d.id, dimension: d.dimension, segment: d.segment || "",
+              impressions: str(d.impressions), clicks: str(d.clicks),
+            })));
           const ins = data.social_insights?.[0] || {};
           setInsights({ working: ins.working || "", not_working: ins.not_working || "", actions: ins.actions || "", next_quarter: ins.next_quarter || "" });
           setCampaigns([...(data.paid_media_campaigns || [])].sort((a, b) => a.sort_order - b.sort_order).map(c => ({
@@ -197,6 +206,26 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
   }, [agency, quarter]);
 
   const flash = msg => { setSaveMsg(msg); setTimeout(() => setSaveMsg(""), 4000); };
+
+  // Import a LinkedIn Campaign Manager demographics export. The dimension is
+  // auto-detected from the file's header, and re-importing a dimension
+  // replaces its rows rather than duplicating them.
+  const importDemographics = (text) => {
+    const parsed = parseLinkedInDemographics(text);
+    if (!parsed) {
+      flash("Error: Couldn’t read that file as a LinkedIn demographics export.");
+      return;
+    }
+    setDemographics(prev => [
+      ...prev.filter(d => d.dimension !== parsed.dimension),
+      ...parsed.rows.map(r => ({
+        id: crypto.randomUUID(), dimension: parsed.dimension,
+        segment: r.segment, impressions: str(r.impressions), clicks: str(r.clicks),
+      })),
+    ]);
+    dirty();
+    flash(`Imported ${parsed.rows.length} ${AUDIENCE_DIMENSION_LABELS[parsed.dimension]} segment${parsed.rows.length === 1 ? "" : "s"} ✓`);
+  };
 
   const save = async () => {
     setSaving(true);
@@ -260,6 +289,23 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
           engagement_rate: num(a.engagement_rate), status: a.status || "active",
         })));
         if (ads.length) await dbOp(supabase.from("paid_media_ads").insert(ads));
+      }
+
+      // Paid media demographics (LinkedIn audience). sort_order runs within
+      // each dimension so the report preserves import order as a tiebreak.
+      await dbOp(supabase.from("paid_media_demographics").delete().eq("report_id", rid));
+      if (demographics.length) {
+        const perDim = {};
+        const demoRows = demographics
+          .filter(d => d.dimension && d.segment)
+          .map(d => {
+            const order = perDim[d.dimension] = (perDim[d.dimension] ?? -1) + 1;
+            return {
+              report_id: rid, dimension: d.dimension, segment: d.segment,
+              sort_order: order, impressions: num(d.impressions), clicks: num(d.clicks),
+            };
+          });
+        if (demoRows.length) await dbOp(supabase.from("paid_media_demographics").insert(demoRows));
       }
 
       // Insights
@@ -565,6 +611,87 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
             onClick={() => { setCampaigns(cs => [...cs, newCampaign()]); dirty(); }}>
             + Add campaign
           </button>
+
+          {/* Audience demographics (LinkedIn Campaign Manager) */}
+          <div className="admin-demo-block">
+            <div className="admin-allposts-toolbar">
+              <div>
+                <h3 className="admin-demo-title">Audience Demographics</h3>
+                <div className="admin-list-hint" style={{ marginBottom: 0 }}>
+                  Powers the “Who We Reached” section. Import a LinkedIn Campaign Manager
+                  demographics export — the dimension is detected automatically.
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input ref={demoCsvRef} type="file" accept=".csv,text/csv" style={{ display: "none" }}
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = ev => importDemographics(ev.target.result);
+                    reader.onerror = () => flash("Error: Could not read the CSV file.");
+                    reader.readAsText(file);
+                    e.target.value = "";
+                  }} />
+                <button className="admin-btn-secondary" onClick={() => demoCsvRef.current?.click()}>
+                  Import demographics CSV
+                </button>
+                {demographics.length > 0 && (
+                  <button className="admin-btn-secondary" onClick={() => {
+                    if (window.confirm("Clear all demographics? This cannot be undone unless you save first.")) {
+                      setDemographics([]); dirty();
+                    }
+                  }}>Clear all</button>
+                )}
+              </div>
+            </div>
+            <p className="admin-csv-hint">
+              In Campaign Manager: <code>Analyze → Demographics</code>, pick a breakdown
+              (Job function, Seniority, Industry, Company size, Location…), then <code>Export</code>.
+              Import each file — they stack into separate breakdowns.
+            </p>
+
+            {demographics.length === 0 ? (
+              <div className="admin-list-hint">No demographics imported yet.</div>
+            ) : (
+              AUDIENCE_DIMENSIONS.filter(dim => demographics.some(d => d.dimension === dim.key)).map(dim => {
+                const rows = demographics.filter(d => d.dimension === dim.key);
+                return (
+                  <div key={dim.key} className="admin-demo-dim">
+                    <div className="admin-demo-dim-head">
+                      <span className="admin-demo-dim-name">{dim.label}</span>
+                      <span className="admin-demo-dim-count">{rows.length} segment{rows.length === 1 ? "" : "s"}</span>
+                      <button className="admin-btn-remove"
+                        onClick={() => { setDemographics(ds => ds.filter(d => d.dimension !== dim.key)); dirty(); }}
+                        aria-label={`Remove ${dim.label}`}><IconClose /></button>
+                    </div>
+                    <div className="admin-posts-table-wrap">
+                      <table className="admin-posts-table admin-demo-table">
+                        <thead>
+                          <tr><th>Segment</th><th className="r">Impressions</th><th className="r">Clicks</th><th /></tr>
+                        </thead>
+                        <tbody>
+                          {rows.map(row => (
+                            <tr key={row.id}>
+                              <td><input className="admin-input admin-input--cell" value={row.segment}
+                                onChange={e => { setDemographics(ds => ds.map(d => d.id === row.id ? { ...d, segment: e.target.value } : d)); dirty(); }} /></td>
+                              <td><input type="number" className="admin-input admin-input--cell r" value={row.impressions}
+                                onChange={e => { setDemographics(ds => ds.map(d => d.id === row.id ? { ...d, impressions: e.target.value } : d)); dirty(); }} /></td>
+                              <td><input type="number" className="admin-input admin-input--cell r" value={row.clicks}
+                                onChange={e => { setDemographics(ds => ds.map(d => d.id === row.id ? { ...d, clicks: e.target.value } : d)); dirty(); }} /></td>
+                              <td><button className="admin-btn-remove"
+                                onClick={() => { setDemographics(ds => ds.filter(d => d.id !== row.id)); dirty(); }}
+                                aria-label="Remove segment"><IconClose /></button></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       )}
 

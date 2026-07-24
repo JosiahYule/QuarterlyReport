@@ -168,6 +168,88 @@ function Platforms({ data }) {
   );
 }
 
+// ─── Audience (LinkedIn demographics) ─────────────────────────────
+// The strongest CTR across a dimension's segments — used to scale the CTR
+// meter so within-panel comparison is fair, while the label stays absolute.
+function maxCtr(segments) {
+  return segments.reduce((m, s) => (s.ctr != null && s.ctr > m ? s.ctr : m), 0);
+}
+
+function AudienceSegment({ seg, ctrScale }) {
+  const share = seg.share != null ? seg.share : 0;
+  return (
+    <div className="aud-row">
+      <span className="aud-label" title={seg.name}>{seg.name}</span>
+      <span className="aud-share-track">
+        <span className="aud-share-fill" style={{ width: `${Math.max(2, share)}%` }} />
+      </span>
+      <span className="aud-share-val num">{seg.share != null ? seg.share.toFixed(1) + "%" : "—"}</span>
+      <span className="aud-ctr">
+        <span className="aud-ctr-track">
+          <span className="aud-ctr-fill"
+            style={{ width: ctrScale > 0 && seg.ctr != null ? `${Math.max(2, (seg.ctr / ctrScale) * 100)}%` : "0%" }} />
+        </span>
+        <span className="aud-ctr-val num">{seg.ctr != null ? seg.ctr.toFixed(2) + "%" : "—"}</span>
+      </span>
+    </div>
+  );
+}
+
+// How many segments to show before folding the tail into "Other" — long-tail
+// dimensions (company, job title) would otherwise run to dozens of rows.
+const AUDIENCE_VISIBLE = 8;
+
+function AudiencePanel({ panel }) {
+  const [expanded, setExpanded] = useState(false);
+  const segs = panel.segments;
+  const shown = expanded ? segs : segs.slice(0, AUDIENCE_VISIBLE);
+  const hidden = segs.length - shown.length;
+  const ctrScale = maxCtr(segs);
+  return (
+    <div className="aud-panel">
+      <div className="aud-panel-head">
+        <h3 className="aud-panel-title serif">{panel.label}</h3>
+        <div className="aud-panel-cols">
+          <span>Share of impressions</span>
+          <span>CTR</span>
+        </div>
+      </div>
+      <div className="aud-rows">
+        {shown.map(seg => (
+          <AudienceSegment key={seg.name} seg={seg} ctrScale={ctrScale} />
+        ))}
+      </div>
+      {hidden > 0 && (
+        <button className="aud-more" onClick={() => setExpanded(true)}>
+          Show {hidden} more
+        </button>
+      )}
+      {expanded && segs.length > AUDIENCE_VISIBLE && (
+        <button className="aud-more" onClick={() => setExpanded(false)}>Show less</button>
+      )}
+    </div>
+  );
+}
+
+function Audience({ data }) {
+  return (
+    <section id="audience" className="section wrap">
+      <header className="section-head">
+        <h2 className="section-title serif">Who We <em>Reached</em></h2>
+        <p className="section-sub">
+          Audience breakdown from LinkedIn Campaign Manager — the bar shows each segment’s
+          share of impressions, the meter beside it how strongly that segment clicked.
+        </p>
+      </header>
+      <div className="aud-panels">
+        {data.audience.map(panel => (
+          <AudiencePanel key={panel.dimension} panel={panel} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ─── Campaigns ────────────────────────────────────────────────────
 function Stat({ label, value }) {
   return (
@@ -301,6 +383,7 @@ function Campaigns({ data }) {
 const PAID_SECTIONS = [
   { id: "numbers",   label: "The Numbers" },
   { id: "platforms", label: "By Platform" },
+  { id: "audience",  label: "Who We Reached" },
   { id: "campaigns", label: "Campaigns" },
 ];
 
@@ -346,16 +429,27 @@ export function PaidPage({ agency, quarter, onReady }) {
   // or a single named one (an all-"Unspecified" rollup just echoes the totals).
   const showPlatforms = data.platforms.length > 1
     || (data.platforms.length === 1 && data.platforms[0].name !== "Unspecified");
+  const showAudience = data.audience.length > 0;
+  const hasCampaigns = data.campaigns.length > 0;
+
+  // The rail only lists sections that actually render, so its scroll-spy
+  // dots never point at a missing anchor.
+  const sections = PAID_SECTIONS.filter(s =>
+    (s.id !== "numbers"   || hasCampaigns) &&
+    (s.id !== "platforms" || showPlatforms) &&
+    (s.id !== "audience"  || showAudience) &&
+    (s.id !== "campaigns" || hasCampaigns));
 
   return (
     <main className="report-wrap">
-      <SectionRail sections={PAID_SECTIONS} />
+      <SectionRail sections={sections} />
       <ErrorBoundary><Hero data={data} /></ErrorBoundary>
       {data.hasData ? (
         <>
-          <ErrorBoundary><Numbers data={data} /></ErrorBoundary>
+          {hasCampaigns && <ErrorBoundary><Numbers data={data} /></ErrorBoundary>}
           {showPlatforms && <ErrorBoundary><Platforms data={data} /></ErrorBoundary>}
-          <ErrorBoundary><Campaigns data={data} /></ErrorBoundary>
+          {showAudience && <ErrorBoundary><Audience data={data} /></ErrorBoundary>}
+          {hasCampaigns && <ErrorBoundary><Campaigns data={data} /></ErrorBoundary>}
         </>
       ) : (
         <section className="section wrap">
