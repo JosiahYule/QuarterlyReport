@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { usePaidReport } from "../hooks/usePaidReport.js";
 import { Delta } from "../components/Delta.jsx";
-import { PageLoader } from "../components/PageLoader.jsx";
+import { reportState } from "../components/ReportState.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { EmptyData } from "../components/EmptyState.jsx";
 import { fmt, fmtExact, adSpend } from "../utils.js";
@@ -661,47 +661,8 @@ export function PaidPage({ agency, quarter, onReady }) {
     setOpenIds(null);
   }, [agency, quarter]);
 
-  if (status === "error") {
-    return (
-      <main className="report-wrap">
-        <section className="section wrap">
-          <header className="section-head">
-            <h2 className="section-title serif">
-              Unable to load <em>report</em>
-            </h2>
-          </header>
-          <div className="error-section" role="alert">
-            <p>{error}</p>
-            <button className="error-retry-btn" onClick={() => setRetryKey((k) => k + 1)}>
-              Try again
-            </button>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
-  if (status === "ready" && !data) {
-    return (
-      <main className="report-wrap">
-        <section className="section wrap">
-          <header className="section-head">
-            <h2 className="section-title serif">
-              Nothing here <em>yet</em>
-            </h2>
-          </header>
-          <div className="error-section">
-            <p>
-              This report hasn’t been published for the selected quarter. Choose another quarter from the menu
-              above, or check back soon.
-            </p>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
-  if (!data) return <PageLoader view="paid" />;
+  const gate = reportState({ status, error, data, view: "paid", onRetry: () => setRetryKey((k) => k + 1) });
+  if (gate) return gate;
 
   const campaigns = data.campaigns;
   const hasCampaigns = campaigns.length > 0;

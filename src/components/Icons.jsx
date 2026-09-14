@@ -43,12 +43,6 @@ export const IconArrowDown = (props) => (
   </Svg>
 );
 
-export const IconFlat = (props) => (
-  <Svg {...props}>
-    <path d="M3.5 8h9" />
-  </Svg>
-);
-
 export const IconClose = (props) => (
   <Svg {...props}>
     <path d="M4 4l8 8M12 4l-8 8" />
@@ -66,16 +60,3 @@ export const IconSort = (props) => (
     <path d="M5 6.5 8 3.5l3 3M5 9.5l3 3 3-3" />
   </Svg>
 );
-
-export const IconSearch = (props) => (
-  <Svg {...props}>
-    <circle cx="7" cy="7" r="4.25" />
-    <path d="M13 13l-2.8-2.8" />
-  </Svg>
-);
-
-export function DirIcon({ dir, ...props }) {
-  if (dir === "up") return <IconArrowUp {...props} />;
-  if (dir === "down") return <IconArrowDown {...props} />;
-  return <IconFlat {...props} />;
-}

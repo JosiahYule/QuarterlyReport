@@ -3,9 +3,9 @@ import { useWebReport } from "../hooks/useWebReport.js";
 import { useFormStats } from "../hooks/useFormStats.js";
 import { ContactFormsSection } from "../components/ContactFormsSection.jsx";
 import { Delta } from "../components/Delta.jsx";
-import { PageLoader } from "../components/PageLoader.jsx";
+import { reportState } from "../components/ReportState.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
-import { EmptyNote } from "../components/EmptyState.jsx";
+import { InsightsSection } from "../components/InsightsSection.jsx";
 import { fmtInt, fmtPct, fmtTime, calcAutoDelta, parseDelta, FLAT } from "../utils.js";
 import { AGENCIES, QUARTERS } from "../config.js";
 import { CountUp } from "../components/CountUp.jsx";
@@ -129,7 +129,7 @@ function Channels({ data, prevData }) {
               <div>
                 <div className="channel-name serif">{c.name}</div>
               </div>
-              <div className="col-num">
+              <div className="col-num" data-label="Sessions">
                 <span className="big serif num">{fmtInt(c.sessions)}</span>
                 {sd && (
                   <span className="sub">
@@ -137,7 +137,7 @@ function Channels({ data, prevData }) {
                   </span>
                 )}
               </div>
-              <div className="col-num">
+              <div className="col-num" data-label="Share">
                 <span className="big serif num">{fmtPct(c.shareOfTraffic)}</span>
                 {shd && (
                   <span className="sub">
@@ -145,7 +145,7 @@ function Channels({ data, prevData }) {
                   </span>
                 )}
               </div>
-              <div className="col-num">
+              <div className="col-num" data-label="Eng. Rate">
                 <span className="big serif num">{fmtPct(c.engagementRate)}</span>
                 {ed && (
                   <span className="sub">
@@ -208,48 +208,6 @@ function TopPages({ data, prevData }) {
   );
 }
 
-// ─── Notes ────────────────────────────────────────────────────────
-const toList = (v) =>
-  Array.isArray(v) ? v : typeof v === "string" && v.trim() ? v.split("\n\n").filter(Boolean) : [];
-
-function Notes({ data }) {
-  const ins = data.insights || {};
-  const sections = [
-    { key: "working", label: "Working", cls: "working" },
-    { key: "notWorking", label: "Not working", cls: "notworking" },
-    { key: "actions", label: "Actions", cls: "" },
-    { key: "next", label: "Next quarter", cls: "" },
-  ];
-  return (
-    <section id="insights" className="section wrap">
-      <header className="section-head">
-        <h2 className="section-title serif">
-          <em>Insights</em>
-        </h2>
-      </header>
-      <div className="notes">
-        {sections.map((s) => {
-          const items = toList(ins[s.key]);
-          return (
-            <div className={"note " + s.cls} key={s.key}>
-              <h4>{s.label}</h4>
-              {items.length ? (
-                <ul>
-                  {items.map((n, i) => (
-                    <li key={i}>{n}</li>
-                  ))}
-                </ul>
-              ) : (
-                <EmptyNote />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 const WEB_SECTIONS = [
   { id: "numbers", label: "The Numbers" },
   { id: "channels", label: "Channels" },
@@ -275,47 +233,8 @@ export function WebPage({ agency, quarter, onReady }) {
     if (status === "ready" || status === "error") onReady?.();
   }, [status, onReady]);
 
-  if (status === "error") {
-    return (
-      <main className="report-wrap">
-        <section className="section wrap">
-          <header className="section-head">
-            <h2 className="section-title serif">
-              Unable to load <em>report</em>
-            </h2>
-          </header>
-          <div className="error-section" role="alert">
-            <p>{error}</p>
-            <button className="error-retry-btn" onClick={() => setRetryKey((k) => k + 1)}>
-              Try again
-            </button>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
-  if (status === "ready" && !data) {
-    return (
-      <main className="report-wrap">
-        <section className="section wrap">
-          <header className="section-head">
-            <h2 className="section-title serif">
-              Nothing here <em>yet</em>
-            </h2>
-          </header>
-          <div className="error-section">
-            <p>
-              This report hasn’t been published for the selected quarter. Choose another quarter from the menu
-              above, or check back soon.
-            </p>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
-  if (!data) return <PageLoader view="web" />;
+  const gate = reportState({ status, error, data, view: "web", onRetry: () => setRetryKey((k) => k + 1) });
+  if (gate) return gate;
 
   return (
     <main className="report-wrap">
@@ -336,7 +255,7 @@ export function WebPage({ agency, quarter, onReady }) {
         <ContactFormsSection stats={formStats} prevStats={prevFormStats} quarter={quarter} />
       </ErrorBoundary>
       <ErrorBoundary>
-        <Notes data={data} />
+        <InsightsSection insights={data.insights} />
       </ErrorBoundary>
     </main>
   );

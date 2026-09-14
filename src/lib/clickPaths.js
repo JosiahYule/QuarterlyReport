@@ -21,11 +21,11 @@ export const MAX_PATHS = 150;
 // Columns drawn in the flow. Four is the practical ceiling for a page-width
 // diagram — beyond it the ribbons are thinner than their own labels, and the
 // journeys table below carries the full route anyway.
-export const MAX_DEPTH = 4;
+const MAX_DEPTH = 4;
 
 // Pages shown per column before the rest are folded into one "Other pages"
 // node. Six keeps every band thick enough to see at a glance.
-export const MAX_NODES_PER_COLUMN = 6;
+const MAX_NODES_PER_COLUMN = 6;
 
 export const OTHER_PAGES = "Other pages";
 export const EXIT_LABEL = "Left the site";
@@ -62,7 +62,7 @@ export function stepLabel(step) {
 
 // Journeys are identified by their route, so re-importing a file merges rather
 // than duplicating, and two spellings of the same route collapse into one.
-export const pathKey = (steps) => steps.join("\n").toLowerCase();
+const pathKey = (steps) => steps.join("\n").toLowerCase();
 
 // ─── Import ───────────────────────────────────────────────────────
 // Three shapes arrive here, and one scan handles all of them:

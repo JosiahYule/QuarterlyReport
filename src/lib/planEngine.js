@@ -148,7 +148,7 @@ export { DAY_NAMES };
 // post_time is an optional "HH:MM" (24h) string, set when a post is logged
 // (see SocialForm.jsx). Older/back-filled rows without one just don't count
 // toward this — no penalty, no guess.
-export const TIME_BUCKETS = [
+const TIME_BUCKETS = [
   { key: "early_morning", label: "Early Morning (6–9am)", startHour: 6, endHour: 9 },
   { key: "late_morning", label: "Late Morning (9am–12pm)", startHour: 9, endHour: 12 },
   { key: "afternoon", label: "Afternoon (12–3pm)", startHour: 12, endHour: 15 },
@@ -194,7 +194,7 @@ function startOfDay(d) {
 // lifetime average. Each post's weight halves every RECENCY_HALF_LIFE_DAYS of
 // age, measured from `now`. Passing no `now` disables weighting (every post
 // counts equally) so plain aggregations and tests stay deterministic.
-export const RECENCY_HALF_LIFE_DAYS = 45;
+const RECENCY_HALF_LIFE_DAYS = 45;
 
 function recencyWeight(dateStr, nowTs, halfLife) {
   if (nowTs == null) return 1;
@@ -303,8 +303,8 @@ export const WEEKDAYS = [1, 2, 3, 4, 5];
 // JOB_AD_SLOTS days for them and fills the rest with *distinct* other
 // content types for diversity. A post counts as a job ad when its type label
 // looks like one (covers "Job Posting", "Job Ad", perm/contract tags, etc.).
-export const JOB_AD_SLOTS = 2;
-export const JOB_ROLE_LABELS = ["Permanent", "Contract"];
+const JOB_AD_SLOTS = 2;
+const JOB_ROLE_LABELS = ["Permanent", "Contract"];
 const JOB_AD_KEYWORDS = ["job", "hiring", "perm", "contract", "vacanc"];
 
 export function isJobAdType(label) {
@@ -384,8 +384,8 @@ function assignDistinct(days, cellsByDay) {
 // well under 2x so a strong track record can't be buried by a secondary
 // signal, and every signal defaults to a no-op ("empty"/null) weight of 0,
 // so calling buildWeekPlan without them behaves exactly as before.
-export const PLATFORM_FOCUS_BOOST = 0.15;
-export const LINK_BIAS_BOOST = 0.15;
+const PLATFORM_FOCUS_BOOST = 0.15;
+const LINK_BIAS_BOOST = 0.15;
 export const JOB_BOOST_MAX = 0.2;
 
 // Weighted share (0..1) of each keyFn bucket's own posts that satisfy `test`,

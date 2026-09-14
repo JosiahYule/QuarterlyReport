@@ -36,7 +36,7 @@ export const AUDIENCE_DIMENSIONS = [
   { key: "job_title", label: "Job Title", layout: "bars" },
 ];
 
-export const AUDIENCE_LAYOUTS = Object.fromEntries(AUDIENCE_DIMENSIONS.map((d) => [d.key, d.layout]));
+const AUDIENCE_LAYOUTS = Object.fromEntries(AUDIENCE_DIMENSIONS.map((d) => [d.key, d.layout]));
 
 export const AUDIENCE_DIMENSION_LABELS = Object.fromEntries(AUDIENCE_DIMENSIONS.map((d) => [d.key, d.label]));
 
