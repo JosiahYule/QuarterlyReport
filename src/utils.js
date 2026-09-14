@@ -31,6 +31,10 @@ export function calcAutoDelta(cur, prev) {
 export const fmt = (n) => {
   if (n === null || n === undefined) return "—";
   if (typeof n !== "number") return String(n);
+  // A rate against a zero baseline divides to Infinity, and an empty quarter
+  // divides to NaN. Both used to reach the page as "InfinityM" and "NaN";
+  // fmtInt and fmtPct have always treated them as absent, so this matches.
+  if (!Number.isFinite(n)) return "—";
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
   if (n >= 10_000) return Math.round(n / 1000) + "K";
   if (n >= 1_000) return (n / 1000).toFixed(1) + "K";
@@ -38,8 +42,7 @@ export const fmt = (n) => {
   return n.toFixed(2);
 };
 
-export const fmtExact = (n) =>
-  n === null || n === undefined ? "—" : typeof n === "number" ? n.toLocaleString() : "—";
+export const fmtExact = (n) => (typeof n === "number" && Number.isFinite(n) ? n.toLocaleString() : "—");
 
 export const fmtInt = (n) => (typeof n === "number" && Number.isFinite(n) ? n.toLocaleString() : "—");
 

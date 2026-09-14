@@ -21,10 +21,14 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^9.39.4",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "jsdom": "^30.0.1",
     "prettier": "^3.8.4",
     "vite": "^5.4.14",
     "vitest": "^4.1.8"

@@ -24,12 +24,27 @@ describe("fmt", () => {
     expect(fmt(null)).toBe("—");
     expect(fmt(undefined)).toBe("—");
   });
+  // A rate against a zero baseline divides to Infinity and an empty quarter
+  // to NaN. These used to reach the page as "InfinityM" and "NaN".
+  it("renders non-finite numbers as em dash, like fmtInt and fmtPct do", () => {
+    expect(fmt(Infinity)).toBe("—");
+    expect(fmt(-Infinity)).toBe("—");
+    expect(fmt(NaN)).toBe("—");
+  });
+  it("still passes non-numbers through unchanged", () => {
+    expect(fmt("n/a")).toBe("n/a");
+  });
 });
 
 describe("fmtExact / fmtPct / fmtTime", () => {
   it("formats exact integers", () => {
     expect(fmtExact(1234567)).toBe((1234567).toLocaleString());
     expect(fmtExact(null)).toBe("—");
+  });
+  it("treats non-finite and non-numeric input as absent", () => {
+    expect(fmtExact(Infinity)).toBe("—");
+    expect(fmtExact(NaN)).toBe("—");
+    expect(fmtExact("12")).toBe("—");
   });
   it("formats percentages to one decimal", () => {
     expect(fmtPct(4.267)).toBe("4.3%");
