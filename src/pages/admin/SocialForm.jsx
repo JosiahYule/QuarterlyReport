@@ -83,7 +83,9 @@ const AD_STATUSES = ["active", "paused", "completed", "draft"];
 const PAID_PLATFORM_OPTIONS = ["LinkedIn", "Facebook", "Instagram", "Google", "TikTok", "YouTube"];
 
 // ─── CSV import parser ────────────────────────────────────────────
-function parseCsv(text) {
+// Exported for tests: this reads Josiah's real post exports, where the column
+// names vary between platforms, so the header matching is worth pinning down.
+export function parseCsv(text) {
   const lines = text.trim().split(/\r?\n/);
   if (lines.length < 2) return [];
   const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, "").toLowerCase());
