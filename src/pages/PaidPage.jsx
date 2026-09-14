@@ -10,10 +10,10 @@ import { SectionRail } from "../components/SectionRail.jsx";
 import { ClickPathBlock } from "../components/ClickPathFlow.jsx";
 
 // ─── Formatters ───────────────────────────────────────────────────
-const money0 = v => (v != null ? "$" + fmt(v) : "—");
-const money2 = v => (v != null ? "$" + v.toFixed(2) : "—");
-const pct    = v => (v != null ? v.toFixed(2) + "%" : "—");
-const freq   = v => (v != null ? v.toFixed(2) + "×" : "—");
+const money0 = (v) => (v != null ? "$" + fmt(v) : "—");
+const money2 = (v) => (v != null ? "$" + v.toFixed(2) : "—");
+const pct = (v) => (v != null ? v.toFixed(2) + "%" : "—");
+const freq = (v) => (v != null ? v.toFixed(2) + "×" : "—");
 
 // Parse a Postgres `date` ("YYYY-MM-DD") as a local calendar day — building it
 // from parts avoids the UTC-midnight shift that would drag the date backwards
@@ -26,7 +26,8 @@ function parseDate(value) {
 }
 
 function formatFlight(start, end) {
-  const s = parseDate(start), e = parseDate(end);
+  const s = parseDate(start),
+    e = parseDate(end);
   const opts = { month: "short", day: "numeric" };
   if (s && e) return `${s.toLocaleDateString(undefined, opts)} – ${e.toLocaleDateString(undefined, opts)}`;
   if (s) return `From ${s.toLocaleDateString(undefined, opts)}`;
@@ -51,10 +52,10 @@ function healthForAd(ad) {
 }
 
 const AD_STATUS_META = {
-  active:    { label: "Active",    className: "is-active" },
-  paused:    { label: "Paused",    className: "is-paused" },
+  active: { label: "Active", className: "is-active" },
+  paused: { label: "Paused", className: "is-paused" },
   completed: { label: "Completed", className: "is-completed" },
-  draft:     { label: "Draft",     className: "is-draft" },
+  draft: { label: "Draft", className: "is-draft" },
 };
 
 function AdStatusTag({ status }) {
@@ -97,21 +98,21 @@ function Hero({ data }) {
 // default: the platforms don't always report conversions back, so those tiles
 // read as an em dash until a campaign has the numbers to fill them.
 const CAMPAIGN_METRICS = [
-  { key: "spend",          label: "Spend",        fmt: money0,   note: "invested" },
-  { key: "impressions",    label: "Impressions",  fmt: fmt,      note: "ad views served" },
-  { key: "reach",          label: "Reach",        fmt: fmt,      note: "unique people reached" },
-  { key: "clicks",         label: "Clicks",       fmt: fmtExact, note: "link + action clicks" },
-  { key: "ctr",            label: "CTR",          fmt: pct,      note: "clicks per impression" },
-  { key: "cpc",            label: "CPC",          fmt: money2,   note: "cost per click",             invert: true },
-  { key: "cpm",            label: "CPM",          fmt: money2,   note: "cost per 1,000 impressions", invert: true },
-  { key: "frequency",      label: "Frequency",    fmt: freq,     note: "views per person" },
-  { key: "engagementRate", label: "Eng. Rate",    fmt: pct,      note: "engagements per impression" },
-  { key: "conversions",    label: "Conversions",  fmt: fmtExact, note: "leads + actions taken" },
-  { key: "conversionRate", label: "Conv. Rate",   fmt: pct,      note: "conversions per click" },
-  { key: "cpa",            label: "Cost / Conv.", fmt: money2,   note: "cost per conversion",        invert: true },
+  { key: "spend", label: "Spend", fmt: money0, note: "invested" },
+  { key: "impressions", label: "Impressions", fmt: fmt, note: "ad views served" },
+  { key: "reach", label: "Reach", fmt: fmt, note: "unique people reached" },
+  { key: "clicks", label: "Clicks", fmt: fmtExact, note: "link + action clicks" },
+  { key: "ctr", label: "CTR", fmt: pct, note: "clicks per impression" },
+  { key: "cpc", label: "CPC", fmt: money2, note: "cost per click", invert: true },
+  { key: "cpm", label: "CPM", fmt: money2, note: "cost per 1,000 impressions", invert: true },
+  { key: "frequency", label: "Frequency", fmt: freq, note: "views per person" },
+  { key: "engagementRate", label: "Eng. Rate", fmt: pct, note: "engagements per impression" },
+  { key: "conversions", label: "Conversions", fmt: fmtExact, note: "leads + actions taken" },
+  { key: "conversionRate", label: "Conv. Rate", fmt: pct, note: "conversions per click" },
+  { key: "cpa", label: "Cost / Conv.", fmt: money2, note: "cost per conversion", invert: true },
 ];
 
-const METRIC_BY_KEY = Object.fromEntries(CAMPAIGN_METRICS.map(m => [m.key, m]));
+const METRIC_BY_KEY = Object.fromEntries(CAMPAIGN_METRICS.map((m) => [m.key, m]));
 const DEFAULT_METRICS = ["spend", "impressions", "clicks", "ctr", "cpc", "cpm"];
 const METRICS_STORAGE_PREFIX = "paidMetrics:v1:";
 
@@ -123,7 +124,7 @@ function readStoredMetrics(campaignId) {
   try {
     const raw = window.localStorage.getItem(METRICS_STORAGE_PREFIX + campaignId);
     if (!raw) return null;
-    const keys = JSON.parse(raw).filter(k => METRIC_BY_KEY[k]);
+    const keys = JSON.parse(raw).filter((k) => METRIC_BY_KEY[k]);
     return keys.length ? keys : null;
   } catch {
     return null;
@@ -133,27 +134,34 @@ function readStoredMetrics(campaignId) {
 function useCampaignMetrics(campaignId) {
   const [keys, setKeys] = useState(() => readStoredMetrics(campaignId) || DEFAULT_METRICS);
 
-  const toggle = useCallback((key) => {
-    setKeys(prev => {
-      // Order follows CAMPAIGN_METRICS, not click order, so the grid keeps a
-      // stable reading order however the reader picks them.
-      const next = prev.includes(key)
-        ? prev.filter(k => k !== key)
-        : CAMPAIGN_METRICS.filter(m => m.key === key || prev.includes(m.key)).map(m => m.key);
-      // Never leave the grid empty — the last remaining metric can't be unticked.
-      if (!next.length) return prev;
-      try {
-        window.localStorage.setItem(METRICS_STORAGE_PREFIX + campaignId, JSON.stringify(next));
-      } catch { /* preference simply won't persist */ }
-      return next;
-    });
-  }, [campaignId]);
+  const toggle = useCallback(
+    (key) => {
+      setKeys((prev) => {
+        // Order follows CAMPAIGN_METRICS, not click order, so the grid keeps a
+        // stable reading order however the reader picks them.
+        const next = prev.includes(key)
+          ? prev.filter((k) => k !== key)
+          : CAMPAIGN_METRICS.filter((m) => m.key === key || prev.includes(m.key)).map((m) => m.key);
+        // Never leave the grid empty — the last remaining metric can't be unticked.
+        if (!next.length) return prev;
+        try {
+          window.localStorage.setItem(METRICS_STORAGE_PREFIX + campaignId, JSON.stringify(next));
+        } catch {
+          /* preference simply won't persist */
+        }
+        return next;
+      });
+    },
+    [campaignId]
+  );
 
   const reset = useCallback(() => {
     setKeys(DEFAULT_METRICS);
     try {
       window.localStorage.removeItem(METRICS_STORAGE_PREFIX + campaignId);
-    } catch { /* nothing stored to clear */ }
+    } catch {
+      /* nothing stored to clear */
+    }
   }, [campaignId]);
 
   return { keys, toggle, reset };
@@ -184,8 +192,12 @@ function MetricPicker({ selected, onToggle, onReset }) {
     if (!open) return;
     const reposition = () => setPlacement(placeMenu(ref.current));
     reposition();
-    const onPointerDown = e => { if (!ref.current?.contains(e.target)) setOpen(false); };
-    const onKeyDown = e => { if (e.key === "Escape") setOpen(false); };
+    const onPointerDown = (e) => {
+      if (!ref.current?.contains(e.target)) setOpen(false);
+    };
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
     window.addEventListener("resize", reposition);
@@ -208,7 +220,7 @@ function MetricPicker({ selected, onToggle, onReset }) {
         className={"metric-picker-btn" + (open ? " is-open" : "")}
         aria-expanded={open}
         aria-haspopup="true"
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen((o) => !o)}
       >
         Metrics <span className="metric-picker-count num">{selected.length}</span>
       </button>
@@ -220,16 +232,15 @@ function MetricPicker({ selected, onToggle, onReset }) {
         >
           <div className="metric-picker-menu-head">
             <span>Show</span>
-            <button type="button" className="metric-picker-reset" onClick={onReset}>Reset</button>
+            <button type="button" className="metric-picker-reset" onClick={onReset}>
+              Reset
+            </button>
           </div>
           <div className="metric-picker-list" style={{ "--menu-max": `${placement.max}px` }}>
-            {CAMPAIGN_METRICS.map(m => {
+            {CAMPAIGN_METRICS.map((m) => {
               const checked = selected.includes(m.key);
               return (
-                <label
-                  key={m.key}
-                  className={"metric-picker-item" + (checked && isLast ? " is-locked" : "")}
-                >
+                <label key={m.key} className={"metric-picker-item" + (checked && isLast ? " is-locked" : "")}>
                   <input
                     type="checkbox"
                     checked={checked}
@@ -257,7 +268,9 @@ function MetricGrid({ metricKeys, totals, deltas }) {
         return (
           <div className="campaign-kpi" key={key} style={{ "--i": i }}>
             <div className="campaign-kpi-label">{m.label}</div>
-            <div className="campaign-kpi-value num"><CountUp value={totals[key]} format={m.fmt} /></div>
+            <div className="campaign-kpi-value num">
+              <CountUp value={totals[key]} format={m.fmt} />
+            </div>
             <div className="campaign-kpi-foot">
               <Delta d={deltas?.[key]} invertGood={!!m.invert} />
               <span className="delta-note">{m.note}</span>
@@ -277,17 +290,27 @@ const AUDIENCE_VISIBLE = 8;
 // remainder, not a rival: it's kept out of the ranked rows, the "show more"
 // count and the bar scale, and drawn apart at the foot of the panel.
 function splitSegments(panel, expanded) {
-  const named = panel.segments.filter(s => !s.isOther);
+  const named = panel.segments.filter((s) => !s.isOther);
   return {
-    other: panel.segments.find(s => s.isOther),
+    other: panel.segments.find((s) => s.isOther),
     shown: expanded ? named : named.slice(0, AUDIENCE_VISIBLE),
     total: named.length,
   };
 }
 
 function ShowMore({ hidden, expanded, total, onExpand, onCollapse }) {
-  if (hidden > 0) return <button className="aud-more" onClick={onExpand}>Show {hidden} more</button>;
-  if (expanded && total > AUDIENCE_VISIBLE) return <button className="aud-more" onClick={onCollapse}>Show less</button>;
+  if (hidden > 0)
+    return (
+      <button className="aud-more" onClick={onExpand}>
+        Show {hidden} more
+      </button>
+    );
+  if (expanded && total > AUDIENCE_VISIBLE)
+    return (
+      <button className="aud-more" onClick={onCollapse}>
+        Show less
+      </button>
+    );
   return null;
 }
 
@@ -307,9 +330,11 @@ function AudienceBars({ panel, expanded, setExpanded }) {
         </div>
       </div>
       <div className="aud-rows">
-        {[...shown, ...(other ? [other] : [])].map(seg => (
+        {[...shown, ...(other ? [other] : [])].map((seg) => (
           <div className={"aud-row" + (seg.isOther ? " aud-row--other" : "")} key={seg.name}>
-            <span className="aud-label" title={seg.name}>{seg.name}</span>
+            <span className="aud-label" title={seg.name}>
+              {seg.name}
+            </span>
             <span className="aud-share-track">
               <span className="aud-share-fill" style={{ width: `${Math.max(1.5, seg.share ?? 0)}%` }} />
             </span>
@@ -318,8 +343,13 @@ function AudienceBars({ panel, expanded, setExpanded }) {
           </div>
         ))}
       </div>
-      <ShowMore hidden={total - shown.length} expanded={expanded} total={total}
-        onExpand={() => setExpanded(true)} onCollapse={() => setExpanded(false)} />
+      <ShowMore
+        hidden={total - shown.length}
+        expanded={expanded}
+        total={total}
+        onExpand={() => setExpanded(true)}
+        onCollapse={() => setExpanded(false)}
+      />
     </div>
   );
 }
@@ -346,16 +376,28 @@ function AudienceRoster({ panel, expanded, setExpanded }) {
             <tr>
               {/* The panel heading already names the dimension — repeating it
                   as a column header just reads as a stutter. */}
-              <th scope="col"><span className="sr-only">{panel.label}</span></th>
-              <th scope="col" className="r">Impressions</th>
-              <th scope="col" className="r">Clicks</th>
-              <th scope="col" className="r">CTR</th>
+              <th scope="col">
+                <span className="sr-only">{panel.label}</span>
+              </th>
+              <th scope="col" className="r">
+                Impressions
+              </th>
+              <th scope="col" className="r">
+                Clicks
+              </th>
+              <th scope="col" className="r">
+                CTR
+              </th>
             </tr>
           </thead>
           <tbody>
-            {shown.map(seg => (
+            {shown.map((seg) => (
               <tr key={seg.name}>
-                <th scope="row"><span className="aud-table-name" title={seg.name}>{seg.name}</span></th>
+                <th scope="row">
+                  <span className="aud-table-name" title={seg.name}>
+                    {seg.name}
+                  </span>
+                </th>
                 <td className="r num">{fmtExact(seg.impressions)}</td>
                 <td className="r num">{seg.clicks ? fmtExact(seg.clicks) : "—"}</td>
                 <td className="r num">{seg.ctr != null ? seg.ctr.toFixed(2) + "%" : "—"}</td>
@@ -374,8 +416,13 @@ function AudienceRoster({ panel, expanded, setExpanded }) {
           )}
         </table>
       </div>
-      <ShowMore hidden={total - shown.length} expanded={expanded} total={total}
-        onExpand={() => setExpanded(true)} onCollapse={() => setExpanded(false)} />
+      <ShowMore
+        hidden={total - shown.length}
+        expanded={expanded}
+        total={total}
+        onExpand={() => setExpanded(true)}
+        onCollapse={() => setExpanded(false)}
+      />
     </div>
   );
 }
@@ -393,7 +440,9 @@ function AudienceBlock({ panels, title }) {
         <h3 className="campaign-block-title serif">{title}</h3>
       </div>
       <div className="aud-panels">
-        {panels.map(panel => <AudiencePanel key={panel.dimension} panel={panel} />)}
+        {panels.map((panel) => (
+          <AudiencePanel key={panel.dimension} panel={panel} />
+        ))}
       </div>
     </div>
   );
@@ -413,7 +462,10 @@ function Budget({ budget, spent }) {
         />
       </div>
       <div className="paid-budget-foot">
-        <span><strong className="num">{money0(spent)}</strong> spent of <span className="num">{money0(budget)}</span></span>
+        <span>
+          <strong className="num">{money0(spent)}</strong> spent of{" "}
+          <span className="num">{money0(budget)}</span>
+        </span>
         <span className="num">{used != null ? Math.round(used) + "% of budget" : "—"}</span>
       </div>
     </div>
@@ -427,18 +479,34 @@ function AdsTable({ ads, totals }) {
         <thead>
           <tr>
             <th scope="col">Ad</th>
-            <th scope="col" className="r">Impressions</th>
-            <th scope="col" className="r">Reach</th>
-            <th scope="col" className="r">Clicks</th>
-            <th scope="col" className="r">CTR</th>
-            <th scope="col" className="r">Spend</th>
-            <th scope="col" className="r">CPC</th>
-            <th scope="col" className="r">Eng. Rate</th>
-            <th scope="col" className="health-col">Health</th>
+            <th scope="col" className="r">
+              Impressions
+            </th>
+            <th scope="col" className="r">
+              Reach
+            </th>
+            <th scope="col" className="r">
+              Clicks
+            </th>
+            <th scope="col" className="r">
+              CTR
+            </th>
+            <th scope="col" className="r">
+              Spend
+            </th>
+            <th scope="col" className="r">
+              CPC
+            </th>
+            <th scope="col" className="r">
+              Eng. Rate
+            </th>
+            <th scope="col" className="health-col">
+              Health
+            </th>
           </tr>
         </thead>
         <tbody>
-          {ads.map(ad => {
+          {ads.map((ad) => {
             const { label, color, ctr, hasData } = healthForAd(ad);
             return (
               <tr key={ad.id}>
@@ -452,8 +520,14 @@ function AdsTable({ ads, totals }) {
                 <td className="r num">{hasData ? ctr.toFixed(2) + "%" : "—"}</td>
                 <td className="r num">{money2(adSpend(ad))}</td>
                 <td className="r num">{ad.cpc != null ? "$" + ad.cpc.toFixed(2) : "—"}</td>
-                <td className="r num">{ad.engagementRate != null ? ad.engagementRate.toFixed(2) + "%" : "—"}</td>
-                <td className="health-col"><span className="health-label" style={{ color }}>{label}</span></td>
+                <td className="r num">
+                  {ad.engagementRate != null ? ad.engagementRate.toFixed(2) + "%" : "—"}
+                </td>
+                <td className="health-col">
+                  <span className="health-label" style={{ color }}>
+                    {label}
+                  </span>
+                </td>
               </tr>
             );
           })}
@@ -486,7 +560,7 @@ function CampaignSummary({ totals }) {
   ];
   return (
     <div className="campaign-summary">
-      {chips.map(c => (
+      {chips.map((c) => (
         <span className="campaign-summary-chip" key={c.label}>
           <span className="campaign-summary-label">{c.label}</span>
           <span className="campaign-summary-value num">{c.value}</span>
@@ -555,9 +629,7 @@ function Campaign({ c, index, open, onToggle }) {
               />
             )}
 
-            {c.audience.length > 0 && (
-              <AudienceBlock panels={c.audience} title="Who this campaign reached" />
-            )}
+            {c.audience.length > 0 && <AudienceBlock panels={c.audience} title="Who this campaign reached" />}
           </>
         )}
       </div>
@@ -585,16 +657,24 @@ export function PaidPage({ agency, quarter, onReady }) {
 
   // Reset the open/closed state when the reader switches quarter or agency —
   // the campaign ids underneath have changed entirely.
-  useEffect(() => { setOpenIds(null); }, [agency, quarter]);
+  useEffect(() => {
+    setOpenIds(null);
+  }, [agency, quarter]);
 
   if (status === "error") {
     return (
       <main className="report-wrap">
         <section className="section wrap">
-          <header className="section-head"><h2 className="section-title serif">Unable to load <em>report</em></h2></header>
+          <header className="section-head">
+            <h2 className="section-title serif">
+              Unable to load <em>report</em>
+            </h2>
+          </header>
           <div className="error-section" role="alert">
             <p>{error}</p>
-            <button className="error-retry-btn" onClick={() => setRetryKey(k => k + 1)}>Try again</button>
+            <button className="error-retry-btn" onClick={() => setRetryKey((k) => k + 1)}>
+              Try again
+            </button>
           </div>
         </section>
       </main>
@@ -605,9 +685,16 @@ export function PaidPage({ agency, quarter, onReady }) {
     return (
       <main className="report-wrap">
         <section className="section wrap">
-          <header className="section-head"><h2 className="section-title serif">Nothing here <em>yet</em></h2></header>
+          <header className="section-head">
+            <h2 className="section-title serif">
+              Nothing here <em>yet</em>
+            </h2>
+          </header>
           <div className="error-section">
-            <p>This report hasn’t been published for the selected quarter. Choose another quarter from the menu above, or check back soon.</p>
+            <p>
+              This report hasn’t been published for the selected quarter. Choose another quarter from the menu
+              above, or check back soon.
+            </p>
           </div>
         </section>
       </main>
@@ -627,11 +714,12 @@ export function PaidPage({ agency, quarter, onReady }) {
 
   const defaultOpen = hasCampaigns ? [campaigns[0].id] : [];
   const open = openIds ?? defaultOpen;
-  const isOpen = id => open.includes(id);
-  const toggle = id => setOpenIds(ids => {
-    const cur = ids ?? defaultOpen;
-    return cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id];
-  });
+  const isOpen = (id) => open.includes(id);
+  const toggle = (id) =>
+    setOpenIds((ids) => {
+      const cur = ids ?? defaultOpen;
+      return cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    });
   const allOpen = hasCampaigns && open.length === campaigns.length;
 
   const sections = [
@@ -643,19 +731,23 @@ export function PaidPage({ agency, quarter, onReady }) {
   return (
     <main className="report-wrap">
       <SectionRail sections={sections} />
-      <ErrorBoundary><Hero data={data} /></ErrorBoundary>
+      <ErrorBoundary>
+        <Hero data={data} />
+      </ErrorBoundary>
       {data.hasData ? (
         <>
           {hasCampaigns && (
             <ErrorBoundary>
               <section className="section wrap">
                 <header className="section-head section-head--split">
-                  <h2 className="section-title serif"><em>Campaigns</em></h2>
+                  <h2 className="section-title serif">
+                    <em>Campaigns</em>
+                  </h2>
                   {campaigns.length > 1 && (
                     <button
                       type="button"
                       className="campaign-expand-all"
-                      onClick={() => setOpenIds(allOpen ? [] : campaigns.map(c => c.id))}
+                      onClick={() => setOpenIds(allOpen ? [] : campaigns.map((c) => c.id))}
                     >
                       {allOpen ? "Collapse all" : "Expand all"}
                     </button>
@@ -663,13 +755,7 @@ export function PaidPage({ agency, quarter, onReady }) {
                 </header>
                 <div className="paid-media-campaigns">
                   {campaigns.map((c, i) => (
-                    <Campaign
-                      key={c.id}
-                      c={c}
-                      index={i}
-                      open={isOpen(c.id)}
-                      onToggle={() => toggle(c.id)}
-                    />
+                    <Campaign key={c.id} c={c} index={i} open={isOpen(c.id)} onToggle={() => toggle(c.id)} />
                   ))}
                 </div>
               </section>
@@ -679,7 +765,9 @@ export function PaidPage({ agency, quarter, onReady }) {
             <ErrorBoundary>
               <section id="click-paths" className="section wrap">
                 <header className="section-head">
-                  <h2 className="section-title serif">After the <em>Click</em></h2>
+                  <h2 className="section-title serif">
+                    After the <em>Click</em>
+                  </h2>
                 </header>
                 <ClickPathBlock
                   paths={data.clickPaths}
@@ -693,7 +781,9 @@ export function PaidPage({ agency, quarter, onReady }) {
             <ErrorBoundary>
               <section id="audience" className="section wrap">
                 <header className="section-head">
-                  <h2 className="section-title serif">Who We <em>Reached</em></h2>
+                  <h2 className="section-title serif">
+                    Who We <em>Reached</em>
+                  </h2>
                 </header>
                 <AudienceBlock panels={data.audience} title="Across all campaigns" />
               </section>
@@ -703,7 +793,9 @@ export function PaidPage({ agency, quarter, onReady }) {
       ) : (
         <section className="section wrap">
           <header className="section-head">
-            <h2 className="section-title serif">Paid <em>Media</em></h2>
+            <h2 className="section-title serif">
+              Paid <em>Media</em>
+            </h2>
           </header>
           <EmptyData label="No paid media campaigns recorded this quarter." />
         </section>

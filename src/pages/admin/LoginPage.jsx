@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 
 export function LoginPage({ onSignIn, initialError = null }) {
-  const [email,   setEmail]   = useState("");
-  const [sent,    setSent]    = useState(false);
-  const [error,   setError]   = useState(initialError || "");
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState(initialError || "");
   const [loading, setLoading] = useState(false);
 
   const submit = async (e) => {
@@ -32,13 +32,15 @@ export function LoginPage({ onSignIn, initialError = null }) {
         ) : (
           <form onSubmit={submit}>
             <div className="admin-field">
-              <label className="admin-label" htmlFor="admin-email">Email address</label>
+              <label className="admin-label" htmlFor="admin-email">
+                Email address
+              </label>
               <input
                 id="admin-email"
                 type="email"
                 className="admin-input"
                 value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
                 autoFocus

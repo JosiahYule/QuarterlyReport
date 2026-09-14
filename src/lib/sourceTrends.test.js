@@ -11,11 +11,14 @@ describe("buildSourceTrend", () => {
         { week: "2026-06-15", source: "Google Search", count: 9 },
         { week: "2026-06-15", source: "LinkedIn", count: 2 },
       ],
-      sources: [{ source: "Google Search", count: 13 }, { source: "LinkedIn", count: 2 }],
+      sources: [
+        { source: "Google Search", count: 13 },
+        { source: "LinkedIn", count: 2 },
+      ],
       weekKeys: WEEKS,
       since: null,
     });
-    expect(rows.map(r => r.source)).toEqual(["Google Search", "LinkedIn"]);
+    expect(rows.map((r) => r.source)).toEqual(["Google Search", "LinkedIn"]);
     expect(rows[0].values).toEqual([4, 0, 9, 0, 0]);
     expect(rows[1].values).toEqual([0, 0, 2, 0, 0]);
     expect(rows[0].peak).toBe(9);
@@ -61,30 +64,39 @@ describe("buildSourceTrend", () => {
   });
 
   it("returns nothing to draw when there are no answers", () => {
-    expect(buildSourceTrend({ sourceWeekly: [], sources: [], weekKeys: WEEKS, since: null }))
-      .toEqual({ rows: [], max: 0, coveredFrom: 0 });
+    expect(buildSourceTrend({ sourceWeekly: [], sources: [], weekKeys: WEEKS, since: null })).toEqual({
+      rows: [],
+      max: 0,
+      coveredFrom: 0,
+    });
   });
 });
 
 describe("findSourceSpike", () => {
   const row = (source, values) => {
-    let peak = 0, peakAt = 0;
-    values.forEach((v, i) => { if (v > peak) { peak = v; peakAt = i; } });
+    let peak = 0,
+      peakAt = 0;
+    values.forEach((v, i) => {
+      if (v > peak) {
+        peak = v;
+        peakAt = i;
+      }
+    });
     return { source, total: values.reduce((a, b) => a + b, 0), values, peak, peakAt };
   };
 
   it("finds the answer whose best week most outruns its own normal week", () => {
     const spike = findSourceSpike([
       row("Google Search", [10, 12, 11, 51, 13]),
-      row("Referral",      [5, 4, 6, 6, 5]),
+      row("Referral", [5, 4, 6, 6, 5]),
     ]);
     expect(spike).toMatchObject({ source: "Google Search", count: 51, at: 3, typical: 11.5 });
   });
 
   it("ranks by extra submissions, not by multiple", () => {
     const spike = findSourceSpike([
-      row("Google Search", [10, 12, 11, 30, 13]),  // 2.6x, but +19 submissions
-      row("LinkedIn",      [1, 0, 1, 9, 1]),       // 9x, and only +8 submissions
+      row("Google Search", [10, 12, 11, 30, 13]), // 2.6x, but +19 submissions
+      row("LinkedIn", [1, 0, 1, 9, 1]), // 9x, and only +8 submissions
     ]);
     expect(spike.source).toBe("Google Search");
   });

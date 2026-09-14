@@ -32,8 +32,8 @@ let installed = false;
 export function installGlobalErrorReporting() {
   if (installed) return;
   installed = true;
-  window.addEventListener("error", (e) =>
-    reportError(e.error ?? e.message, { source: "window.onerror" }));
+  window.addEventListener("error", (e) => reportError(e.error ?? e.message, { source: "window.onerror" }));
   window.addEventListener("unhandledrejection", (e) =>
-    reportError(e.reason, { source: "unhandledrejection" }));
+    reportError(e.reason, { source: "unhandledrejection" })
+  );
 }

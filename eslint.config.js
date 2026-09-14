@@ -28,6 +28,7 @@ export default [
         localStorage: "readonly",
         FileReader: "readonly",
         IntersectionObserver: "readonly",
+        Element: "readonly",
         Intl: "readonly",
         URLSearchParams: "readonly",
         URL: "readonly",

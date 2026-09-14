@@ -5,11 +5,11 @@ import { calcAutoDelta, FLAT } from "../utils.js";
 import { withRetry, friendlyError, getCached, setCached } from "../lib/fetching.js";
 
 function getQuarterMeta(suffix) {
-  return QUARTERS.find(q => q.suffix === suffix) || QUARTERS[0];
+  return QUARTERS.find((q) => q.suffix === suffix) || QUARTERS[0];
 }
 
 function getPrevSuffix(suffix) {
-  const idx = QUARTERS.findIndex(q => q.suffix === suffix);
+  const idx = QUARTERS.findIndex((q) => q.suffix === suffix);
   return idx >= 0 && idx < QUARTERS.length - 1 ? QUARTERS[idx + 1].suffix : null;
 }
 
@@ -17,14 +17,16 @@ async function fetchReport(agency, quarter) {
   const q = resolveQuarter(quarter);
   const { data, error } = await supabase
     .from("social_reports")
-    .select(`
+    .select(
+      `
       id, editors_note,
       social_kpis(*),
       social_platforms(*),
       social_top_posts(*),
       social_posts(*),
       social_insights(*)
-    `)
+    `
+    )
     .eq("agency", agency)
     .eq("quarter", q.suffix)
     .eq("year", q.year)
@@ -36,31 +38,31 @@ async function fetchReport(agency, quarter) {
 function normalize(report, agency, quarter, prev) {
   if (!report) return null;
 
-  const qMeta   = getQuarterMeta(quarter);
-  const kpis    = report.social_kpis?.[0]    || {};
-  const prevKpi = prev?.social_kpis?.[0]     || null;
+  const qMeta = getQuarterMeta(quarter);
+  const kpis = report.social_kpis?.[0] || {};
+  const prevKpi = prev?.social_kpis?.[0] || null;
 
   const overall = {
-    posts:             kpis.posts,
-    impressions:       kpis.impressions,
-    shares:            kpis.shares,
-    reactions:         kpis.reactions,
-    followers:         kpis.followers,
-    linkclicks:        kpis.link_clicks,
-    comments:          kpis.comments,
+    posts: kpis.posts,
+    impressions: kpis.impressions,
+    shares: kpis.shares,
+    reactions: kpis.reactions,
+    followers: kpis.followers,
+    linkclicks: kpis.link_clicks,
+    comments: kpis.comments,
     avgengagementrate: kpis.avg_engagement_rate,
   };
 
   const deltas = {};
   if (prevKpi) {
     const prevOverall = {
-      posts:             prevKpi.posts,
-      impressions:       prevKpi.impressions,
-      shares:            prevKpi.shares,
-      reactions:         prevKpi.reactions,
-      followers:         prevKpi.followers,
-      linkclicks:        prevKpi.link_clicks,
-      comments:          prevKpi.comments,
+      posts: prevKpi.posts,
+      impressions: prevKpi.impressions,
+      shares: prevKpi.shares,
+      reactions: prevKpi.reactions,
+      followers: prevKpi.followers,
+      linkclicks: prevKpi.link_clicks,
+      comments: prevKpi.comments,
       avgengagementrate: prevKpi.avg_engagement_rate,
     };
     for (const key of Object.keys(overall)) {
@@ -70,59 +72,62 @@ function normalize(report, agency, quarter, prev) {
   }
 
   const prevPlatformMap = {};
-  for (const p of (prev?.social_platforms || [])) {
+  for (const p of prev?.social_platforms || []) {
     prevPlatformMap[p.name.toLowerCase()] = p;
   }
 
   const platforms = [...(report.social_platforms || [])]
     .sort((a, b) => a.sort_order - b.sort_order)
-    .map(p => {
+    .map((p) => {
       const pp = prevPlatformMap[p.name.toLowerCase()];
       return {
-        key:                 p.name.toLowerCase(),
-        name:                p.name,
-        followers:           p.followers,
-        followersDelta:      calcAutoDelta(p.followers,       pp?.followers)       || FLAT,
-        engagementRate:      p.engagement_rate,
+        key: p.name.toLowerCase(),
+        name: p.name,
+        followers: p.followers,
+        followersDelta: calcAutoDelta(p.followers, pp?.followers) || FLAT,
+        engagementRate: p.engagement_rate,
         engagementRateDelta: calcAutoDelta(p.engagement_rate, pp?.engagement_rate) || FLAT,
-        pageReach:           p.page_reach,
-        pageReachDelta:      calcAutoDelta(p.page_reach,      pp?.page_reach)      || FLAT,
-        pageClicks:          p.page_clicks,
-        pageClicksDelta:     calcAutoDelta(p.page_clicks,     pp?.page_clicks)     || FLAT,
-        note:                p.note || "",
+        pageReach: p.page_reach,
+        pageReachDelta: calcAutoDelta(p.page_reach, pp?.page_reach) || FLAT,
+        pageClicks: p.page_clicks,
+        pageClicksDelta: calcAutoDelta(p.page_clicks, pp?.page_clicks) || FLAT,
+        note: p.note || "",
       };
     });
 
   const topPostsByPlatform = { linkedin: [], facebook: [], instagram: [] };
-  for (const p of (report.social_top_posts || [])) {
+  for (const p of report.social_top_posts || []) {
     topPostsByPlatform[p.platform]?.push({
-      title: p.title, impressions: p.impressions, likes: p.likes, shares: p.shares,
+      title: p.title,
+      impressions: p.impressions,
+      likes: p.likes,
+      shares: p.shares,
     });
   }
 
   const ins = report.social_insights?.[0] || {};
   const notes = {
-    working:    ins.working      ? [ins.working]      : [],
-    notWorking: ins.not_working  ? [ins.not_working]  : [],
-    actions:    ins.actions      ? [ins.actions]      : [],
-    next:       ins.next_quarter ? [ins.next_quarter] : [],
+    working: ins.working ? [ins.working] : [],
+    notWorking: ins.not_working ? [ins.not_working] : [],
+    actions: ins.actions ? [ins.actions] : [],
+    next: ins.next_quarter ? [ins.next_quarter] : [],
   };
 
-  const allPosts = (report.social_posts || []).map(p => ({
-    "Post Name":  p.post_name,
-    Date:         p.post_date,
-    Platforms:    p.platforms,
-    Impressions:  p.impressions,
-    Engagements:  p.engagements,
-    URL:          p.url,
-    Notes:        p.notes,
+  const allPosts = (report.social_posts || []).map((p) => ({
+    "Post Name": p.post_name,
+    Date: p.post_date,
+    Platforms: p.platforms,
+    Impressions: p.impressions,
+    Engagements: p.engagements,
+    URL: p.url,
+    Notes: p.notes,
   }));
 
   return {
     meta: {
-      quarter:    qMeta.label,
+      quarter: qMeta.label,
       rangeLabel: qMeta.rangeLabel,
-      year:       qMeta.year,
+      year: qMeta.year,
       agencyName: AGENCIES[agency]?.name || "Integrated Staffing",
     },
     editorsNote: report.editors_note || "",
@@ -145,9 +150,11 @@ export function useSocialReport(agency, quarter, retryKey = 0) {
     const cached = getCached(cacheKey);
 
     // Serve the last good copy instantly, revalidate in the background
-    setState(cached !== undefined
-      ? { data: cached, status: "ready", error: null }
-      : { data: null, status: "loading", error: null });
+    setState(
+      cached !== undefined
+        ? { data: cached, status: "ready", error: null }
+        : { data: null, status: "loading", error: null }
+    );
 
     (async () => {
       try {
@@ -167,7 +174,9 @@ export function useSocialReport(agency, quarter, retryKey = 0) {
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [agency, quarter, retryKey]);
 
   return state;

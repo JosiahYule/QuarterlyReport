@@ -15,19 +15,31 @@ import {
 
 describe("classifyPost", () => {
   it("uses the Notes field as the post type when present", () => {
-    expect(classifyPost({ post_name: "Friday update", notes: "job posting" })).toEqual({ key: "job posting", label: "Job Posting" });
+    expect(classifyPost({ post_name: "Friday update", notes: "job posting" })).toEqual({
+      key: "job posting",
+      label: "Job Posting",
+    });
   });
   it("trims and title-cases the notes-derived type", () => {
-    expect(classifyPost({ post_name: "x", notes: "  client testimonial  " })).toEqual({ key: "client testimonial", label: "Client Testimonial" });
+    expect(classifyPost({ post_name: "x", notes: "  client testimonial  " })).toEqual({
+      key: "client testimonial",
+      label: "Client Testimonial",
+    });
   });
   it("falls back to keyword matching on the post name when notes is empty", () => {
-    expect(classifyPost({ post_name: "We're hiring a Payroll Clerk!", notes: "" })).toEqual({ key: "job posting", label: "Job Posting" });
+    expect(classifyPost({ post_name: "We're hiring a Payroll Clerk!", notes: "" })).toEqual({
+      key: "job posting",
+      label: "Job Posting",
+    });
   });
   it("falls back to other when nothing matches and notes is empty", () => {
     expect(classifyPost({ post_name: "Just a regular post" })).toEqual({ key: "other", label: "Other" });
   });
   it("fallback keyword match is case-insensitive", () => {
-    expect(classifyPost({ post_name: "NOW HIRING for our Halifax branch" })).toEqual({ key: "job posting", label: "Job Posting" });
+    expect(classifyPost({ post_name: "NOW HIRING for our Halifax branch" })).toEqual({
+      key: "job posting",
+      label: "Job Posting",
+    });
   });
 });
 
@@ -168,7 +180,7 @@ describe("buildWeekPlan", () => {
   it("returns one entry per weekday, Monday–Friday", () => {
     const week = buildWeekPlan([], NOW);
     expect(week).toHaveLength(5);
-    expect(week.map(d => d.dayName)).toEqual(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]);
+    expect(week.map((d) => d.dayName)).toEqual(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]);
     expect(WEEKDAYS).toEqual([1, 2, 3, 4, 5]);
   });
 
@@ -188,20 +200,20 @@ describe("buildWeekPlan", () => {
       post("Tips Fri 2", "2026-06-12", 1000, 200, "tips"),
     ];
     const week = buildWeekPlan(posts, NOW);
-    const jobDays = week.filter(d => d.slot === "job");
+    const jobDays = week.filter((d) => d.slot === "job");
     expect(jobDays).toHaveLength(2); // capped at 2 despite 3 strong job days
     // Monday+Tuesday scores highest on paper, but they're adjacent, and
     // Monday+Wednesday is still only one day apart — the two-clear-days rule
     // pushes the second slot out to Friday instead.
-    expect(jobDays.map(d => d.dayName)).toEqual(["Monday", "Friday"]);
-    expect(jobDays.map(d => d.roleLabel)).toEqual(["Permanent", "Contract"]);
+    expect(jobDays.map((d) => d.dayName)).toEqual(["Monday", "Friday"]);
+    expect(jobDays.map((d) => d.roleLabel)).toEqual(["Permanent", "Contract"]);
     // Thursday, freed up by Wednesday losing out, gets the best content type.
-    expect(week.find(d => d.dayName === "Thursday").bestType.label).toBe("Testimonial");
+    expect(week.find((d) => d.dayName === "Thursday").bestType.label).toBe("Testimonial");
   });
 
   it("never places two job-ad days within the minimum gap of each other", () => {
     const week = buildWeekPlan([], NOW); // no history — ties broken deterministically
-    const jobDays = week.filter(d => d.slot === "job").map(d => d.dayIndex);
+    const jobDays = week.filter((d) => d.slot === "job").map((d) => d.dayIndex);
     expect(jobDays).toHaveLength(2);
     expect(Math.abs(jobDays[0] - jobDays[1])).toBeGreaterThan(JOB_AD_MIN_GAP_DAYS);
   });
@@ -220,7 +232,7 @@ describe("buildWeekPlan", () => {
       post("Tips Wed2", "2026-05-27", 1000, 120, "tips"),
     ];
     const week = buildWeekPlan(posts, NOW);
-    const contentLabels = week.filter(d => d.slot === "content" && d.bestType).map(d => d.bestType.label);
+    const contentLabels = week.filter((d) => d.slot === "content" && d.bestType).map((d) => d.bestType.label);
     // No content type is used twice across the non-job days.
     expect(new Set(contentLabels).size).toBe(contentLabels.length);
     expect(contentLabels).toContain("Testimonial");
@@ -236,7 +248,7 @@ describe("buildWeekPlan", () => {
     ];
     const week = buildWeekPlan(posts, NOW);
     // Friday has no content history → no specific suggestion.
-    const friday = week.find(d => d.dayName === "Friday");
+    const friday = week.find((d) => d.dayName === "Friday");
     expect(friday.slot === "content" ? friday.bestType : "(job day)").toBeNull();
   });
 });
@@ -263,7 +275,7 @@ describe("buildWeekPlan — cross-page signal bias", () => {
       post("Story Wed", "2026-06-03", 1000, 310, "testimonial"),
       post("Tips Wed", "2026-06-10", 1000, 280, "tips"),
     ];
-    const wed = buildWeekPlan(posts, NOW).find(d => d.dayName === "Wednesday");
+    const wed = buildWeekPlan(posts, NOW).find((d) => d.dayName === "Wednesday");
     // Wednesday can never be a job day — it's never >2 days from both ends
     // of a Mon-Fri week — so this isolates the content-type pick cleanly.
     expect(wed.slot).toBe("content");
@@ -276,7 +288,7 @@ describe("buildWeekPlan — cross-page signal bias", () => {
       { ...post("Tips Wed", "2026-06-10", 1000, 280, "tips"), platforms: "LinkedIn" },
     ];
     const platformFocus = { status: "ready", platform: "LinkedIn", weight: 1 };
-    const wed = buildWeekPlan(posts, { ...NOW, platformFocus }).find(d => d.dayName === "Wednesday");
+    const wed = buildWeekPlan(posts, { ...NOW, platformFocus }).find((d) => d.dayName === "Wednesday");
     expect(wed.bestType.label).toBe("Tips");
     // The displayed track record is always the true historical rate, never the boosted rank score.
     expect(wed.bestType.avgEngagementRate).toBeCloseTo(0.28, 5);
@@ -287,7 +299,9 @@ describe("buildWeekPlan — cross-page signal bias", () => {
       { ...post("Story Wed", "2026-06-03", 1000, 310, "testimonial"), platforms: "Facebook" },
       { ...post("Tips Wed", "2026-06-10", 1000, 280, "tips"), platforms: "LinkedIn" },
     ];
-    const wed = buildWeekPlan(posts, { ...NOW, platformFocus: { status: "empty", weight: 0 } }).find(d => d.dayName === "Wednesday");
+    const wed = buildWeekPlan(posts, { ...NOW, platformFocus: { status: "empty", weight: 0 } }).find(
+      (d) => d.dayName === "Wednesday"
+    );
     expect(wed.bestType.label).toBe("Testimonial");
   });
 
@@ -297,17 +311,17 @@ describe("buildWeekPlan — cross-page signal bias", () => {
       { ...post("Tips Wed", "2026-06-10", 1000, 280, "tips"), url: "https://example.com/careers" },
     ];
     const webFunnel = { status: "ready", weight: 1, favorLinked: true };
-    const wed = buildWeekPlan(posts, { ...NOW, webFunnel }).find(d => d.dayName === "Wednesday");
+    const wed = buildWeekPlan(posts, { ...NOW, webFunnel }).find((d) => d.dayName === "Wednesday");
     expect(wed.bestType.label).toBe("Tips");
     expect(wed.bestType.avgEngagementRate).toBeCloseTo(0.28, 5);
   });
 
   it("jobAdSignal marks chosen job days with recommendBoost, and leaves other slots false", () => {
     const week = buildWeekPlan([], { ...NOW, jobAdSignal: { status: "ready", weight: 0.5 } });
-    const jobDays = week.filter(d => d.slot === "job");
+    const jobDays = week.filter((d) => d.slot === "job");
     expect(jobDays.length).toBeGreaterThan(0);
-    expect(jobDays.every(d => d.recommendBoost === true)).toBe(true);
-    expect(week.filter(d => d.slot !== "job").every(d => d.recommendBoost === false)).toBe(true);
+    expect(jobDays.every((d) => d.recommendBoost === true)).toBe(true);
+    expect(week.filter((d) => d.slot !== "job").every((d) => d.recommendBoost === false)).toBe(true);
   });
 
   it("jobAdSignal can shift which day gets the job-ad slot by boosting every day's job score alike", () => {
@@ -322,19 +336,19 @@ describe("buildWeekPlan — cross-page signal bias", () => {
       post("Hiring Mon", "2026-06-01", 1000, 100, "job posting"), // Monday job rate .10 (common to both combos)
       post("Hiring Thu", "2026-06-04", 1000, 100, "job posting"), // Thursday job rate .10
       post("Hiring Fri", "2026-06-05", 1000, 300, "job posting"), // Friday job rate .30
-      post("Story Tue",  "2026-06-02", 1000, 500, "testimonial"), // Tuesday content .50 (common to both combos)
-      post("Clip Thu",   "2026-06-04", 1000, 100, "video"),       // Thursday content, if freed up: .10
-      post("News Fri",   "2026-06-05", 1000, 320, "company update"), // Friday content, if freed up: .32
+      post("Story Tue", "2026-06-02", 1000, 500, "testimonial"), // Tuesday content .50 (common to both combos)
+      post("Clip Thu", "2026-06-04", 1000, 100, "video"), // Thursday content, if freed up: .10
+      post("News Fri", "2026-06-05", 1000, 320, "company update"), // Friday content, if freed up: .32
     ];
 
     const baseline = buildWeekPlan(posts, NOW);
-    expect(baseline.find(d => d.dayName === "Thursday").slot).toBe("job");
-    expect(baseline.find(d => d.dayName === "Friday").slot).toBe("content");
+    expect(baseline.find((d) => d.dayName === "Thursday").slot).toBe("job");
+    expect(baseline.find((d) => d.dayName === "Friday").slot).toBe("content");
 
     const jobAdSignal = { status: "ready", weight: 1 };
     const boosted = buildWeekPlan(posts, { ...NOW, jobAdSignal });
-    expect(boosted.find(d => d.dayName === "Friday").slot).toBe("job");
-    expect(boosted.find(d => d.dayName === "Thursday").slot).toBe("content");
+    expect(boosted.find((d) => d.dayName === "Friday").slot).toBe("job");
+    expect(boosted.find((d) => d.dayName === "Thursday").slot).toBe("content");
   });
 });
 
@@ -345,7 +359,7 @@ describe("buildWeekPlan — this week's actual posts", () => {
   it("shows a day as already posted when a real post is logged on that calendar date", () => {
     const posts = [post("Weekly update", "2026-07-06", 500, 50, "team culture")]; // this Monday
     const week = buildWeekPlan(posts, WED);
-    const monday = week.find(d => d.dayName === "Monday");
+    const monday = week.find((d) => d.dayName === "Monday");
     expect(monday.slot).toBe("posted");
     expect(monday.posted).toEqual([{ label: "Team Culture", postName: "Weekly update" }]);
     expect(monday.confident).toBe(true);
@@ -354,7 +368,7 @@ describe("buildWeekPlan — this week's actual posts", () => {
   it("flags a past day this week with nothing logged as missed", () => {
     const posts = [post("Weekly update", "2026-07-06", 500, 50, "team culture")]; // only Monday posted
     const week = buildWeekPlan(posts, WED);
-    const tuesday = week.find(d => d.dayName === "Tuesday"); // 7/7, before "today" (7/8), nothing logged
+    const tuesday = week.find((d) => d.dayName === "Tuesday"); // 7/7, before "today" (7/8), nothing logged
     expect(tuesday.slot).toBe("missed");
     expect(tuesday.confident).toBe(false);
   });
@@ -370,7 +384,7 @@ describe("buildWeekPlan — this week's actual posts", () => {
       post("This week testimonial", "2026-07-06", 1000, 300, "testimonial"),
     ];
     const week = buildWeekPlan(posts, WED);
-    const thursday = week.find(d => d.dayName === "Thursday");
+    const thursday = week.find((d) => d.dayName === "Thursday");
     expect(thursday.slot).toBe("content");
     expect(thursday.bestType.label).toBe("Tips");
   });
@@ -384,11 +398,11 @@ describe("buildWeekPlan — this week's actual posts", () => {
       post("This week job ad", "2026-07-06", 1000, 300, "Permanent"),
     ];
     const week = buildWeekPlan(posts, WED);
-    const monday = week.find(d => d.dayName === "Monday");
+    const monday = week.find((d) => d.dayName === "Monday");
     expect(monday.slot).toBe("posted");
     expect(monday.posted).toEqual([{ label: "Permanent", postName: "This week job ad" }]);
 
-    const jobDays = week.filter(d => d.slot === "job");
+    const jobDays = week.filter((d) => d.slot === "job");
     expect(jobDays).toHaveLength(1); // only the Contract slot is left this week
     expect(jobDays[0].dayName).toBe("Thursday");
     expect(jobDays[0].roleLabel).toBe("Contract");
@@ -404,7 +418,7 @@ describe("buildWeekPlan — this week's actual posts", () => {
       post("Hiring Wed 2", "2026-06-10", 1000, 500, "job posting"),
     ];
     const week = buildWeekPlan(posts, WED);
-    const wednesday = week.find(d => d.dayName === "Wednesday");
+    const wednesday = week.find((d) => d.dayName === "Wednesday");
     expect(wednesday.slot).not.toBe("job"); // too close to Monday's job ad, despite the best track record
   });
 
@@ -413,7 +427,7 @@ describe("buildWeekPlan — this week's actual posts", () => {
       { content_type: "Testimonial", planned_date: "2026-07-09", idea: "Client story", status: "planned" }, // this Thursday
     ];
     const week = buildWeekPlan([], { ...WED, plannedItems });
-    const thursday = week.find(d => d.dayName === "Thursday");
+    const thursday = week.find((d) => d.dayName === "Thursday");
     expect(thursday.slot).toBe("planned");
     expect(thursday.planned).toEqual([{ label: "Testimonial", idea: "Client story" }]);
     expect(thursday.confident).toBe(true);
@@ -425,7 +439,7 @@ describe("buildWeekPlan — this week's actual posts", () => {
       { content_type: "Testimonial", planned_date: "2026-07-09", idea: "Client story", status: "planned" },
     ];
     const week = buildWeekPlan(posts, { ...WED, plannedItems });
-    const thursday = week.find(d => d.dayName === "Thursday");
+    const thursday = week.find((d) => d.dayName === "Thursday");
     expect(thursday.slot).toBe("posted");
     expect(thursday.posted).toEqual([{ label: "Tips", postName: "Actual post" }]);
   });
@@ -443,9 +457,9 @@ describe("buildWeekPlan — this week's actual posts", () => {
       { content_type: "Testimonial", planned_date: "2026-07-06", idea: "Monday story", status: "planned" },
     ];
     const week = buildWeekPlan(posts, { ...WED, plannedItems });
-    const monday = week.find(d => d.dayName === "Monday");
+    const monday = week.find((d) => d.dayName === "Monday");
     expect(monday.slot).toBe("planned");
-    const friday = week.find(d => d.dayName === "Friday");
+    const friday = week.find((d) => d.dayName === "Friday");
     expect(friday.slot).toBe("content");
     expect(friday.bestType.label).toBe("Tips");
   });
@@ -460,10 +474,10 @@ describe("buildWeekPlan — this week's actual posts", () => {
       { content_type: "Job Posting", planned_date: "2026-07-06", idea: "Perm ad", status: "planned" }, // this Monday
     ];
     const week = buildWeekPlan(posts, { ...WED, plannedItems });
-    const monday = week.find(d => d.dayName === "Monday");
+    const monday = week.find((d) => d.dayName === "Monday");
     expect(monday.slot).toBe("planned");
 
-    const jobDays = week.filter(d => d.slot === "job");
+    const jobDays = week.filter((d) => d.slot === "job");
     expect(jobDays).toHaveLength(1); // only one job slot is left this week
     expect(jobDays[0].dayName).toBe("Thursday");
   });
@@ -474,8 +488,8 @@ describe("buildWeekPlan — this week's actual posts", () => {
       { content_type: "Tips", planned_date: "2026-07-10", idea: "Already posted", status: "posted" },
     ];
     const week = buildWeekPlan([], { ...WED, plannedItems });
-    expect(week.find(d => d.dayName === "Thursday").slot).not.toBe("planned");
-    expect(week.find(d => d.dayName === "Friday").slot).not.toBe("planned");
+    expect(week.find((d) => d.dayName === "Thursday").slot).not.toBe("planned");
+    expect(week.find((d) => d.dayName === "Friday").slot).not.toBe("planned");
   });
 });
 
@@ -497,14 +511,18 @@ describe("buildCadence", () => {
     });
     expect(c.status).toBe("ready");
     expect(c.postCount).toBe(3);
-    expect(c.daysSinceLast).toBe(7);   // Jun 22 → Jun 29
-    expect(c.largestGap).toBe(14);     // Jun 8 → Jun 22
-    expect(c.goneDark).toBe(true);     // 7 ≥ default threshold
+    expect(c.daysSinceLast).toBe(7); // Jun 22 → Jun 29
+    expect(c.largestGap).toBe(14); // Jun 8 → Jun 22
+    expect(c.goneDark).toBe(true); // 7 ≥ default threshold
   });
 
   it("does not flag gone-dark when a post is recent", () => {
     const posts = [post("A", "2026-06-27", 1000, 100)];
-    const c = buildCadence(posts, { now: new Date(2026, 5, 29), quarterStart: new Date(2026, 5, 1), quarterEnd: new Date(2026, 8, 1) });
+    const c = buildCadence(posts, {
+      now: new Date(2026, 5, 29),
+      quarterStart: new Date(2026, 5, 1),
+      quarterEnd: new Date(2026, 8, 1),
+    });
     expect(c.daysSinceLast).toBe(2);
     expect(c.goneDark).toBe(false);
   });

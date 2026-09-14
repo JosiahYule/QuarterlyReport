@@ -39,7 +39,10 @@ const TERMINAL = /^\(?(not set|none|no data|end|exit|exited|complete[d]?|session
 // ("/jobs", "/jobs?loc=halifax", "/jobs#apply") and the distinction never
 // survives into the report anyway. Returns "" for anything that isn't a step.
 export function normalizeStep(raw) {
-  let s = String(raw ?? "").trim().replace(/^"|"$/g, "").trim();
+  let s = String(raw ?? "")
+    .trim()
+    .replace(/^"|"$/g, "")
+    .trim();
   if (!s || TERMINAL.test(s)) return "";
   // Absolute URL → path. Anything else (a bare path, or a page title) is left
   // alone, since an export that names pages by title is still readable.
@@ -99,14 +102,14 @@ const cleanCount = (v) => {
 // spreadsheet — is split on tabs instead.
 function toRecords(text) {
   const src = String(text ?? "").replace(/^\uFEFF/, "");
-  const lines = src.split(/\r?\n/).filter(l => l.trim() !== "");
-  const tabs = lines.filter(l => l.includes("\t")).length;
-  if (tabs > lines.length / 2) return lines.map(l => l.split("\t"));
+  const lines = src.split(/\r?\n/).filter((l) => l.trim() !== "");
+  const tabs = lines.filter((l) => l.includes("\t")).length;
+  if (tabs > lines.length / 2) return lines.map((l) => l.split("\t"));
   return parseCsvRecords(src);
 }
 
 function findHeader(headers, re) {
-  return headers.findIndex(h => re.test(h));
+  return headers.findIndex((h) => re.test(h));
 }
 
 function findCount(headers, skip = new Set()) {
@@ -185,21 +188,23 @@ export function parseClickPaths(text) {
   // until a record pairs a route (step columns or a path column) with a count.
   let headerRow = -1;
   for (let i = 0; i < records.length && headerRow === -1; i++) {
-    const headers = records[i].map(h => String(h ?? "").trim());
-    const stepCols = headers.map((h, idx) => (STEP_HEADER.test(h) ? idx : -1)).filter(idx => idx !== -1);
+    const headers = records[i].map((h) => String(h ?? "").trim());
+    const stepCols = headers.map((h, idx) => (STEP_HEADER.test(h) ? idx : -1)).filter((idx) => idx !== -1);
     const iPath = stepCols.length ? -1 : findHeader(headers, PATH_HEADER);
     if (!stepCols.length && iPath === -1) continue;
 
     const used = new Set(stepCols.concat(iPath === -1 ? [] : [iPath]));
     const iCount = findCount(headers, used);
     if (iCount === -1) continue;
-    const iConv = headers.findIndex((h, idx) => idx !== iCount && !used.has(idx) && CONVERSION_HEADER.test(h));
+    const iConv = headers.findIndex(
+      (h, idx) => idx !== iCount && !used.has(idx) && CONVERSION_HEADER.test(h)
+    );
 
     headerRow = i;
     for (const cols of records.slice(i + 1)) {
       const sessions = cleanCount(cols[iCount]);
       const rawSteps = stepCols.length
-        ? stepCols.map(c => cols[c])
+        ? stepCols.map((c) => cols[c])
         : String(cols[iPath] ?? "").split(STEP_SPLIT);
       add(buildRow(rawSteps, sessions, iConv === -1 ? null : cleanCount(cols[iConv])));
     }
@@ -233,7 +238,7 @@ export function parseClickPaths(text) {
     kept.push({
       steps: [],
       sessions: droppedSessions,
-      conversions: tail.some(r => r.conversions != null)
+      conversions: tail.some((r) => r.conversions != null)
         ? tail.reduce((a, r) => a + (r.conversions || 0), 0)
         : null,
       isOther: true,
@@ -247,7 +252,8 @@ export function parseClickPaths(text) {
 // real route with sessions behind it; the "other" row is a session total with
 // no route, present only so shares divide by the real denominator.
 function splitJourneys(paths) {
-  const journeys = [], other = [];
+  const journeys = [],
+    other = [];
   for (const p of paths || []) {
     const sessions = typeof p.sessions === "number" ? p.sessions : 0;
     if (sessions <= 0) continue;
@@ -265,7 +271,7 @@ export function summarizePaths(paths) {
 
   const continued = journeys.reduce((a, p) => a + (p.steps.length > 1 ? p.sessions : 0), 0);
   const stepSum = journeys.reduce((a, p) => a + p.steps.length * p.sessions, 0);
-  const hasConversions = [...journeys, ...other].some(p => typeof p.conversions === "number");
+  const hasConversions = [...journeys, ...other].some((p) => typeof p.conversions === "number");
   const conversions = hasConversions
     ? [...journeys, ...other].reduce((a, p) => a + (p.conversions || 0), 0)
     : null;
@@ -275,7 +281,7 @@ export function summarizePaths(paths) {
     drawn,
     otherSessions,
     journeys: journeys.length,
-    landingPages: new Set(journeys.map(p => p.steps[0])).size,
+    landingPages: new Set(journeys.map((p) => p.steps[0])).size,
     continued,
     continuedPct: drawn ? (continued / drawn) * 100 : null,
     avgSteps: drawn ? stepSum / drawn : null,
@@ -294,7 +300,7 @@ export function topJourneys(paths) {
   const drawn = journeys.reduce((a, p) => a + p.sessions, 0);
   return journeys
     .sort((a, b) => b.sessions - a.sessions || b.steps.length - a.steps.length)
-    .map(p => ({
+    .map((p) => ({
       steps: p.steps,
       key: pathKey(p.steps),
       sessions: p.sessions,
@@ -333,12 +339,14 @@ export function buildFlow(paths, { maxDepth = MAX_DEPTH, maxNodes = MAX_NODES_PE
       if (p.steps.length <= d) continue;
       totals.set(p.steps[d], (totals.get(p.steps[d]) || 0) + p.sessions);
     }
-    keep.push(new Set(
-      [...totals.entries()]
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .slice(0, maxNodes)
-        .map(([label]) => label)
-    ));
+    keep.push(
+      new Set(
+        [...totals.entries()]
+          .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+          .slice(0, maxNodes)
+          .map(([label]) => label)
+      )
+    );
   }
 
   const nodeAt = (d, step) => {
@@ -350,8 +358,15 @@ export function buildFlow(paths, { maxDepth = MAX_DEPTH, maxNodes = MAX_NODES_PE
   const nodes = new Map();
   const bump = (d, step, sessions) => {
     const { key, label, isExit, isOther } = nodeAt(d, step);
-    const node = nodes.get(key) ||
-      { key, depth: d, label, value: 0, isExit: !!isExit, isOther: false, pages: new Set() };
+    const node = nodes.get(key) || {
+      key,
+      depth: d,
+      label,
+      value: 0,
+      isExit: !!isExit,
+      isOther: false,
+      pages: new Set(),
+    };
     node.value += sessions;
     node.isOther = node.isOther || !!isOther;
     if (!isExit) node.pages.add(step);
@@ -385,7 +400,7 @@ export function buildFlow(paths, { maxDepth = MAX_DEPTH, maxNodes = MAX_NODES_PE
   const columns = [];
   for (let d = 0; d < depth; d++) {
     const colNodes = [...nodes.values()]
-      .filter(n => n.depth === d)
+      .filter((n) => n.depth === d)
       .sort((a, b) => rank(a) - rank(b) || b.value - a.value || a.label.localeCompare(b.label))
       .map((n, order) => ({ ...n, order, pages: n.pages.size, share: (n.value / total) * 100 }));
     if (colNodes.length) {
@@ -393,15 +408,16 @@ export function buildFlow(paths, { maxDepth = MAX_DEPTH, maxNodes = MAX_NODES_PE
     }
   }
 
-  const order = new Map(columns.flatMap(c => c.nodes.map(n => [n.key, n.order])));
+  const order = new Map(columns.flatMap((c) => c.nodes.map((n) => [n.key, n.order])));
   const linkList = [...links.values()].sort(
-    (a, b) => (order.get(a.from) - order.get(b.from)) || (order.get(a.to) - order.get(b.to))
+    (a, b) => order.get(a.from) - order.get(b.from) || order.get(a.to) - order.get(b.to)
   );
 
   // Where each ribbon attaches, measured in sessions down from the top of the
   // node it leaves and the node it enters. Following node order on both ends
   // keeps the ribbons from braiding through each other.
-  const fromUsed = new Map(), toUsed = new Map();
+  const fromUsed = new Map(),
+    toUsed = new Map();
   for (const link of linkList) {
     link.fromOffset = fromUsed.get(link.from) || 0;
     link.toOffset = toUsed.get(link.to) || 0;
@@ -416,7 +432,7 @@ export function buildFlow(paths, { maxDepth = MAX_DEPTH, maxNodes = MAX_NODES_PE
     depth: columns.length,
     // Tallest column in sessions — every column bar the last totals the whole
     // audience, so this is the scale the diagram is drawn against.
-    maxColumn: Math.max(...columns.map(c => c.total)),
+    maxColumn: Math.max(...columns.map((c) => c.total)),
     // True when journeys were still running at the last column drawn.
     truncatedDepth: longest > depth,
   };

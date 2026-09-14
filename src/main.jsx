@@ -13,10 +13,10 @@ import { setFavicon } from "./lib/favicon.js";
 
 installGlobalErrorReporting();
 
-const SocialPage = lazy(() => import("./pages/SocialPage.jsx").then(m => ({ default: m.SocialPage })));
-const WebPage    = lazy(() => import("./pages/WebPage.jsx").then(m => ({ default: m.WebPage })));
-const PaidPage   = lazy(() => import("./pages/PaidPage.jsx").then(m => ({ default: m.PaidPage })));
-const TrendsPage = lazy(() => import("./pages/TrendsPage.jsx").then(m => ({ default: m.TrendsPage })));
+const SocialPage = lazy(() => import("./pages/SocialPage.jsx").then((m) => ({ default: m.SocialPage })));
+const WebPage = lazy(() => import("./pages/WebPage.jsx").then((m) => ({ default: m.WebPage })));
+const PaidPage = lazy(() => import("./pages/PaidPage.jsx").then((m) => ({ default: m.PaidPage })));
+const TrendsPage = lazy(() => import("./pages/TrendsPage.jsx").then((m) => ({ default: m.TrendsPage })));
 
 function App() {
   const [urlState, navigate] = useUrlState();
@@ -31,7 +31,7 @@ function App() {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setPaletteOpen(o => !o);
+        setPaletteOpen((o) => !o);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -41,7 +41,7 @@ function App() {
   const handleReady = useCallback(() => {
     setAppReady(true);
     const cfg = AGENCIES[agency] || AGENCIES.isl;
-    const q = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];
+    const q = QUARTERS.find((q) => q.suffix === quarter) || QUARTERS[0];
     const viewLabel = VIEW_LABELS[view] || VIEW_LABELS.social;
     const msg = `${cfg.name} ${q.label} ${viewLabel} report loaded`;
     clearTimeout(announcementTimer.current);
@@ -51,7 +51,7 @@ function App() {
 
   useEffect(() => {
     const cfg = AGENCIES[agency] || AGENCIES.isl;
-    const q   = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];
+    const q = QUARTERS.find((q) => q.suffix === quarter) || QUARTERS[0];
     const viewLabel = VIEW_LABELS[view] || VIEW_LABELS.social;
     document.title = `${cfg.name} ${q.label} ${q.year} — ${viewLabel}`;
   }, [agency, quarter, view]);
@@ -59,7 +59,7 @@ function App() {
   // Tab favicon mirrors the quarter on screen (defaults to today's quarter
   // on first load, since that's the default view)
   useEffect(() => {
-    const q = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];
+    const q = QUARTERS.find((q) => q.suffix === quarter) || QUARTERS[0];
     setFavicon(q.label);
   }, [quarter]);
 
@@ -70,17 +70,13 @@ function App() {
 
   useEffect(() => () => clearTimeout(announcementTimer.current), []);
 
-  const skelView = view === "web" ? "web" : view === "paid" ? "paid" : view === "trends" ? "trends" : "social";
+  const skelView =
+    view === "web" ? "web" : view === "paid" ? "paid" : view === "trends" ? "trends" : "social";
 
   return (
     <>
       {/* Screen-reader-only live region announces when each page finishes loading */}
-      <div
-        aria-live="polite"
-        aria-atomic="true"
-        className="sr-only"
-        role="status"
-      >
+      <div aria-live="polite" aria-atomic="true" className="sr-only" role="status">
         {announcement}
       </div>
 
@@ -115,18 +111,29 @@ function App() {
           <WebPage key={`web-${agency}-${quarter}`} agency={agency} quarter={quarter} onReady={handleReady} />
         )}
         {view === "paid" && (
-          <PaidPage key={`paid-${agency}-${quarter}`} agency={agency} quarter={quarter} onReady={handleReady} />
+          <PaidPage
+            key={`paid-${agency}-${quarter}`}
+            agency={agency}
+            quarter={quarter}
+            onReady={handleReady}
+          />
         )}
-        {view === "trends" && (
-          <TrendsPage key={agency} agency={agency} onReady={handleReady} />
-        )}
+        {view === "trends" && <TrendsPage key={agency} agency={agency} onReady={handleReady} />}
       </Suspense>
 
       <footer className="wrap colophon">
-        <span>Prepared by <span className="colophon-author">{REPORT_AUTHOR}</span></span>
-        <span className="colophon-sep" aria-hidden="true"> · </span>
+        <span>
+          Prepared by <span className="colophon-author">{REPORT_AUTHOR}</span>
+        </span>
+        <span className="colophon-sep" aria-hidden="true">
+          {" "}
+          ·{" "}
+        </span>
         <span className="colophon-year">{CURRENT_QUARTER.year}</span>
-        <span className="colophon-sep" aria-hidden="true"> · </span>
+        <span className="colophon-sep" aria-hidden="true">
+          {" "}
+          ·{" "}
+        </span>
         <span className="colophon-agency">{(AGENCIES[agency] || AGENCIES.isl).name}</span>
       </footer>
     </>

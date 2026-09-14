@@ -4,20 +4,22 @@ import { QUARTERS } from "../config.js";
 import { withRetry, friendlyError, getCached, setCached } from "../lib/fetching.js";
 
 function getPrevSuffix(suffix) {
-  const idx = QUARTERS.findIndex(q => q.suffix === suffix);
+  const idx = QUARTERS.findIndex((q) => q.suffix === suffix);
   return idx >= 0 && idx < QUARTERS.length - 1 ? QUARTERS[idx + 1].suffix : null;
 }
 
 async function fetchReport(agency, quarter) {
   const { data, error } = await supabase
     .from("web_reports")
-    .select(`
+    .select(
+      `
       id, summary_bullet,
       web_kpis(*),
       web_channels(*),
       web_pages(*),
       web_insights(*)
-    `)
+    `
+    )
     .eq("agency", agency)
     .eq("quarter", quarter)
     .maybeSingle();
@@ -27,40 +29,40 @@ async function fetchReport(agency, quarter) {
 
 function normalize(report) {
   if (!report) return null;
-  const kpis = report.web_kpis?.[0]    || {};
-  const ins  = report.web_insights?.[0] || {};
+  const kpis = report.web_kpis?.[0] || {};
+  const ins = report.web_insights?.[0] || {};
   return {
     summary: { bullet: report.summary_bullet || "" },
     overall: {
-      sessions:             kpis.sessions,
-      users:                kpis.users,
-      engagementRate:       kpis.engagement_rate,
+      sessions: kpis.sessions,
+      users: kpis.users,
+      engagementRate: kpis.engagement_rate,
       avgEngagementTimeSec: kpis.avg_engagement_time_sec,
-      actions:              kpis.actions,
-      formSubmissions:      kpis.form_submissions,
+      actions: kpis.actions,
+      formSubmissions: kpis.form_submissions,
     },
     deltas: {},
     channels: [...(report.web_channels || [])]
       .sort((a, b) => a.sort_order - b.sort_order)
-      .map(c => ({
-        name:           c.name,
-        sessions:       c.sessions,
+      .map((c) => ({
+        name: c.name,
+        sessions: c.sessions,
         shareOfTraffic: c.share_of_traffic,
         engagementRate: c.engagement_rate,
       })),
     topPages: [...(report.web_pages || [])]
       .sort((a, b) => a.sort_order - b.sort_order)
-      .map(p => ({
-        key:              p.key,
-        pageViews:        p.page_views,
-        bounceRate:       p.bounce_rate,
+      .map((p) => ({
+        key: p.key,
+        pageViews: p.page_views,
+        bounceRate: p.bounce_rate,
         avgTimeOnPageSec: p.avg_time_on_page_sec,
       })),
     insights: {
-      working:    ins.working      || "",
-      notWorking: ins.not_working  || "",
-      actions:    ins.actions      || "",
-      next:       ins.next_quarter || "",
+      working: ins.working || "",
+      notWorking: ins.not_working || "",
+      actions: ins.actions || "",
+      next: ins.next_quarter || "",
     },
   };
 }
@@ -74,9 +76,11 @@ export function useWebReport(agency, quarter, retryKey = 0) {
     const cached = getCached(cacheKey);
 
     // Serve the last good copy instantly, revalidate in the background
-    setState(cached !== undefined
-      ? { ...cached, status: "ready", error: null }
-      : { data: null, prevData: null, status: "loading", error: null });
+    setState(
+      cached !== undefined
+        ? { ...cached, status: "ready", error: null }
+        : { data: null, prevData: null, status: "loading", error: null }
+    );
 
     (async () => {
       try {
@@ -96,7 +100,9 @@ export function useWebReport(agency, quarter, retryKey = 0) {
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [agency, quarter, retryKey]);
 
   return state;

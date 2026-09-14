@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 
 const reducedMotion = () =>
-  typeof window.matchMedia === "function" &&
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // Animates a numeric value from 0 to its final figure on mount, formatting
 // each frame with the caller's formatter. Non-numeric values (null → "—")

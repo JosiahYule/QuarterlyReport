@@ -7,13 +7,56 @@ import { toNumber, nfk } from "../utils.js";
 
 // ─── Metric definitions ────────────────────────────────────────────
 export const METRICS = [
-  { id: "impressions", label: "Impressions",     needles: ["post impressions","impressions"],                                         isPercent: false, isPace: true, postsMultiplier: true },
-  { id: "reactions",   label: "Reactions",        needles: ["reactions and likes","reactions & likes","reactions","likes"],            isPercent: false, isPace: true, postsMultiplier: true },
-  { id: "linkclicks",  label: "Link Clicks",      needles: ["post link clicks","link clicks","clicks"],                                isPercent: false, isPace: true, postsMultiplier: true },
-  { id: "shares",      label: "Shares",           needles: ["post shares","shares"],                                                   isPercent: false, isPace: true, postsMultiplier: true },
-  { id: "comments",    label: "Comments",         needles: ["comments and replies","comments & replies","comments","replies"],         isPercent: false, isPace: true, postsMultiplier: true, sporadic: true },
-  { id: "posts",       label: "Posts Published",  needles: ["posts"],                                                                  isPercent: false, isPace: true },
-  { id: "followers",   label: "Followers",        needles: ["followers total","followers (total)","followers"],                        isPercent: false, isPace: true, baselineFromQ2: true },
+  {
+    id: "impressions",
+    label: "Impressions",
+    needles: ["post impressions", "impressions"],
+    isPercent: false,
+    isPace: true,
+    postsMultiplier: true,
+  },
+  {
+    id: "reactions",
+    label: "Reactions",
+    needles: ["reactions and likes", "reactions & likes", "reactions", "likes"],
+    isPercent: false,
+    isPace: true,
+    postsMultiplier: true,
+  },
+  {
+    id: "linkclicks",
+    label: "Link Clicks",
+    needles: ["post link clicks", "link clicks", "clicks"],
+    isPercent: false,
+    isPace: true,
+    postsMultiplier: true,
+  },
+  {
+    id: "shares",
+    label: "Shares",
+    needles: ["post shares", "shares"],
+    isPercent: false,
+    isPace: true,
+    postsMultiplier: true,
+  },
+  {
+    id: "comments",
+    label: "Comments",
+    needles: ["comments and replies", "comments & replies", "comments", "replies"],
+    isPercent: false,
+    isPace: true,
+    postsMultiplier: true,
+    sporadic: true,
+  },
+  { id: "posts", label: "Posts Published", needles: ["posts"], isPercent: false, isPace: true },
+  {
+    id: "followers",
+    label: "Followers",
+    needles: ["followers total", "followers (total)", "followers"],
+    isPercent: false,
+    isPace: true,
+    baselineFromQ2: true,
+  },
 ];
 
 // ─── Extraction helpers ────────────────────────────────────────────
@@ -32,7 +75,7 @@ function extractFromRows(rows, metric) {
   const keys = Object.keys(map);
   for (const n of metric.needles) {
     const nl = nfk(n);
-    const hit = keys.find(k => k.includes(nl));
+    const hit = keys.find((k) => k.includes(nl));
     if (hit !== undefined) return toNumber(map[hit]);
   }
   return null;
@@ -40,15 +83,29 @@ function extractFromRows(rows, metric) {
 
 function extractFromOverall(overall, metric) {
   if (!overall || typeof overall !== "object" || Array.isArray(overall)) return null;
-  const direct = { impressions: "impressions", reactions: "reactions", linkclicks: "linkclicks", shares: "shares", comments: "comments", posts: "posts", followers: "followers" };
+  const direct = {
+    impressions: "impressions",
+    reactions: "reactions",
+    linkclicks: "linkclicks",
+    shares: "shares",
+    comments: "comments",
+    posts: "posts",
+    followers: "followers",
+  };
   const k = direct[metric.id];
   return k && overall[k] !== undefined ? toNumber(overall[k]) : null;
 }
 
 export function extractMetric(data, metric) {
   if (!data) return null;
-  if (data.quarterTotals) { const v = extractFromRows(data.quarterTotals, metric); if (v !== null) return v; }
-  if (data.overall)       { const v = extractFromOverall(data.overall, metric);    if (v !== null) return v; }
+  if (data.quarterTotals) {
+    const v = extractFromRows(data.quarterTotals, metric);
+    if (v !== null) return v;
+  }
+  if (data.overall) {
+    const v = extractFromOverall(data.overall, metric);
+    if (v !== null) return v;
+  }
   return null;
 }
 
@@ -75,16 +132,16 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 function blendWeights(elapsedFraction, hasReg, hasRolling) {
   const f = clamp(elapsedFraction, 0, 1);
   if (hasReg && hasRolling) {
-    const wSimple = clamp(0.30 - 0.20 * f, 0.10, 0.30); // 0.30 → 0.10
-    const wReg    = clamp(0.35 - 0.10 * f, 0.25, 0.35); // 0.35 → 0.25
+    const wSimple = clamp(0.3 - 0.2 * f, 0.1, 0.3); // 0.30 → 0.10
+    const wReg = clamp(0.35 - 0.1 * f, 0.25, 0.35); // 0.35 → 0.25
     return { simple: wSimple, rolling: 1 - wSimple - wReg, reg: wReg };
   }
   if (hasReg) {
-    const wSimple = clamp(0.45 - 0.25 * f, 0.20, 0.45); // 0.45 → 0.20
+    const wSimple = clamp(0.45 - 0.25 * f, 0.2, 0.45); // 0.45 → 0.20
     return { simple: wSimple, rolling: 0, reg: 1 - wSimple };
   }
   if (hasRolling) {
-    const wSimple = clamp(0.40 - 0.20 * f, 0.20, 0.40); // 0.40 → 0.20
+    const wSimple = clamp(0.4 - 0.2 * f, 0.2, 0.4); // 0.40 → 0.20
     return { simple: wSimple, rolling: 1 - wSimple, reg: 0 };
   }
   return { simple: 1, rolling: 0, reg: 0 };
@@ -104,7 +161,16 @@ function lsSlope(pts) {
 }
 
 // ─── Pace projection ──────────────────────────────────────────────
-export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory, histBaseline = 0, asOfDate = new Date(), calibrationFactor = 1) {
+export function computeAdvancedPace(
+  current,
+  qStart,
+  qEnd,
+  q2Rate,
+  metricHistory,
+  histBaseline = 0,
+  asOfDate = new Date(),
+  calibrationFactor = 1
+) {
   if (current === null || !Number.isFinite(current)) return null;
   const now = asOfDate instanceof Date ? asOfDate : new Date(asOfDate);
   const dElapsed = (now - qStart) / 86400000;
@@ -115,19 +181,20 @@ export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory
   const simpleRate = current / dElapsed;
   const simpleProj = simpleRate * dTotal;
 
-  let rollingProj = null, rollingRate = null;
+  let rollingProj = null,
+    rollingRate = null;
   if (metricHistory.length >= 2) {
     const cutoff = now.getTime() - 7 * 86400000;
     // Window = snapshots from the last 7 days (always include the earliest
     // available point if nothing falls inside the window).
-    const window = metricHistory.filter(s => s.t >= cutoff);
+    const window = metricHistory.filter((s) => s.t >= cutoff);
     const pts = (window.length >= 2 ? window : metricHistory.slice(-2))
-      .map(s => ({ x: s.t / 86400000, y: s.val - histBaseline }))
-      .filter(p => Number.isFinite(p.y));
+      .map((s) => ({ x: s.t / 86400000, y: s.val - histBaseline }))
+      .filter((p) => Number.isFinite(p.y));
     // Need at least a full day spanned (snapshots carry a time-of-day, so two
     // points can sit <24h apart). Least-squares slope over the window is more
     // robust to a single noisy endpoint than a first-vs-last difference.
-    const span = pts.length >= 2 ? Math.max(...pts.map(p => p.x)) - Math.min(...pts.map(p => p.x)) : 0;
+    const span = pts.length >= 2 ? Math.max(...pts.map((p) => p.x)) - Math.min(...pts.map((p) => p.x)) : 0;
     const slope = span >= 1 ? lsSlope(pts) : null;
     if (slope !== null && Number.isFinite(slope) && slope >= 0) {
       rollingRate = slope;
@@ -138,12 +205,13 @@ export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory
   let regProj = null;
   if (metricHistory.length >= 3) {
     const pts = metricHistory
-      .map(s => ({ x: (s.t - qStart.getTime()) / 86400000, y: s.val - histBaseline }))
-      .filter(p => p.x >= 0 && Number.isFinite(p.y) && p.y >= 0);
+      .map((s) => ({ x: (s.t - qStart.getTime()) / 86400000, y: s.val - histBaseline }))
+      .filter((p) => p.x >= 0 && Number.isFinite(p.y) && p.y >= 0);
     if (pts.length >= 3) {
       const slope = lsSlope(pts);
       if (slope !== null) {
-        const sx = pts.reduce((a, p) => a + p.x, 0), sy = pts.reduce((a, p) => a + p.y, 0);
+        const sx = pts.reduce((a, p) => a + p.x, 0),
+          sy = pts.reduce((a, p) => a + p.y, 0);
         const intercept = (sy - slope * sx) / pts.length;
         const r = intercept + slope * dTotal;
         if (r > 0) regProj = r;
@@ -153,16 +221,14 @@ export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory
 
   // Dynamic blending: shift weight toward data-driven methods as quarter matures.
   const w = blendWeights(elapsedFraction, regProj !== null, rollingProj !== null);
-  const blended =
-    w.simple * simpleProj +
-    w.rolling * (rollingProj ?? 0) +
-    w.reg * (regProj ?? 0);
+  const blended = w.simple * simpleProj + w.rolling * (rollingProj ?? 0) + w.reg * (regProj ?? 0);
 
   // Ramp off Q2-rate anchor as current-quarter evidence accumulates.
   const anchorWeight = Math.max(0, (0.25 - elapsedFraction) / 0.25);
-  const rawProjected = q2Rate !== null && Number.isFinite(q2Rate) && q2Rate > 0 && anchorWeight > 0
-    ? anchorWeight * (q2Rate * dTotal) + (1 - anchorWeight) * blended
-    : blended;
+  const rawProjected =
+    q2Rate !== null && Number.isFinite(q2Rate) && q2Rate > 0 && anchorWeight > 0
+      ? anchorWeight * (q2Rate * dTotal) + (1 - anchorWeight) * blended
+      : blended;
 
   const safeCalibration = Number.isFinite(calibrationFactor) && calibrationFactor > 0 ? calibrationFactor : 1;
   const projected = Math.max(rawProjected * safeCalibration, current);
@@ -171,12 +237,21 @@ export function computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory
   // got) are exposed so projectionBand can read how far the three methods
   // disagree right now — a direct, data-driven measure of model uncertainty.
   const components = {
-    simple:  simpleProj  * safeCalibration,
+    simple: simpleProj * safeCalibration,
     rolling: rollingProj !== null ? rollingProj * safeCalibration : null,
-    reg:     regProj     !== null ? regProj     * safeCalibration : null,
+    reg: regProj !== null ? regProj * safeCalibration : null,
   };
 
-  return { projected, rawProjected, dailyRate: rollingRate ?? simpleRate, dElapsed, dTotal, calibrationFactor: safeCalibration, elapsedFraction, components };
+  return {
+    projected,
+    rawProjected,
+    dailyRate: rollingRate ?? simpleRate,
+    dElapsed,
+    dTotal,
+    calibrationFactor: safeCalibration,
+    elapsedFraction,
+    components,
+  };
 }
 
 function median(arr) {
@@ -205,7 +280,14 @@ function median(arr) {
 // every ordinary uptick as a "spike").
 const SPIKE_MAD_MULTIPLE = 4;
 const SPIKE_BACKGROUND_MULTIPLE = 2;
-export function computeSporadicPace(current, qStart, qEnd, metricHistory, asOfDate = new Date(), calibrationFactor = 1) {
+export function computeSporadicPace(
+  current,
+  qStart,
+  qEnd,
+  metricHistory,
+  asOfDate = new Date(),
+  calibrationFactor = 1
+) {
   if (current === null || !Number.isFinite(current)) return null;
   const now = asOfDate instanceof Date ? asOfDate : new Date(asOfDate);
   const dElapsed = (now - qStart) / 86400000;
@@ -232,17 +314,25 @@ export function computeSporadicPace(current, qStart, qEnd, metricHistory, asOfDa
     const simpleProj = simpleRate * dTotal;
     const projected = Math.max(simpleProj * safeCalibration, current);
     return {
-      projected, rawProjected: simpleProj, dailyRate: simpleRate, dElapsed, dTotal,
-      calibrationFactor: safeCalibration, elapsedFraction,
+      projected,
+      rawProjected: simpleProj,
+      dailyRate: simpleRate,
+      dElapsed,
+      dTotal,
+      calibrationFactor: safeCalibration,
+      elapsedFraction,
       components: { simple: simpleProj * safeCalibration, rolling: null, reg: null },
-      background: simpleRate, spikeFrequency: 0, avgSpikeSize: 0,
+      background: simpleRate,
+      spikeFrequency: 0,
+      avgSpikeSize: 0,
     };
   }
 
   const backgroundRate = median(rates);
-  const mad = median(rates.map(r => Math.abs(r - backgroundRate))) || 0;
-  const spikeThreshold = backgroundRate + Math.max(mad * SPIKE_MAD_MULTIPLE, backgroundRate * SPIKE_BACKGROUND_MULTIPLE, 1);
-  const spikeRates = rates.filter(r => r > spikeThreshold);
+  const mad = median(rates.map((r) => Math.abs(r - backgroundRate))) || 0;
+  const spikeThreshold =
+    backgroundRate + Math.max(mad * SPIKE_MAD_MULTIPLE, backgroundRate * SPIKE_BACKGROUND_MULTIPLE, 1);
+  const spikeRates = rates.filter((r) => r > spikeThreshold);
   const spikeFrequency = spikeRates.length / rates.length;
   const avgSpikeSize = spikeRates.length
     ? spikeRates.reduce((a, r) => a + (r - backgroundRate), 0) / spikeRates.length
@@ -255,17 +345,24 @@ export function computeSporadicPace(current, qStart, qEnd, metricHistory, asOfDa
   const projected = Math.max(rawProjected * safeCalibration, current);
 
   return {
-    projected, rawProjected, dailyRate: backgroundRate, dElapsed, dTotal,
-    calibrationFactor: safeCalibration, elapsedFraction,
+    projected,
+    rawProjected,
+    dailyRate: backgroundRate,
+    dElapsed,
+    dTotal,
+    calibrationFactor: safeCalibration,
+    elapsedFraction,
     // No-more-spikes floor vs. typical-spike-behavior-continues ceiling — the
     // gap between the two IS the real uncertainty for a sporadic metric, so
     // projectionBand's method-disagreement term picks it up for free.
     components: {
-      simple:  Math.max(backgroundProj, 0) * safeCalibration,
+      simple: Math.max(backgroundProj, 0) * safeCalibration,
       rolling: null,
-      reg:     Math.max(withSpikesProj, 0) * safeCalibration,
+      reg: Math.max(withSpikesProj, 0) * safeCalibration,
     },
-    background: backgroundRate, spikeFrequency, avgSpikeSize,
+    background: backgroundRate,
+    spikeFrequency,
+    avgSpikeSize,
   };
 }
 
@@ -273,9 +370,29 @@ export function computeSporadicPace(current, qStart, qEnd, metricHistory, asOfDa
 // for metrics flagged `sporadic` (comments), else the general blend —
 // everything downstream (projectionBand, buildProjectionAudit, the
 // trajectory chart) consumes the same shape either way.
-export function computePace(metric, current, qStart, qEnd, q2Rate, metricHistory, histBaseline = 0, asOfDate = new Date(), calibrationFactor = 1) {
-  if (metric?.sporadic) return computeSporadicPace(current, qStart, qEnd, metricHistory, asOfDate, calibrationFactor);
-  return computeAdvancedPace(current, qStart, qEnd, q2Rate, metricHistory, histBaseline, asOfDate, calibrationFactor);
+export function computePace(
+  metric,
+  current,
+  qStart,
+  qEnd,
+  q2Rate,
+  metricHistory,
+  histBaseline = 0,
+  asOfDate = new Date(),
+  calibrationFactor = 1
+) {
+  if (metric?.sporadic)
+    return computeSporadicPace(current, qStart, qEnd, metricHistory, asOfDate, calibrationFactor);
+  return computeAdvancedPace(
+    current,
+    qStart,
+    qEnd,
+    q2Rate,
+    metricHistory,
+    histBaseline,
+    asOfDate,
+    calibrationFactor
+  );
 }
 
 // ─── History: pure helpers (operate on pre-fetched snapshot arrays) ──
@@ -283,24 +400,41 @@ export function computePace(metric, current, qStart, qEnd, q2Rate, metricHistory
 
 export function getMetricHistory(snapshots, metricId) {
   return (snapshots || [])
-    .filter(s => s.vals && s.vals[metricId] !== undefined)
-    .map(s => ({ t: s.t, val: s.vals[metricId] }))
+    .filter((s) => s.vals && s.vals[metricId] !== undefined)
+    .map((s) => ({ t: s.t, val: s.vals[metricId] }))
     .sort((a, b) => a.t - b.t);
 }
 
 export function getWeekAgoProjection(snapshots, metric, tq3, q2Rate, histBaseline = 0) {
   const allHistory = getMetricHistory(snapshots, metric.id);
   const weekAgoT = Date.now() - 7 * 86400000;
-  const pastHistory = allHistory.filter(s => s.t <= weekAgoT);
+  const pastHistory = allHistory.filter((s) => s.t <= weekAgoT);
   if (!pastHistory.length) return null;
   const snap = pastHistory[pastHistory.length - 1];
   const snapInput = snap.val - histBaseline;
-  const pace = computePace(metric, snapInput, tq3.start, tq3.end, q2Rate, pastHistory, histBaseline, new Date(snap.t));
+  const pace = computePace(
+    metric,
+    snapInput,
+    tq3.start,
+    tq3.end,
+    q2Rate,
+    pastHistory,
+    histBaseline,
+    new Date(snap.t)
+  );
   if (!pace?.projected) return null;
   return pace.projected + (metric.baselineFromQ2 ? histBaseline : 0);
 }
 
-export function getProjectionTimeline(snapshots, metric, tq3, q2Rate, histBaseline = 0, calibrationFactor = 1, empiricalErrorPct = null) {
+export function getProjectionTimeline(
+  snapshots,
+  metric,
+  tq3,
+  q2Rate,
+  histBaseline = 0,
+  calibrationFactor = 1,
+  empiricalErrorPct = null
+) {
   const allHistory = getMetricHistory(snapshots, metric.id);
   if (allHistory.length < 2) return [];
   const result = [];
@@ -308,14 +442,24 @@ export function getProjectionTimeline(snapshots, metric, tq3, q2Rate, histBaseli
     const pastHistory = allHistory.slice(0, i + 1);
     const snap = allHistory[i];
     const snapInput = snap.val - histBaseline;
-    const pace = computePace(metric, snapInput, tq3.start, tq3.end, q2Rate, pastHistory, histBaseline, new Date(snap.t), calibrationFactor);
+    const pace = computePace(
+      metric,
+      snapInput,
+      tq3.start,
+      tq3.end,
+      q2Rate,
+      pastHistory,
+      histBaseline,
+      new Date(snap.t),
+      calibrationFactor
+    );
     if (pace?.projected != null) {
       const add = metric.baselineFromQ2 ? histBaseline : 0;
       const band = projectionBand(pace, { empiricalErrorPct, current: snapInput });
       result.push({
         t: snap.t,
         projected: pace.projected + add,
-        low:  band ? band.low + add : null,
+        low: band ? band.low + add : null,
         high: band ? band.high + add : null,
       });
     }
@@ -354,19 +498,24 @@ const BAND_DRIFT_VOL = 0.035;
 export function projectionBand(pace, { elapsedFraction, empiricalErrorPct = null, current = null } = {}) {
   if (!pace || !Number.isFinite(pace.projected) || pace.projected <= 0) return null;
   const proj = pace.projected;
-  const ef = Number.isFinite(elapsedFraction) ? elapsedFraction
-           : Number.isFinite(pace.elapsedFraction) ? pace.elapsedFraction : 0;
+  const ef = Number.isFinite(elapsedFraction)
+    ? elapsedFraction
+    : Number.isFinite(pace.elapsedFraction)
+      ? pace.elapsedFraction
+      : 0;
   const remaining = clamp(1 - ef, 0, 1);
 
-  const comps = [pace.components?.simple, pace.components?.rolling, pace.components?.reg]
-    .filter(v => Number.isFinite(v) && v > 0);
+  const comps = [pace.components?.simple, pace.components?.rolling, pace.components?.reg].filter(
+    (v) => Number.isFinite(v) && v > 0
+  );
   const spread = comps.length >= 2 ? (Math.max(...comps) - Math.min(...comps)) / proj : 0;
 
   const empirical = Number.isFinite(empiricalErrorPct) ? Math.abs(empiricalErrorPct) / 100 : 0;
 
   const relHalf = clamp(
     spread * 0.6 + remaining * BAND_BASE_VOL + Math.sqrt(remaining) * BAND_DRIFT_VOL + empirical * remaining,
-    0.01, 0.6
+    0.01,
+    0.6
   );
 
   const half = proj * relHalf;
@@ -398,8 +547,8 @@ export function annotateTimelineSpikes(timeline, posts, options = {}) {
   const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
 
   const datedPosts = (posts || [])
-    .map(p => ({ ...p, _t: p && p.post_date ? new Date(p.post_date).getTime() : NaN }))
-    .filter(p => Number.isFinite(p._t));
+    .map((p) => ({ ...p, _t: p && p.post_date ? new Date(p.post_date).getTime() : NaN }))
+    .filter((p) => Number.isFinite(p._t));
 
   return timeline.map((pt, i) => {
     if (i === 0) return pt;
@@ -411,10 +560,9 @@ export function annotateTimelineSpikes(timeline, posts, options = {}) {
     const standsOut = median <= 0 || absDelta >= median * minMultiple;
     if (!bigEnough || !standsOut) return pt;
 
-    const inWindow = datedPosts.filter(p => p._t > prev.t && p._t <= pt.t);
+    const inWindow = datedPosts.filter((p) => p._t > prev.t && p._t <= pt.t);
     if (!inWindow.length) return pt;
-    const post = inWindow.reduce((best, p) =>
-      (p.impressions ?? 0) > (best.impressions ?? 0) ? p : best);
+    const post = inWindow.reduce((best, p) => ((p.impressions ?? 0) > (best.impressions ?? 0) ? p : best));
 
     return {
       ...pt,
@@ -438,16 +586,20 @@ export function detectTrendsAnomalies({ snaps, qdata, currentQuarter, now = new 
   if (!currentQuarter) return flags;
   const complete = now >= currentQuarter.end;
   const elapsedDays = Math.max(0, (now - currentQuarter.start) / 86400000);
-  const currentData  = Array.isArray(qdata) && qdata.length ? qdata[qdata.length - 1] : null;
+  const currentData = Array.isArray(qdata) && qdata.length ? qdata[qdata.length - 1] : null;
   const previousData = Array.isArray(qdata) && qdata.length >= 2 ? qdata[qdata.length - 2] : null;
 
   // Staleness: the newest snapshot across all metrics has gone quiet.
-  const allT = (snaps || []).map(s => s.t).filter(Number.isFinite);
+  const allT = (snaps || []).map((s) => s.t).filter(Number.isFinite);
   if (!complete && elapsedDays >= 7 && allT.length) {
     const ageDays = (now - Math.max(...allT)) / 86400000;
     if (ageDays >= 2) {
-      flags.push({ metricId: null, type: "stale", severity: "warn",
-        message: `Daily snapshots have paused. The latest is ${Math.floor(ageDays)} days old, so projections may be drifting from reality.` });
+      flags.push({
+        metricId: null,
+        type: "stale",
+        severity: "warn",
+        message: `Daily snapshots have paused. The latest is ${Math.floor(ageDays)} days old, so projections may be drifting from reality.`,
+      });
     }
   }
 
@@ -461,27 +613,39 @@ export function detectTrendsAnomalies({ snaps, qdata, currentQuarter, now = new 
     if (!metric.baselineFromQ2) {
       for (let i = 1; i < hist.length; i++) {
         if (hist[i - 1].val - hist[i].val > Math.max(1, hist[i - 1].val * 0.02)) {
-          flags.push({ metricId: metric.id, type: "backward", severity: "warn",
-            message: `${metric.label} dropped mid-quarter. A cumulative total shouldn't fall, so this is likely a data-entry correction.` });
+          flags.push({
+            metricId: metric.id,
+            type: "backward",
+            severity: "warn",
+            message: `${metric.label} dropped mid-quarter. A cumulative total shouldn't fall, so this is likely a data-entry correction.`,
+          });
           break;
         }
       }
     }
 
-    const cur  = extractMetric(currentData, metric);
+    const cur = extractMetric(currentData, metric);
     const prev = extractMetric(previousData, metric);
 
     // Present last quarter, absent now → can't be projected.
     if (cur === null && prev !== null) {
-      flags.push({ metricId: metric.id, type: "missing", severity: "warn",
-        message: `${metric.label} has no ${currentQuarter.label} value yet, so it can't be projected this quarter.` });
+      flags.push({
+        metricId: metric.id,
+        type: "missing",
+        severity: "warn",
+        message: `${metric.label} has no ${currentQuarter.label} value yet, so it can't be projected this quarter.`,
+      });
       continue;
     }
 
     // Well into the quarter but too few snapshots to lean on.
     if (!complete && elapsedDays >= 14 && cur !== null && hist.length < 4) {
-      flags.push({ metricId: metric.id, type: "thin", severity: "info",
-        message: `${metric.label} has only ${hist.length} snapshot${hist.length === 1 ? "" : "s"} this quarter, so its projection rests on thin data.` });
+      flags.push({
+        metricId: metric.id,
+        type: "thin",
+        severity: "info",
+        message: `${metric.label} has only ${hist.length} snapshot${hist.length === 1 ? "" : "s"} this quarter, so its projection rests on thin data.`,
+      });
     }
   }
 
@@ -493,8 +657,18 @@ export function detectTrendsAnomalies({ snaps, qdata, currentQuarter, now = new 
 // signals shown elsewhere on the page (pacing, top post, accuracy, flags). No
 // LLM, no randomness — same inputs always yield the same sentence, so it's safe
 // to put in front of a client. Returns "" when there's nothing worth saying.
-function narrativeCount(n) { return Number.isFinite(n) ? Math.round(n).toLocaleString() : null; }
-export function buildTrendsNarrative({ drivers, pacing, anomalies = [], overallAccuracyPct = null, currentQuarter, elapsedPct = 0, complete = false } = {}) {
+function narrativeCount(n) {
+  return Number.isFinite(n) ? Math.round(n).toLocaleString() : null;
+}
+export function buildTrendsNarrative({
+  drivers,
+  pacing,
+  anomalies = [],
+  overallAccuracyPct = null,
+  currentQuarter,
+  elapsedPct = 0,
+  complete = false,
+} = {}) {
   const parts = [];
   const ql = currentQuarter?.label ?? "This quarter";
 
@@ -503,12 +677,17 @@ export function buildTrendsNarrative({ drivers, pacing, anomalies = [], overallA
   const [lead, lag] = Array.isArray(pacing) ? pacing : [];
   if (lead && Number.isFinite(lead.rateVsQ2)) {
     if (lead.rateVsQ2 >= 0) {
-      const tail = lag && lag.metric.id !== lead.metric.id && Number.isFinite(lag.rateVsQ2) && lag.rateVsQ2 < 0
-        ? `, while ${lag.metric.label} runs ${Math.abs(lag.rateVsQ2).toFixed(0)}% behind`
-        : "";
-      parts.push(`${lead.metric.label} is pacing ${Math.abs(lead.rateVsQ2).toFixed(0)}% ahead of last quarter's rate${tail}.`);
+      const tail =
+        lag && lag.metric.id !== lead.metric.id && Number.isFinite(lag.rateVsQ2) && lag.rateVsQ2 < 0
+          ? `, while ${lag.metric.label} runs ${Math.abs(lag.rateVsQ2).toFixed(0)}% behind`
+          : "";
+      parts.push(
+        `${lead.metric.label} is pacing ${Math.abs(lead.rateVsQ2).toFixed(0)}% ahead of last quarter's rate${tail}.`
+      );
     } else {
-      parts.push(`Every tracked metric is running below last quarter's rate. ${lead.metric.label} is closest, ${Math.abs(lead.rateVsQ2).toFixed(0)}% behind.`);
+      parts.push(
+        `Every tracked metric is running below last quarter's rate. ${lead.metric.label} is closest, ${Math.abs(lead.rateVsQ2).toFixed(0)}% behind.`
+      );
     }
   }
 
@@ -522,8 +701,11 @@ export function buildTrendsNarrative({ drivers, pacing, anomalies = [], overallA
     parts.push(`Past projections have landed within ±${overallAccuracyPct.toFixed(1)}% of the final.`);
   }
 
-  const warns = (anomalies || []).filter(a => a.severity === "warn").length;
-  if (warns) parts.push(`${warns} data-quality ${warns === 1 ? "issue needs" : "issues need"} a look before leaning on the projections.`);
+  const warns = (anomalies || []).filter((a) => a.severity === "warn").length;
+  if (warns)
+    parts.push(
+      `${warns} data-quality ${warns === 1 ? "issue needs" : "issues need"} a look before leaning on the projections.`
+    );
 
   // A bare elapsed sentence alone isn't worth surfacing.
   return parts.length > 1 ? parts.join(" ") : "";
@@ -557,8 +739,8 @@ function stageWeight(sampleFraction, targetFraction, bandwidth = 0.35) {
 //   • consistency — dispersion of the projection error after removing its
 //                   smooth drift across the quarter, so steady convergence is
 //                   not mistaken for a poor fit; only genuine scatter counts.
-const SUPPORT_FULL = 5;     // effective near-stage samples for full support
-const DISPERSION_K = 0.30;  // de-trended rel-error std at which consistency ≈ 0.5
+const SUPPORT_FULL = 5; // effective near-stage samples for full support
+const DISPERSION_K = 0.3; // de-trended rel-error std at which consistency ≈ 0.5
 function calibrationConfidence(samples, totalWeight, actualInput) {
   if (!(actualInput > 0) || !(totalWeight > 0)) return 1;
 
@@ -569,45 +751,71 @@ function calibrationConfidence(samples, totalWeight, actualInput) {
 
   // De-trend relative error against elapsed fraction (weighted least squares),
   // then take the weighted residual std — genuine scatter, not smooth drift.
-  const pts = samples.map(s => ({ x: s.fraction, y: (s.projected - actualInput) / actualInput, w: s.weight }));
+  const pts = samples.map((s) => ({
+    x: s.fraction,
+    y: (s.projected - actualInput) / actualInput,
+    w: s.weight,
+  }));
   const mx = pts.reduce((a, p) => a + p.w * p.x, 0) / totalWeight;
   const my = pts.reduce((a, p) => a + p.w * p.y, 0) / totalWeight;
   const sxx = pts.reduce((a, p) => a + p.w * (p.x - mx) * (p.x - mx), 0);
   const sxy = pts.reduce((a, p) => a + p.w * (p.x - mx) * (p.y - my), 0);
   const slope = sxx > 0 ? sxy / sxx : 0;
   const intercept = my - slope * mx;
-  const resVar = pts.reduce((a, p) => a + p.w * Math.pow(p.y - (intercept + slope * p.x), 2), 0) / totalWeight;
+  const resVar =
+    pts.reduce((a, p) => a + p.w * Math.pow(p.y - (intercept + slope * p.x), 2), 0) / totalWeight;
   const dispersion = Math.sqrt(Math.max(0, resVar));
   const consistency = 1 / (1 + Math.pow(dispersion / DISPERSION_K, 2));
 
   return support * consistency;
 }
 
-export function buildProjectionAudit({ metric, actualValue, completedQuarter, previousQuarter, previousQuarterValue, twoBackValue, snapshotHistory, targetElapsedFraction = null }) {
+export function buildProjectionAudit({
+  metric,
+  actualValue,
+  completedQuarter,
+  previousQuarter,
+  previousQuarterValue,
+  twoBackValue,
+  snapshotHistory,
+  targetElapsedFraction = null,
+}) {
   if (!metric?.isPace || actualValue === null || previousQuarterValue === null) return null;
 
   const previousDays = (previousQuarter.end - previousQuarter.start) / 86400000;
   const previousInput = metric.baselineFromQ2
-    ? (twoBackValue != null ? previousQuarterValue - twoBackValue : null)
+    ? twoBackValue != null
+      ? previousQuarterValue - twoBackValue
+      : null
     : previousQuarterValue;
-  const previousRate = previousInput !== null && Number.isFinite(previousInput)
-    ? previousInput / previousDays : null;
+  const previousRate =
+    previousInput !== null && Number.isFinite(previousInput) ? previousInput / previousDays : null;
   const actualInput = metric.baselineFromQ2 ? actualValue - previousQuarterValue : actualValue;
   if (!Number.isFinite(actualInput) || actualInput < 0) return null;
 
   const histBaseline = metric.baselineFromQ2 ? previousQuarterValue : 0;
   const quarterStart = completedQuarter.start.getTime();
-  const quarterEnd   = completedQuarter.end.getTime();
+  const quarterEnd = completedQuarter.end.getTime();
   const completedDays = (quarterEnd - quarterStart) / 86400000;
-  const metricHistory = getMetricHistory(snapshotHistory, metric.id)
-    .filter(s => s.t >= quarterStart && s.t < quarterEnd && Number.isFinite(s.val));
+  const metricHistory = getMetricHistory(snapshotHistory, metric.id).filter(
+    (s) => s.t >= quarterStart && s.t < quarterEnd && Number.isFinite(s.val)
+  );
 
   const samples = [];
   for (const sample of metricHistory) {
     const sampleInput = metric.baselineFromQ2 ? sample.val - previousQuarterValue : sample.val;
     if (!Number.isFinite(sampleInput) || sampleInput < 0) continue;
-    const sampleHistory = metricHistory.filter(s => s.t <= sample.t);
-    const pace = computePace(metric, sampleInput, completedQuarter.start, completedQuarter.end, previousRate, sampleHistory, histBaseline, new Date(sample.t));
+    const sampleHistory = metricHistory.filter((s) => s.t <= sample.t);
+    const pace = computePace(
+      metric,
+      sampleInput,
+      completedQuarter.start,
+      completedQuarter.end,
+      previousRate,
+      sampleHistory,
+      histBaseline,
+      new Date(sample.t)
+    );
     // `pace` is null for samples inside the first 7 days; guard before deref.
     if (pace && Number.isFinite(pace.projected) && pace.projected > 0) {
       const fraction = pace.dElapsed / (pace.dTotal || completedDays);
@@ -620,7 +828,10 @@ export function buildProjectionAudit({ metric, actualValue, completedQuarter, pr
       // conservative "method disagreement + time remaining" one.
       const band = projectionBand(pace, { elapsedFraction: fraction });
       samples.push({
-        t: sample.t, projected: pace.projected, day: Math.round(pace.dElapsed), fraction,
+        t: sample.t,
+        projected: pace.projected,
+        day: Math.round(pace.dElapsed),
+        fraction,
         weight: stageWeight(fraction, targetElapsedFraction),
         relHalf: band ? band.relHalf : 0,
       });
@@ -631,7 +842,7 @@ export function buildProjectionAudit({ metric, actualValue, completedQuarter, pr
   const totalWeight = samples.reduce((sum, s) => sum + s.weight, 0) || samples.length;
   const avgProjected = samples.reduce((sum, s) => sum + s.projected * s.weight, 0) / totalWeight;
   const error = avgProjected - actualInput;
-  const percentError = actualInput !== 0 ? error / actualInput * 100 : null;
+  const percentError = actualInput !== 0 ? (error / actualInput) * 100 : null;
   const accuracyRatio = avgProjected > 0 ? actualInput / avgProjected : 1;
 
   // Band coverage: did the actual final land inside the range this stage's
@@ -653,12 +864,20 @@ export function buildProjectionAudit({ metric, actualValue, completedQuarter, pr
   const calibrationFactor = clampCalibrationFactor(dampedRatio);
 
   return {
-    actual: actualInput, avgProjected, error, percentError,
-    accuracyRatio, calibrationConfidence: confidence, calibrationFactor,
-    bandLow, bandHigh, bandRelHalf, bandCovered,
+    actual: actualInput,
+    avgProjected,
+    error,
+    percentError,
+    accuracyRatio,
+    calibrationConfidence: confidence,
+    calibrationFactor,
+    bandLow,
+    bandHigh,
+    bandRelHalf,
+    bandCovered,
     sampleCount: samples.length,
     firstDay: samples[0]?.day ?? null,
-    lastDay:  samples[samples.length - 1]?.day ?? null,
+    lastDay: samples[samples.length - 1]?.day ?? null,
   };
 }
 
@@ -673,19 +892,21 @@ export function buildProjectionAudits(qdata, snapsByQuarter, quarters = TRENDS_Q
   const targetElapsedFraction = currentQuarter ? quarterCompletion(currentQuarter) : null;
 
   const prevSnaps = snapsByQuarter?.[previousQuarter.suffix] || [];
-  return Object.fromEntries(METRICS.map(metric => {
-    const audit = buildProjectionAudit({
-      metric,
-      actualValue:          extractMetric(previousData, metric),
-      completedQuarter:     previousQuarter,
-      previousQuarter:      twoBackQuarter,
-      previousQuarterValue: extractMetric(twoBackData, metric),
-      twoBackValue:         null,
-      snapshotHistory:      prevSnaps,
-      targetElapsedFraction,
-    });
-    return [metric.id, audit];
-  }));
+  return Object.fromEntries(
+    METRICS.map((metric) => {
+      const audit = buildProjectionAudit({
+        metric,
+        actualValue: extractMetric(previousData, metric),
+        completedQuarter: previousQuarter,
+        previousQuarter: twoBackQuarter,
+        previousQuarterValue: extractMetric(twoBackData, metric),
+        twoBackValue: null,
+        snapshotHistory: prevSnaps,
+        targetElapsedFraction,
+      });
+      return [metric.id, audit];
+    })
+  );
 }
 
 // ─── Multi-quarter calibration blend ──────────────────────────────
@@ -701,7 +922,8 @@ export function buildProjectionAudits(qdata, snapsByQuarter, quarters = TRENDS_Q
 // correction needed."
 export function blendCalibrationHistory(history, decay = 0.6) {
   if (!Array.isArray(history) || !history.length) return null;
-  let totalWeight = 0, weighted = 0;
+  let totalWeight = 0,
+    weighted = 0;
   history.forEach((h, i) => {
     const factor = h?.calibration_factor;
     if (!Number.isFinite(factor)) return;
@@ -717,9 +939,11 @@ export function blendCalibrationHistory(history, decay = 0.6) {
 // ─── Quarter completion ───────────────────────────────────────────
 export function quarterCompletion(q) {
   const now = new Date();
-  if (now >= q.end)  return 1;
+  if (now >= q.end) return 1;
   if (now < q.start) return 0;
   return (now - q.start) / (q.end - q.start);
 }
 
-export function quarterComplete(q) { return new Date() >= q.end; }
+export function quarterComplete(q) {
+  return new Date() >= q.end;
+}

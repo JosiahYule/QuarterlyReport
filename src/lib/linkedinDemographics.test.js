@@ -24,12 +24,17 @@ describe("parseLinkedInDemographics", () => {
 
   it("keeps commas inside quoted segment names (locations)", () => {
     const csv =
-      'Location,Impressions,Clicks\n' +
+      "Location,Impressions,Clicks\n" +
       '"Halifax, Nova Scotia Area","5,200",44\n' +
       '"Moncton, New Brunswick Area",1200,9';
     const out = parseLinkedInDemographics(csv);
     expect(out.dimension).toBe("location");
-    expect(out.rows[0]).toEqual({ segment: "Halifax, Nova Scotia Area", impressions: 5200, clicks: 44, isOther: false });
+    expect(out.rows[0]).toEqual({
+      segment: "Halifax, Nova Scotia Area",
+      impressions: 5200,
+      clicks: 44,
+      isOther: false,
+    });
   });
 
   it("detects company size before generic company", () => {
@@ -38,9 +43,7 @@ describe("parseLinkedInDemographics", () => {
   });
 
   it("does not read Click Through Rate as the clicks column", () => {
-    const csv =
-      'Job Seniority,Impressions,Click Through Rate\n' +
-      'Senior,"3,000",0.95%';
+    const csv = "Job Seniority,Impressions,Click Through Rate\n" + 'Senior,"3,000",0.95%';
     expect(parseLinkedInDemographics(csv)).toEqual({
       dimension: "seniority",
       truncated: 0,
@@ -57,8 +60,7 @@ describe("parseLinkedInDemographics", () => {
 
   it("sorts segments by impressions, strongest first", () => {
     const csv = "Industry,Impressions,Clicks\nSmall,10,1\nBig,900,4\nMid,120,2";
-    expect(parseLinkedInDemographics(csv).rows.map(r => r.segment))
-      .toEqual(["Big", "Mid", "Small"]);
+    expect(parseLinkedInDemographics(csv).rows.map((r) => r.segment)).toEqual(["Big", "Mid", "Small"]);
   });
 
   it("ranks companies by clicks, falling back to impressions", () => {
@@ -70,11 +72,11 @@ describe("parseLinkedInDemographics", () => {
       "One click small,30,1",
       "Also silent,500,0",
     ].join("\n");
-    expect(parseLinkedInDemographics(csv).rows.map(r => r.segment)).toEqual([
-      "Two clicks small",   // 2 clicks
-      "One click big",      // 1 click, 400 impressions
-      "One click small",    // 1 click, 30 impressions
-      "Served but silent",  // no clicks — ranked by impressions
+    expect(parseLinkedInDemographics(csv).rows.map((r) => r.segment)).toEqual([
+      "Two clicks small", // 2 clicks
+      "One click big", // 1 click, 400 impressions
+      "One click small", // 1 click, 30 impressions
+      "Served but silent", // no clicks — ranked by impressions
       "Also silent",
     ]);
   });

@@ -14,10 +14,11 @@ import { SectionRail } from "../components/SectionRail.jsx";
 // ─── Hero ─────────────────────────────────────────────────────────
 function Hero({ agency, quarter, data }) {
   const cfg = AGENCIES[agency] || AGENCIES.isl;
-  const q   = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];
-  const note = typeof data.summary?.bullet === "string" && data.summary.bullet.trim()
-    ? data.summary.bullet.trim()
-    : `Website performance report for ${cfg.name}.`;
+  const q = QUARTERS.find((q) => q.suffix === quarter) || QUARTERS[0];
+  const note =
+    typeof data.summary?.bullet === "string" && data.summary.bullet.trim()
+      ? data.summary.bullet.trim()
+      : `Website performance report for ${cfg.name}.`;
 
   return (
     <section className="hero wrap">
@@ -39,12 +40,17 @@ function Hero({ agency, quarter, data }) {
 
 // ─── KPI grid ─────────────────────────────────────────────────────
 const KPI_DEFS = [
-  { key: "sessions",             label: "Total Visits",      fmt: fmtInt,  note: "all sessions this quarter" },
-  { key: "users",                label: "Unique Users",      fmt: fmtInt,  note: "distinct visitors" },
-  { key: "engagementRate",       label: "Engagement Rate",   fmt: fmtPct,  note: "meaningful sessions" },
-  { key: "avgEngagementTimeSec", label: "Avg Time on Site",  fmt: fmtTime, note: "active engagement per visit" },
-  { key: "actions",              label: "Campaign Clicks",   fmt: fmtInt,  note: "high-intent interactions" },
-  { key: "formSubmissions",      label: "Form Submissions",  fmt: fmtInt,  note: "completed contact forms" },
+  { key: "sessions", label: "Total Visits", fmt: fmtInt, note: "all sessions this quarter" },
+  { key: "users", label: "Unique Users", fmt: fmtInt, note: "distinct visitors" },
+  { key: "engagementRate", label: "Engagement Rate", fmt: fmtPct, note: "meaningful sessions" },
+  {
+    key: "avgEngagementTimeSec",
+    label: "Avg Time on Site",
+    fmt: fmtTime,
+    note: "active engagement per visit",
+  },
+  { key: "actions", label: "Campaign Clicks", fmt: fmtInt, note: "high-intent interactions" },
+  { key: "formSubmissions", label: "Form Submissions", fmt: fmtInt, note: "completed contact forms" },
 ];
 
 function Numbers({ data, prevData }) {
@@ -53,7 +59,9 @@ function Numbers({ data, prevData }) {
   return (
     <section id="numbers" className="section wrap kpi-section" aria-label="Key performance indicators">
       <header className="section-head">
-        <h2 className="section-title serif">The <em>Numbers</em></h2>
+        <h2 className="section-title serif">
+          The <em>Numbers</em>
+        </h2>
       </header>
       <div className="kpi-grid">
         {KPI_DEFS.map((k, i) => {
@@ -64,7 +72,9 @@ function Numbers({ data, prevData }) {
           return (
             <div className="kpi" key={k.key} style={{ "--i": i }}>
               <div className="kpi-label">{k.label}</div>
-              <div className="kpi-value num"><CountUp value={v} format={k.fmt} /></div>
+              <div className="kpi-value num">
+                <CountUp value={v} format={k.fmt} />
+              </div>
               <div className="kpi-foot">
                 <Delta d={d} />
                 <span className="delta-note">{k.note}</span>
@@ -81,41 +91,67 @@ function Numbers({ data, prevData }) {
 function Channels({ data, prevData }) {
   const channels = data.channels || [];
   const prevMap = {};
-  (prevData?.channels || []).forEach(c => { prevMap[c.name?.toLowerCase()] = c; });
+  (prevData?.channels || []).forEach((c) => {
+    prevMap[c.name?.toLowerCase()] = c;
+  });
 
   return (
     <section id="channels" className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">Traffic <em>Channels</em></h2>
+        <h2 className="section-title serif">
+          Traffic <em>Channels</em>
+        </h2>
       </header>
       <div className="channels" role="grid" aria-label="Traffic channels breakdown">
         <div className="channel-row-web is-head" role="row">
           <div role="columnheader" />
           <div role="columnheader">Channel</div>
-          <div className="col-num" role="columnheader">Sessions</div>
-          <div className="col-num" role="columnheader">Share</div>
-          <div className="col-num" role="columnheader">Eng. Rate</div>
+          <div className="col-num" role="columnheader">
+            Sessions
+          </div>
+          <div className="col-num" role="columnheader">
+            Share
+          </div>
+          <div className="col-num" role="columnheader">
+            Eng. Rate
+          </div>
         </div>
         {channels.map((c, i) => {
           const prev = prevMap[c.name?.toLowerCase()] || null;
-          const sd  = calcAutoDelta(c.sessions, prev?.sessions);
+          const sd = calcAutoDelta(c.sessions, prev?.sessions);
           const shd = calcAutoDelta(c.shareOfTraffic, prev?.shareOfTraffic);
-          const ed  = calcAutoDelta(c.engagementRate, prev?.engagementRate);
+          const ed = calcAutoDelta(c.engagementRate, prev?.engagementRate);
           return (
             <div className="channel-row-web" key={c.name} role="row">
-              <div className="channel-idx serif ital" aria-hidden="true">{String(i + 1).padStart(2, "0")}</div>
-              <div><div className="channel-name serif">{c.name}</div></div>
+              <div className="channel-idx serif ital" aria-hidden="true">
+                {String(i + 1).padStart(2, "0")}
+              </div>
+              <div>
+                <div className="channel-name serif">{c.name}</div>
+              </div>
               <div className="col-num">
                 <span className="big serif num">{fmtInt(c.sessions)}</span>
-                {sd && <span className="sub"><Delta d={sd} /></span>}
+                {sd && (
+                  <span className="sub">
+                    <Delta d={sd} />
+                  </span>
+                )}
               </div>
               <div className="col-num">
                 <span className="big serif num">{fmtPct(c.shareOfTraffic)}</span>
-                {shd && <span className="sub"><Delta d={shd} /></span>}
+                {shd && (
+                  <span className="sub">
+                    <Delta d={shd} />
+                  </span>
+                )}
               </div>
               <div className="col-num">
                 <span className="big serif num">{fmtPct(c.engagementRate)}</span>
-                {ed && <span className="sub"><Delta d={ed} /></span>}
+                {ed && (
+                  <span className="sub">
+                    <Delta d={ed} />
+                  </span>
+                )}
               </div>
             </div>
           );
@@ -129,15 +165,19 @@ function Channels({ data, prevData }) {
 function TopPages({ data, prevData }) {
   const pages = data.topPages || [];
   const prevMap = {};
-  (prevData?.topPages || []).forEach(p => { prevMap[(p.key || p.name || "").toLowerCase()] = p; });
+  (prevData?.topPages || []).forEach((p) => {
+    prevMap[(p.key || p.name || "").toLowerCase()] = p;
+  });
 
   return (
     <section id="top-pages" className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">Top <em>Pages</em></h2>
+        <h2 className="section-title serif">
+          Top <em>Pages</em>
+        </h2>
       </header>
       <div className="pages-grid">
-        {pages.map(p => {
+        {pages.map((p) => {
           const prev = prevMap[(p.key || p.name || "").toLowerCase()] || null;
           const vd = calcAutoDelta(p.pageViews, prev?.pageViews);
           const bd = calcAutoDelta(p.bounceRate, prev?.bounceRate);
@@ -169,33 +209,39 @@ function TopPages({ data, prevData }) {
 }
 
 // ─── Notes ────────────────────────────────────────────────────────
-const toList = v =>
-  Array.isArray(v) ? v
-  : typeof v === "string" && v.trim() ? v.split("\n\n").filter(Boolean)
-  : [];
+const toList = (v) =>
+  Array.isArray(v) ? v : typeof v === "string" && v.trim() ? v.split("\n\n").filter(Boolean) : [];
 
 function Notes({ data }) {
   const ins = data.insights || {};
   const sections = [
-    { key: "working",    label: "Working",      cls: "working" },
-    { key: "notWorking", label: "Not working",  cls: "notworking" },
-    { key: "actions",    label: "Actions",      cls: "" },
-    { key: "next",       label: "Next quarter", cls: "" },
+    { key: "working", label: "Working", cls: "working" },
+    { key: "notWorking", label: "Not working", cls: "notworking" },
+    { key: "actions", label: "Actions", cls: "" },
+    { key: "next", label: "Next quarter", cls: "" },
   ];
   return (
     <section id="insights" className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif"><em>Insights</em></h2>
+        <h2 className="section-title serif">
+          <em>Insights</em>
+        </h2>
       </header>
       <div className="notes">
-        {sections.map(s => {
+        {sections.map((s) => {
           const items = toList(ins[s.key]);
           return (
             <div className={"note " + s.cls} key={s.key}>
               <h4>{s.label}</h4>
-              {items.length
-                ? <ul>{items.map((n, i) => <li key={i}>{n}</li>)}</ul>
-                : <EmptyNote />}
+              {items.length ? (
+                <ul>
+                  {items.map((n, i) => (
+                    <li key={i}>{n}</li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyNote />
+              )}
             </div>
           );
         })}
@@ -205,11 +251,11 @@ function Notes({ data }) {
 }
 
 const WEB_SECTIONS = [
-  { id: "numbers",       label: "The Numbers" },
-  { id: "channels",      label: "Channels" },
-  { id: "top-pages",     label: "Top Pages" },
+  { id: "numbers", label: "The Numbers" },
+  { id: "channels", label: "Channels" },
+  { id: "top-pages", label: "Top Pages" },
   { id: "contact-forms", label: "Contact Forms" },
-  { id: "insights",      label: "Insights" },
+  { id: "insights", label: "Insights" },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────
@@ -221,7 +267,7 @@ export function WebPage({ agency, quarter, onReady }) {
   // Fresh array identity once the form stats land, so SectionRail re-checks
   // the DOM and picks up the (conditionally rendered) Contact Forms section.
   const railSections = useMemo(
-    () => WEB_SECTIONS.filter(s => s.id !== "contact-forms" || formStats?.totals?.total > 0),
+    () => WEB_SECTIONS.filter((s) => s.id !== "contact-forms" || formStats?.totals?.total > 0),
     [formStats]
   );
 
@@ -233,10 +279,16 @@ export function WebPage({ agency, quarter, onReady }) {
     return (
       <main className="report-wrap">
         <section className="section wrap">
-          <header className="section-head"><h2 className="section-title serif">Unable to load <em>report</em></h2></header>
+          <header className="section-head">
+            <h2 className="section-title serif">
+              Unable to load <em>report</em>
+            </h2>
+          </header>
           <div className="error-section" role="alert">
             <p>{error}</p>
-            <button className="error-retry-btn" onClick={() => setRetryKey(k => k + 1)}>Try again</button>
+            <button className="error-retry-btn" onClick={() => setRetryKey((k) => k + 1)}>
+              Try again
+            </button>
           </div>
         </section>
       </main>
@@ -247,9 +299,16 @@ export function WebPage({ agency, quarter, onReady }) {
     return (
       <main className="report-wrap">
         <section className="section wrap">
-          <header className="section-head"><h2 className="section-title serif">Nothing here <em>yet</em></h2></header>
+          <header className="section-head">
+            <h2 className="section-title serif">
+              Nothing here <em>yet</em>
+            </h2>
+          </header>
           <div className="error-section">
-            <p>This report hasn’t been published for the selected quarter. Choose another quarter from the menu above, or check back soon.</p>
+            <p>
+              This report hasn’t been published for the selected quarter. Choose another quarter from the menu
+              above, or check back soon.
+            </p>
           </div>
         </section>
       </main>
@@ -261,12 +320,24 @@ export function WebPage({ agency, quarter, onReady }) {
   return (
     <main className="report-wrap">
       <SectionRail sections={railSections} />
-      <ErrorBoundary><Hero agency={agency} quarter={quarter} data={data} /></ErrorBoundary>
-      <ErrorBoundary><Numbers data={data} prevData={prevData} /></ErrorBoundary>
-      <ErrorBoundary><Channels data={data} prevData={prevData} /></ErrorBoundary>
-      <ErrorBoundary><TopPages data={data} prevData={prevData} /></ErrorBoundary>
-      <ErrorBoundary><ContactFormsSection stats={formStats} prevStats={prevFormStats} quarter={quarter} /></ErrorBoundary>
-      <ErrorBoundary><Notes data={data} /></ErrorBoundary>
+      <ErrorBoundary>
+        <Hero agency={agency} quarter={quarter} data={data} />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <Numbers data={data} prevData={prevData} />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <Channels data={data} prevData={prevData} />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <TopPages data={data} prevData={prevData} />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <ContactFormsSection stats={formStats} prevStats={prevFormStats} quarter={quarter} />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <Notes data={data} />
+      </ErrorBoundary>
     </main>
   );
 }

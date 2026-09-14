@@ -1,35 +1,46 @@
 import { describe, it, expect } from "vitest";
-import {
-  buildPlatformFocusSignal,
-  buildJobAdSignal,
-  buildWebFunnelSignal,
-} from "./planSignals.js";
+import { buildPlatformFocusSignal, buildJobAdSignal, buildWebFunnelSignal } from "./planSignals.js";
 import { MIN_SAMPLE_SIZE } from "./planEngine.js";
 
 describe("buildPlatformFocusSignal", () => {
   it("is empty with fewer than two active platforms", () => {
-    expect(buildPlatformFocusSignal([{ name: "LinkedIn", engagement_rate: 5 }])).toEqual(
-      { status: "empty", platform: null, engagementRate: null, weight: 0 }
-    );
-    expect(buildPlatformFocusSignal([])).toEqual(
-      { status: "empty", platform: null, engagementRate: null, weight: 0 }
-    );
+    expect(buildPlatformFocusSignal([{ name: "LinkedIn", engagement_rate: 5 }])).toEqual({
+      status: "empty",
+      platform: null,
+      engagementRate: null,
+      weight: 0,
+    });
+    expect(buildPlatformFocusSignal([])).toEqual({
+      status: "empty",
+      platform: null,
+      engagementRate: null,
+      weight: 0,
+    });
   });
 
   it("is empty when no platform has a positive engagement rate", () => {
-    const platforms = [{ name: "LinkedIn", engagement_rate: 0 }, { name: "Facebook", engagement_rate: null }];
+    const platforms = [
+      { name: "LinkedIn", engagement_rate: 0 },
+      { name: "Facebook", engagement_rate: null },
+    ];
     expect(buildPlatformFocusSignal(platforms).status).toBe("empty");
   });
 
   it("is empty when the leader is only barely ahead of the pack", () => {
     // 10% ahead is well under the 50%-ahead-for-full-weight bar
-    const platforms = [{ name: "LinkedIn", engagement_rate: 5.5 }, { name: "Facebook", engagement_rate: 5 }];
+    const platforms = [
+      { name: "LinkedIn", engagement_rate: 5.5 },
+      { name: "Facebook", engagement_rate: 5 },
+    ];
     expect(buildPlatformFocusSignal(platforms).status).toBe("empty");
   });
 
   it("picks the leader with a real lead and scales weight with how far ahead it is", () => {
     // LinkedIn is 100% ahead of Facebook's 5 -> lead(1.0) / 0.5 -> weight clamped to 1
-    const platforms = [{ name: "LinkedIn", engagement_rate: 10 }, { name: "Facebook", engagement_rate: 5 }];
+    const platforms = [
+      { name: "LinkedIn", engagement_rate: 10 },
+      { name: "Facebook", engagement_rate: 5 },
+    ];
     const signal = buildPlatformFocusSignal(platforms);
     expect(signal.status).toBe("ready");
     expect(signal.platform).toBe("LinkedIn");
@@ -38,8 +49,15 @@ describe("buildPlatformFocusSignal", () => {
   });
 
   it("breaks a tie in current rate using QoQ momentum", () => {
-    const platforms = [{ name: "LinkedIn", engagement_rate: 8 }, { name: "Facebook", engagement_rate: 8 }, { name: "Instagram", engagement_rate: 2 }];
-    const prev = [{ name: "LinkedIn", engagement_rate: 4 }, { name: "Facebook", engagement_rate: 8 }];
+    const platforms = [
+      { name: "LinkedIn", engagement_rate: 8 },
+      { name: "Facebook", engagement_rate: 8 },
+      { name: "Instagram", engagement_rate: 2 },
+    ];
+    const prev = [
+      { name: "LinkedIn", engagement_rate: 4 },
+      { name: "Facebook", engagement_rate: 8 },
+    ];
     const signal = buildPlatformFocusSignal(platforms, prev);
     // LinkedIn doubled QoQ, Facebook was flat -> LinkedIn wins the tie
     expect(signal.platform).toBe("LinkedIn");
@@ -48,7 +66,10 @@ describe("buildPlatformFocusSignal", () => {
 
 describe("buildJobAdSignal", () => {
   const jobPost = (impressions, engagements) => ({
-    post_date: "2026-06-01", impressions, engagements, notes: "job posting",
+    post_date: "2026-06-01",
+    impressions,
+    engagements,
+    notes: "job posting",
   });
 
   it("is empty with too few organic job posts to trust", () => {

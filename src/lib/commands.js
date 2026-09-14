@@ -41,9 +41,9 @@ export function buildCommands(query, { agency, quarter, view }) {
       payload: { agency: key },
     }));
 
-  const quarters = QUARTERS.filter(item =>
+  const quarters = QUARTERS.filter((item) =>
     matches(item.label, String(item.year), item.rangeLabel, "quarter")
-  ).map(item => ({
+  ).map((item) => ({
     id: `quarter-${item.suffix}`,
     label: `${item.label} ${item.year}`,
     meta: item.rangeLabel,
@@ -72,5 +72,5 @@ export function buildCommands(query, { agency, quarter, view }) {
     { label: "Agencies", items: agencies },
     { label: "Quarters", items: quarters },
     { label: "Actions", items: actions },
-  ].filter(group => group.items.length > 0);
+  ].filter((group) => group.items.length > 0);
 }

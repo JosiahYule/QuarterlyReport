@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { fmt, fmtExact, fmtPct, fmtTime, toNumber, calcAutoDelta, parseDelta, adSpend, sumPaidMediaAds } from "./utils.js";
+import {
+  fmt,
+  fmtExact,
+  fmtPct,
+  fmtTime,
+  toNumber,
+  calcAutoDelta,
+  parseDelta,
+  adSpend,
+  sumPaidMediaAds,
+} from "./utils.js";
 
 describe("fmt", () => {
   it("abbreviates large numbers", () => {
@@ -14,12 +24,27 @@ describe("fmt", () => {
     expect(fmt(null)).toBe("—");
     expect(fmt(undefined)).toBe("—");
   });
+  // A rate against a zero baseline divides to Infinity and an empty quarter
+  // to NaN. These used to reach the page as "InfinityM" and "NaN".
+  it("renders non-finite numbers as em dash, like fmtInt and fmtPct do", () => {
+    expect(fmt(Infinity)).toBe("—");
+    expect(fmt(-Infinity)).toBe("—");
+    expect(fmt(NaN)).toBe("—");
+  });
+  it("still passes non-numbers through unchanged", () => {
+    expect(fmt("n/a")).toBe("n/a");
+  });
 });
 
 describe("fmtExact / fmtPct / fmtTime", () => {
   it("formats exact integers", () => {
     expect(fmtExact(1234567)).toBe((1234567).toLocaleString());
     expect(fmtExact(null)).toBe("—");
+  });
+  it("treats non-finite and non-numeric input as absent", () => {
+    expect(fmtExact(Infinity)).toBe("—");
+    expect(fmtExact(NaN)).toBe("—");
+    expect(fmtExact("12")).toBe("—");
   });
   it("formats percentages to one decimal", () => {
     expect(fmtPct(4.267)).toBe("4.3%");
@@ -80,13 +105,13 @@ describe("sumPaidMediaAds", () => {
     expect(t.reach).toBe(2000);
     expect(t.clicks).toBe(50);
     expect(t.conversions).toBe(10);
-    expect(t.spend).toBe(70);                 // 20×2 + 30×1
-    expect(t.ctr).toBeCloseTo(1.25);          // 50 / 4000
-    expect(t.cpc).toBeCloseTo(1.4);           // 70 / 50
-    expect(t.cpm).toBeCloseTo(17.5);          // 70 / 4000 × 1000
-    expect(t.frequency).toBeCloseTo(2);       // 4000 / 2000
+    expect(t.spend).toBe(70); // 20×2 + 30×1
+    expect(t.ctr).toBeCloseTo(1.25); // 50 / 4000
+    expect(t.cpc).toBeCloseTo(1.4); // 70 / 50
+    expect(t.cpm).toBeCloseTo(17.5); // 70 / 4000 × 1000
+    expect(t.frequency).toBeCloseTo(2); // 4000 / 2000
     expect(t.conversionRate).toBeCloseTo(20); // 10 / 50 × 100
-    expect(t.cpa).toBeCloseTo(7);             // 70 / 10
+    expect(t.cpa).toBeCloseTo(7); // 70 / 10
     expect(t.engagementRate).toBeCloseTo(4.5); // impression-weighted: (3×1000 + 5×3000)/4000
   });
 

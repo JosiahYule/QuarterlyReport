@@ -4,18 +4,14 @@ import { QUARTERS, resolveQuarter } from "../../config.js";
 import { WeekCalendar } from "./WeekCalendar.jsx";
 import { useWebReport } from "../../hooks/useWebReport.js";
 import { buildPlanSuggestion, buildWeekPlan, buildCadence } from "../../lib/planEngine.js";
-import {
-  buildPlatformFocusSignal,
-  buildJobAdSignal,
-  buildWebFunnelSignal,
-} from "../../lib/planSignals.js";
+import { buildPlatformFocusSignal, buildJobAdSignal, buildWebFunnelSignal } from "../../lib/planSignals.js";
 
 // The quarter right after the selected one just started — its post log is
 // thin or empty until weeks in. Pull in the prior quarter's posts too so
 // there's always enough sample size to find a pattern, not just whatever's
 // been logged so far this quarter.
 function previousQuarter(quarter) {
-  const idx = QUARTERS.findIndex(q => q.suffix === quarter);
+  const idx = QUARTERS.findIndex((q) => q.suffix === quarter);
   return idx === -1 ? null : QUARTERS[idx + 1] || null;
 }
 
@@ -28,11 +24,18 @@ function pct(rate) {
 // list of campaign-like objects with a camelCase `ads` array) — the same
 // normalization useSocialReport.js's mapPaidMedia does for the Social report.
 function normalizePaidMediaForSignal(campaigns) {
-  return [{
-    ads: (campaigns || []).flatMap(c => (c.paid_media_ads || []).map(a => ({
-      impressions: a.impressions, clicks: a.clicks, cpc: a.cpc, engagementRate: a.engagement_rate,
-    }))),
-  }];
+  return [
+    {
+      ads: (campaigns || []).flatMap((c) =>
+        (c.paid_media_ads || []).map((a) => ({
+          impressions: a.impressions,
+          clicks: a.clicks,
+          cpc: a.cpc,
+          engagementRate: a.engagement_rate,
+        }))
+      ),
+    },
+  ];
 }
 
 // ─── Week guidance ──────────────────────────────────────────────────
@@ -51,13 +54,14 @@ function WeekGuidance({ plan, cadence }) {
     <div className="admin-plan-signals">
       {goneDark && (
         <div className="admin-plan-signal is-down">
-          ⚠ No post in {cadence.daysSinceLast} day{cadence.daysSinceLast === 1 ? "" : "s"} — time to get something out.
+          ⚠ No post in {cadence.daysSinceLast} day{cadence.daysSinceLast === 1 ? "" : "s"} — time to get
+          something out.
         </div>
       )}
       {bestType && (
         <div className="admin-plan-signal">
-          <strong>{bestType.label}</strong> is your strongest content type this quarter
-          ({pct(bestType.avgEngagementRate)} avg. engagement) — the calendar leans on it below.
+          <strong>{bestType.label}</strong> is your strongest content type this quarter (
+          {pct(bestType.avgEngagementRate)} avg. engagement) — the calendar leans on it below.
         </div>
       )}
     </div>
@@ -89,9 +93,11 @@ export function PlanTab({ agency, quarter }) {
         const [reportsRes, plannedRes] = await Promise.all([
           supabase
             .from("social_reports")
-            .select("quarter, year, social_posts(*), social_platforms(*), paid_media_campaigns(*, paid_media_ads(*))")
+            .select(
+              "quarter, year, social_posts(*), social_platforms(*), paid_media_campaigns(*, paid_media_ads(*))"
+            )
             .eq("agency", agency)
-            .or(wanted.map(q => `and(quarter.eq.${q.suffix},year.eq.${q.year})`).join(",")),
+            .or(wanted.map((q) => `and(quarter.eq.${q.suffix},year.eq.${q.year})`).join(",")),
           supabase
             .from("plan_items")
             .select("content_type, planned_date, idea, status")
@@ -116,22 +122,25 @@ export function PlanTab({ agency, quarter }) {
           setPlannedItems(plannedRes.error ? [] : plannedRes.data || []);
         }
       } catch {
-        if (!cancelled) setLoadError("Failed to load the post log for this quarter. Please refresh and try again.");
+        if (!cancelled)
+          setLoadError("Failed to load the post log for this quarter. Please refresh and try again.");
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [agency, quarter, prevQ]);
 
-  if (loading)   return <div className="admin-form-status">Analyzing the post log…</div>;
+  if (loading) return <div className="admin-form-status">Analyzing the post log…</div>;
   if (loadError) return <div className="admin-form-status admin-form-status--error">{loadError}</div>;
 
   const posts = [...currentPosts, ...prevPosts];
   const plan = buildPlanSuggestion(posts);
   const periodLabel = prevQ ? `this quarter and last quarter (${prevQ.label})` : "this quarter";
   const isEmpty = plan.status === "empty";
-  const qMeta = QUARTERS.find(q => q.suffix === quarter);
+  const qMeta = QUARTERS.find((q) => q.suffix === quarter);
 
   // Cross-page signals still bias the per-day picks in buildWeekPlan — the
   // intelligence is unchanged, only its on-screen narration was removed.
@@ -161,8 +170,8 @@ export function PlanTab({ agency, quarter }) {
       {isEmpty && (
         <div className="admin-plan-empty">
           No dated, logged posts with impressions yet across {periodLabel}, so there's no posting pattern to
-          suggest from. Add rows in the Social → All Posts tab (or import a CSV) to unlock posting suggestions —
-          the planner below still works for capturing and scheduling ideas.
+          suggest from. Add rows in the Social → All Posts tab (or import a CSV) to unlock posting suggestions
+          — the planner below still works for capturing and scheduling ideas.
         </div>
       )}
     </div>

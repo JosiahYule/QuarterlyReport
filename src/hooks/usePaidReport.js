@@ -6,11 +6,11 @@ import { withRetry, friendlyError, getCached, setCached } from "../lib/fetching.
 import { AUDIENCE_DIMENSIONS, compareSegments } from "../lib/linkedinDemographics.js";
 
 function getQuarterMeta(suffix) {
-  return QUARTERS.find(q => q.suffix === suffix) || QUARTERS[0];
+  return QUARTERS.find((q) => q.suffix === suffix) || QUARTERS[0];
 }
 
 function getPrevSuffix(suffix) {
-  const idx = QUARTERS.findIndex(q => q.suffix === suffix);
+  const idx = QUARTERS.findIndex((q) => q.suffix === suffix);
   return idx >= 0 && idx < QUARTERS.length - 1 ? QUARTERS[idx + 1].suffix : null;
 }
 
@@ -21,7 +21,9 @@ async function fetchPaid(agency, quarter) {
   const q = resolveQuarter(quarter);
   const { data, error } = await supabase
     .from("social_reports")
-    .select("id, paid_media_campaigns(*, paid_media_ads(*)), paid_media_demographics(*), paid_media_click_paths(*)")
+    .select(
+      "id, paid_media_campaigns(*, paid_media_ads(*)), paid_media_demographics(*), paid_media_click_paths(*)"
+    )
     .eq("agency", agency)
     .eq("quarter", q.suffix)
     .eq("year", q.year)
@@ -44,27 +46,22 @@ function rollUpAudience(rawRows) {
     if (!byDimension.has(r.dimension)) byDimension.set(r.dimension, []);
     byDimension.get(r.dimension).push(r);
   }
-  return AUDIENCE_DIMENSIONS
-    .filter(d => byDimension.has(d.key))
-    .map(d => {
-      const rank = compareSegments(d.key);
-      const rows = [...byDimension.get(d.key)]
-        .sort((a, b) => rank(a, b) || a.sort_order - b.sort_order);
-      const total = rows.reduce((a, r) => a + r.impressions, 0);
-      const segments = rows.map(r => ({
-        name: r.segment,
-        impressions: r.impressions,
-        clicks: typeof r.clicks === "number" ? r.clicks : null,
-        ctr: typeof r.clicks === "number" && r.impressions > 0
-          ? (r.clicks / r.impressions) * 100
-          : null,
-        share: total > 0 ? (r.impressions / total) * 100 : null,
-        // The combined tail of a truncated import: counted in `total`, but
-        // presented apart from the named segments.
-        isOther: !!r.is_other,
-      }));
-      return { dimension: d.key, label: d.label, layout: d.layout, totalImpressions: total, segments };
-    });
+  return AUDIENCE_DIMENSIONS.filter((d) => byDimension.has(d.key)).map((d) => {
+    const rank = compareSegments(d.key);
+    const rows = [...byDimension.get(d.key)].sort((a, b) => rank(a, b) || a.sort_order - b.sort_order);
+    const total = rows.reduce((a, r) => a + r.impressions, 0);
+    const segments = rows.map((r) => ({
+      name: r.segment,
+      impressions: r.impressions,
+      clicks: typeof r.clicks === "number" ? r.clicks : null,
+      ctr: typeof r.clicks === "number" && r.impressions > 0 ? (r.clicks / r.impressions) * 100 : null,
+      share: total > 0 ? (r.impressions / total) * 100 : null,
+      // The combined tail of a truncated import: counted in `total`, but
+      // presented apart from the named segments.
+      isOther: !!r.is_other,
+    }));
+    return { dimension: d.key, label: d.label, layout: d.layout, totalImpressions: total, segments };
+  });
 }
 
 // A stored journey: the ordered pages one group of sessions visited after
@@ -75,19 +72,23 @@ function rollUpAudience(rawRows) {
 function rollUpClickPaths(rawRows) {
   return [...(rawRows || [])]
     .sort((a, b) => a.sort_order - b.sort_order)
-    .map(r => {
+    .map((r) => {
       let steps = r.steps;
       if (typeof steps === "string") {
-        try { steps = JSON.parse(steps); } catch { steps = []; }
+        try {
+          steps = JSON.parse(steps);
+        } catch {
+          steps = [];
+        }
       }
       return {
-        steps: Array.isArray(steps) ? steps.filter(s => typeof s === "string" && s) : [],
+        steps: Array.isArray(steps) ? steps.filter((s) => typeof s === "string" && s) : [],
         sessions: typeof r.sessions === "number" ? r.sessions : 0,
         conversions: typeof r.conversions === "number" ? r.conversions : null,
         isOther: !!r.is_other,
       };
     })
-    .filter(p => p.sessions > 0);
+    .filter((p) => p.sessions > 0);
 }
 
 // Breakdown rows carry the campaign they describe; the ones imported before
@@ -98,7 +99,10 @@ function splitByCampaign(rawRows) {
   const byCampaign = new Map();
   const accountWide = [];
   for (const r of rawRows || []) {
-    if (!r.campaign_id) { accountWide.push(r); continue; }
+    if (!r.campaign_id) {
+      accountWide.push(r);
+      continue;
+    }
     if (!byCampaign.has(r.campaign_id)) byCampaign.set(r.campaign_id, []);
     byCampaign.get(r.campaign_id).push(r);
   }
@@ -108,10 +112,10 @@ function splitByCampaign(rawRows) {
 function mapCampaigns(rawCampaigns, demographicsByCampaign = new Map(), clickPathsByCampaign = new Map()) {
   return [...(rawCampaigns || [])]
     .sort((a, b) => a.sort_order - b.sort_order)
-    .map(c => {
+    .map((c) => {
       const ads = [...(c.paid_media_ads || [])]
         .sort((a, b) => a.sort_order - b.sort_order)
-        .map(a => ({
+        .map((a) => ({
           id: a.id,
           name: a.name,
           impressions: a.impressions,
@@ -143,7 +147,7 @@ function mapCampaigns(rawCampaigns, demographicsByCampaign = new Map(), clickPat
 // rather than carried forward, so the name is the only stable handle — and a
 // renamed or brand-new campaign simply shows no deltas.
 function campaignDeltas(campaigns, prevCampaigns) {
-  const prevByName = new Map(prevCampaigns.map(c => [nfk(c.name), c.totals]));
+  const prevByName = new Map(prevCampaigns.map((c) => [nfk(c.name), c.totals]));
   for (const c of campaigns) {
     const prev = prevByName.get(nfk(c.name));
     c.deltas = {};
@@ -162,17 +166,17 @@ function normalize(report, agency, quarter, prev) {
   const campaigns = mapCampaigns(report?.paid_media_campaigns, demographics.byCampaign, paths.byCampaign);
   const audience = rollUpAudience(demographics.accountWide);
   const clickPaths = rollUpClickPaths(paths.accountWide);
-  const totals = sumPaidMediaAds(campaigns.flatMap(c => c.ads));
+  const totals = sumPaidMediaAds(campaigns.flatMap((c) => c.ads));
 
   campaignDeltas(campaigns, mapCampaigns(prev?.paid_media_campaigns));
 
-  const platforms = [...new Set(campaigns.map(c => c.platform.trim()).filter(Boolean))];
+  const platforms = [...new Set(campaigns.map((c) => c.platform.trim()).filter(Boolean))];
 
   return {
     meta: {
-      quarter:    qMeta.label,
+      quarter: qMeta.label,
       rangeLabel: qMeta.rangeLabel,
-      year:       qMeta.year,
+      year: qMeta.year,
       agencyName: AGENCIES[agency]?.name || "Integrated Staffing",
     },
     campaigns,
@@ -193,9 +197,11 @@ export function usePaidReport(agency, quarter, retryKey = 0) {
     const cached = getCached(cacheKey);
 
     // Serve the last good copy instantly, revalidate in the background
-    setState(cached !== undefined
-      ? { data: cached, status: "ready", error: null }
-      : { data: null, status: "loading", error: null });
+    setState(
+      cached !== undefined
+        ? { data: cached, status: "ready", error: null }
+        : { data: null, status: "loading", error: null }
+    );
 
     (async () => {
       try {
@@ -215,7 +221,9 @@ export function usePaidReport(agency, quarter, retryKey = 0) {
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [agency, quarter, retryKey]);
 
   return state;

@@ -10,8 +10,14 @@ import { classifyPost, isJobAdType, MIN_SAMPLE_SIZE } from "./planEngine.js";
 import { calcAutoDelta, sumPaidMediaAds } from "../utils.js";
 
 const EMPTY_PLATFORM_FOCUS = { status: "empty", platform: null, engagementRate: null, weight: 0 };
-const EMPTY_JOB_AD_SIGNAL  = { status: "empty", organicRate: null, paidRate: null, weight: 0 };
-const EMPTY_WEB_FUNNEL     = { status: "empty", weight: 0, favorLinked: false, sessionsPct: null, formsPct: null };
+const EMPTY_JOB_AD_SIGNAL = { status: "empty", organicRate: null, paidRate: null, weight: 0 };
+const EMPTY_WEB_FUNNEL = {
+  status: "empty",
+  weight: 0,
+  favorLinked: false,
+  sessionsPct: null,
+  formsPct: null,
+};
 
 // ─── Platform focus ─────────────────────────────────────────────────
 // Which platform to double down on this week: the one with the best
@@ -19,26 +25,32 @@ const EMPTY_WEB_FUNNEL     = { status: "empty", weight: 0, favorLinked: false, s
 // from the others rather than just nosing ahead. A single active
 // platform isn't a "focus" — there's no choice being made — so that's
 // empty too.
-const PLATFORM_LEAD_MIN = 0.2;             // must be at least 20% ahead of the pack to count as a "focus" at all
+const PLATFORM_LEAD_MIN = 0.2; // must be at least 20% ahead of the pack to count as a "focus" at all
 const PLATFORM_LEAD_FOR_FULL_WEIGHT = 0.5; // 50% ahead of the pack's average = full weight
 
 export function buildPlatformFocusSignal(platforms, prevPlatforms = []) {
-  const active = (platforms || []).filter(p => Number.isFinite(p.engagement_rate) && p.engagement_rate > 0);
+  const active = (platforms || []).filter((p) => Number.isFinite(p.engagement_rate) && p.engagement_rate > 0);
   if (active.length < 2) return EMPTY_PLATFORM_FOCUS;
 
-  const prevByName = new Map((prevPlatforms || []).map(p => [(p.name || "").toLowerCase(), p]));
-  const scored = active.map(p => {
-    const prev = prevByName.get((p.name || "").toLowerCase());
-    const delta = calcAutoDelta(p.engagement_rate, prev?.engagement_rate);
-    const momentum = !delta ? 0 : delta.dir === "up" ? delta.pct : delta.dir === "down" ? -delta.pct : 0;
-    return { name: p.name, engagementRate: p.engagement_rate, momentum };
-  }).sort((a, b) => b.engagementRate - a.engagementRate || b.momentum - a.momentum);
+  const prevByName = new Map((prevPlatforms || []).map((p) => [(p.name || "").toLowerCase(), p]));
+  const scored = active
+    .map((p) => {
+      const prev = prevByName.get((p.name || "").toLowerCase());
+      const delta = calcAutoDelta(p.engagement_rate, prev?.engagement_rate);
+      const momentum = !delta ? 0 : delta.dir === "up" ? delta.pct : delta.dir === "down" ? -delta.pct : 0;
+      return { name: p.name, engagementRate: p.engagement_rate, momentum };
+    })
+    .sort((a, b) => b.engagementRate - a.engagementRate || b.momentum - a.momentum);
 
   const [best, ...others] = scored;
   const avgOthers = others.reduce((a, p) => a + p.engagementRate, 0) / others.length;
-  const lead = avgOthers > 0 ? (best.engagementRate - avgOthers) / avgOthers : (best.engagementRate > 0 ? 1 : 0);
+  const lead =
+    avgOthers > 0 ? (best.engagementRate - avgOthers) / avgOthers : best.engagementRate > 0 ? 1 : 0;
   if (lead < PLATFORM_LEAD_MIN) return EMPTY_PLATFORM_FOCUS;
-  const weight = Math.max(0, Math.min(1, (lead - PLATFORM_LEAD_MIN) / (PLATFORM_LEAD_FOR_FULL_WEIGHT - PLATFORM_LEAD_MIN)));
+  const weight = Math.max(
+    0,
+    Math.min(1, (lead - PLATFORM_LEAD_MIN) / (PLATFORM_LEAD_FOR_FULL_WEIGHT - PLATFORM_LEAD_MIN))
+  );
 
   return { status: "ready", platform: best.name, engagementRate: best.engagementRate, weight };
 }
@@ -55,11 +67,12 @@ const JOB_SIGNAL_RATIO_FOR_FULL_WEIGHT = 2; // paid at 2x organic = full weight
 export function buildJobAdSignal(posts, paidMedia, { now } = {}) {
   void now; // reserved for future recency weighting; unused today, kept for a stable call signature
   const jobPosts = (posts || []).filter(
-    p => p.post_date && Number(p.impressions) > 0 && isJobAdType(classifyPost(p).label)
+    (p) => p.post_date && Number(p.impressions) > 0 && isJobAdType(classifyPost(p).label)
   );
   if (jobPosts.length < MIN_SAMPLE_SIZE) return EMPTY_JOB_AD_SIGNAL;
 
-  let organicImp = 0, organicEng = 0;
+  let organicImp = 0,
+    organicEng = 0;
   for (const p of jobPosts) {
     organicImp += Number(p.impressions) || 0;
     organicEng += Number(p.engagements) || 0;
@@ -67,7 +80,7 @@ export function buildJobAdSignal(posts, paidMedia, { now } = {}) {
   if (organicImp <= 0) return EMPTY_JOB_AD_SIGNAL;
   const organicRate = organicEng / organicImp;
 
-  const ads = (paidMedia || []).flatMap(c => c.ads || []);
+  const ads = (paidMedia || []).flatMap((c) => c.ads || []);
   const paidTotals = sumPaidMediaAds(ads);
   if (!paidTotals.impressions || paidTotals.engagementRate == null) return EMPTY_JOB_AD_SIGNAL;
   const paidRate = paidTotals.engagementRate / 100; // stored as a percent number, organicRate is a fraction
@@ -75,10 +88,13 @@ export function buildJobAdSignal(posts, paidMedia, { now } = {}) {
   // organicRate can legitimately be 0 (a job post that got zero engagement) —
   // treat any real paid engagement as an unbounded ratio rather than dividing
   // by zero, so a live paid campaign still registers against a dead organic one.
-  const ratio = organicRate > 0 ? paidRate / organicRate : (paidRate > 0 ? Infinity : 0);
+  const ratio = organicRate > 0 ? paidRate / organicRate : paidRate > 0 ? Infinity : 0;
   if (ratio < JOB_SIGNAL_MIN_RATIO) return EMPTY_JOB_AD_SIGNAL;
 
-  const weight = Math.max(0, Math.min(1, (ratio - JOB_SIGNAL_MIN_RATIO) / (JOB_SIGNAL_RATIO_FOR_FULL_WEIGHT - JOB_SIGNAL_MIN_RATIO)));
+  const weight = Math.max(
+    0,
+    Math.min(1, (ratio - JOB_SIGNAL_MIN_RATIO) / (JOB_SIGNAL_RATIO_FOR_FULL_WEIGHT - JOB_SIGNAL_MIN_RATIO))
+  );
 
   return { status: "ready", organicRate, paidRate, weight };
 }
@@ -89,11 +105,12 @@ export function buildJobAdSignal(posts, paidMedia, { now } = {}) {
 // type ranking toward types that actually link back to the site (posts
 // with a URL logged), since those are the ones capable of moving a
 // lagging conversion number.
-const WEB_FUNNEL_GAP_THRESHOLD = 10;      // sessions must be outpacing forms by 10+ points to count
+const WEB_FUNNEL_GAP_THRESHOLD = 10; // sessions must be outpacing forms by 10+ points to count
 const WEB_FUNNEL_GAP_FOR_FULL_WEIGHT = 40; // a 40+ point gap = full weight
 
 export function buildWebFunnelSignal(webData, prevWebData) {
-  const cur = webData?.overall, prev = prevWebData?.overall;
+  const cur = webData?.overall,
+    prev = prevWebData?.overall;
   if (!cur || !prev) return EMPTY_WEB_FUNNEL;
 
   const sessionsDelta = calcAutoDelta(cur.sessions, prev.sessions);
@@ -105,7 +122,13 @@ export function buildWebFunnelSignal(webData, prevWebData) {
   if (sessionsPct < 0) return EMPTY_WEB_FUNNEL;
 
   const gap = sessionsPct - formsPct;
-  const weight = Math.max(0, Math.min(1, (gap - WEB_FUNNEL_GAP_THRESHOLD) / (WEB_FUNNEL_GAP_FOR_FULL_WEIGHT - WEB_FUNNEL_GAP_THRESHOLD)));
+  const weight = Math.max(
+    0,
+    Math.min(
+      1,
+      (gap - WEB_FUNNEL_GAP_THRESHOLD) / (WEB_FUNNEL_GAP_FOR_FULL_WEIGHT - WEB_FUNNEL_GAP_THRESHOLD)
+    )
+  );
   if (weight <= 0) return EMPTY_WEB_FUNNEL;
 
   return { status: "ready", weight, favorLinked: true, sessionsPct, formsPct };
