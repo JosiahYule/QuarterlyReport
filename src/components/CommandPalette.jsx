@@ -20,7 +20,7 @@ export function CommandPalette({ agency, quarter, view, onNavigate, onClose }) {
     () => buildCommands(query, { agency, quarter, view }),
     [query, agency, quarter, view]
   );
-  const flat = useMemo(() => groups.flatMap(g => g.items), [groups]);
+  const flat = useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const active = flat[Math.min(activeIdx, flat.length - 1)];
 
   // Focus the input on open, lock body scroll, restore focus on close
@@ -38,16 +38,17 @@ export function CommandPalette({ agency, quarter, view, onNavigate, onClose }) {
   // Keep the active option in view while arrowing through a long list
   useEffect(() => {
     if (!active) return;
-    listRef.current
-      ?.querySelector(`[data-cmdk-id="${active.id}"]`)
-      ?.scrollIntoView({ block: "nearest" });
+    listRef.current?.querySelector(`[data-cmdk-id="${active.id}"]`)?.scrollIntoView({ block: "nearest" });
   }, [active]);
 
   const run = (item) => {
     if (!item) return;
     if (item.kind === "navigate") onNavigate(item.payload);
     else if (item.kind === "copy-link") navigator.clipboard?.writeText(window.location.href);
-    else if (item.kind === "admin") { window.location.href = "/admin"; return; }
+    else if (item.kind === "admin") {
+      window.location.href = "/admin";
+      return;
+    }
     onClose();
   };
 
@@ -55,11 +56,11 @@ export function CommandPalette({ agency, quarter, view, onNavigate, onClose }) {
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
-        setActiveIdx(i => (flat.length ? (i + 1) % flat.length : 0));
+        setActiveIdx((i) => (flat.length ? (i + 1) % flat.length : 0));
         break;
       case "ArrowUp":
         e.preventDefault();
-        setActiveIdx(i => (flat.length ? (i - 1 + flat.length) % flat.length : 0));
+        setActiveIdx((i) => (flat.length ? (i - 1 + flat.length) % flat.length : 0));
         break;
       case "Home":
         e.preventDefault();
@@ -85,10 +86,17 @@ export function CommandPalette({ agency, quarter, view, onNavigate, onClose }) {
   };
 
   return (
-    <div className="cmdk-overlay" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div
+      className="cmdk-overlay"
+      onPointerDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="cmdk-panel" role="dialog" aria-modal="true" aria-label="Command menu">
         <div className="cmdk-input-row">
-          <span className="cmdk-search-icon" aria-hidden="true"><IconSearch /></span>
+          <span className="cmdk-search-icon" aria-hidden="true">
+            <IconSearch />
+          </span>
           <input
             ref={inputRef}
             className="cmdk-input"
@@ -99,20 +107,23 @@ export function CommandPalette({ agency, quarter, view, onNavigate, onClose }) {
             aria-expanded="true"
             aria-controls="cmdk-listbox"
             aria-activedescendant={active ? `cmdk-item-${active.id}` : undefined}
-            onChange={e => { setQuery(e.target.value); setActiveIdx(0); }}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActiveIdx(0);
+            }}
             onKeyDown={onKeyDown}
           />
           <kbd className="kbd">esc</kbd>
         </div>
 
         <div className="cmdk-list" ref={listRef} id="cmdk-listbox" role="listbox">
-          {flat.length === 0 && (
-            <div className="cmdk-empty">No results for “{query}”</div>
-          )}
-          {groups.map(group => (
+          {flat.length === 0 && <div className="cmdk-empty">No results for “{query}”</div>}
+          {groups.map((group) => (
             <div key={group.label} role="presentation">
-              <div className="cmdk-group-label" role="presentation">{group.label}</div>
-              {group.items.map(item => {
+              <div className="cmdk-group-label" role="presentation">
+                {group.label}
+              </div>
+              {group.items.map((item) => {
                 const isActive = item === active;
                 return (
                   <button
@@ -124,7 +135,7 @@ export function CommandPalette({ agency, quarter, view, onNavigate, onClose }) {
                     aria-selected={isActive}
                     tabIndex={-1}
                     className={"cmdk-option" + (isActive ? " is-active" : "")}
-                    onPointerMove={e => setActiveIdx(Number(e.currentTarget.dataset.idx))}
+                    onPointerMove={(e) => setActiveIdx(Number(e.currentTarget.dataset.idx))}
                     onClick={() => run(item)}
                   >
                     {item.badge && (
@@ -134,7 +145,9 @@ export function CommandPalette({ agency, quarter, view, onNavigate, onClose }) {
                     )}
                     <span className="cmdk-option-label">{item.label}</span>
                     {item.current && (
-                      <span className="cmdk-option-check" aria-hidden="true"><IconCheck /></span>
+                      <span className="cmdk-option-check" aria-hidden="true">
+                        <IconCheck />
+                      </span>
                     )}
                     <span className="cmdk-option-meta">{item.meta}</span>
                   </button>
@@ -145,9 +158,16 @@ export function CommandPalette({ agency, quarter, view, onNavigate, onClose }) {
         </div>
 
         <div className="cmdk-foot" aria-hidden="true">
-          <span><kbd className="kbd">↑</kbd><kbd className="kbd">↓</kbd> navigate</span>
-          <span><kbd className="kbd">↵</kbd> select</span>
-          <span><kbd className="kbd">esc</kbd> close</span>
+          <span>
+            <kbd className="kbd">↑</kbd>
+            <kbd className="kbd">↓</kbd> navigate
+          </span>
+          <span>
+            <kbd className="kbd">↵</kbd> select
+          </span>
+          <span>
+            <kbd className="kbd">esc</kbd> close
+          </span>
         </div>
       </div>
     </div>

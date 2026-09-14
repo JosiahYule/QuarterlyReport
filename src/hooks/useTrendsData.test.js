@@ -9,7 +9,7 @@ import {
 
 const DAY = 86400000;
 const qStart = new Date(2026, 2, 1); // Mar 1
-const qEnd   = new Date(2026, 5, 1); // Jun 1 (exclusive)
+const qEnd = new Date(2026, 5, 1); // Jun 1 (exclusive)
 
 describe("computeAdvancedPace", () => {
   it("returns null with no usable current value", () => {
@@ -41,7 +41,7 @@ describe("computeAdvancedPace", () => {
   it("applies the calibration factor, clamped to sane bounds", () => {
     const asOf = new Date(qStart.getTime() + 46 * DAY);
     const base = computeAdvancedPace(460, qStart, qEnd, null, [], 0, asOf, 1);
-    const up   = computeAdvancedPace(460, qStart, qEnd, null, [], 0, asOf, 1.2);
+    const up = computeAdvancedPace(460, qStart, qEnd, null, [], 0, asOf, 1.2);
     expect(up.projected).toBeCloseTo(base.projected * 1.2, 5);
     const bogus = computeAdvancedPace(460, qStart, qEnd, null, [], 0, asOf, -5);
     expect(bogus.projected).toBeCloseTo(base.projected, 5);
@@ -50,7 +50,7 @@ describe("computeAdvancedPace", () => {
   it("blends toward the Q2 rate early in the quarter", () => {
     const asOf = new Date(qStart.getTime() + 8 * DAY); // ~9% elapsed
     const withAnchor = computeAdvancedPace(80, qStart, qEnd, 50, [], 0, asOf); // Q2 ran at 50/day
-    const noAnchor   = computeAdvancedPace(80, qStart, qEnd, null, [], 0, asOf);
+    const noAnchor = computeAdvancedPace(80, qStart, qEnd, null, [], 0, asOf);
     expect(withAnchor.projected).toBeGreaterThan(noAnchor.projected);
   });
 });

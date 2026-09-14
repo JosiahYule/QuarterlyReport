@@ -5,9 +5,9 @@ const DEFAULTS = { agency: "isl", quarter: CURRENT_QUARTER.suffix, view: "social
 
 function readUrl() {
   const p = new URLSearchParams(window.location.search);
-  const agency  = AGENCIES[p.get("agency")]                           ? p.get("agency")  : DEFAULTS.agency;
-  const quarter = QUARTERS.find(q => q.suffix === p.get("quarter"))  ? p.get("quarter") : DEFAULTS.quarter;
-  const view    = VIEWS.includes(p.get("view"))                       ? p.get("view")    : DEFAULTS.view;
+  const agency = AGENCIES[p.get("agency")] ? p.get("agency") : DEFAULTS.agency;
+  const quarter = QUARTERS.find((q) => q.suffix === p.get("quarter")) ? p.get("quarter") : DEFAULTS.quarter;
+  const view = VIEWS.includes(p.get("view")) ? p.get("view") : DEFAULTS.view;
   return { agency, quarter, view };
 }
 
@@ -15,7 +15,7 @@ export function useUrlState() {
   const [state, setState] = useState(readUrl);
 
   const navigate = useCallback((updates) => {
-    setState(prev => {
+    setState((prev) => {
       const next = { ...prev, ...updates };
       const u = new URL(window.location.href);
       Object.entries(next).forEach(([k, v]) => u.searchParams.set(k, v));

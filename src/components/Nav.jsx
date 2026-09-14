@@ -4,16 +4,20 @@ import { IconCaret, IconCheck, IconSearch } from "./Icons.jsx";
 import { isMacLike } from "./CommandPalette.jsx";
 
 const TABS = [
-  { id: "social",  label: "Social Media" },
-  { id: "web",     label: "Website" },
-  { id: "paid",    label: "Paid Media" },
-  { id: "trends",  label: "Trends" },
+  { id: "social", label: "Social Media" },
+  { id: "web", label: "Website" },
+  { id: "paid", label: "Paid Media" },
+  { id: "trends", label: "Trends" },
 ];
 
 function useCloseOnOutside(ref, onClose) {
   useEffect(() => {
-    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    const close = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) onClose();
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
     document.addEventListener("pointerdown", close);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -30,7 +34,10 @@ function AgencyMenu({ current, onSelect, onClose }) {
 
   // Focus the active (or first) item on mount
   useEffect(() => {
-    const activeIdx = Math.max(0, items.findIndex(([k]) => k === current));
+    const activeIdx = Math.max(
+      0,
+      items.findIndex(([k]) => k === current)
+    );
     itemRefs.current[activeIdx]?.focus();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -64,18 +71,27 @@ function AgencyMenu({ current, onSelect, onClose }) {
       {items.map(([key, cfg], i) => (
         <button
           key={key}
-          ref={el => { itemRefs.current[i] = el; }}
+          ref={(el) => {
+            itemRefs.current[i] = el;
+          }}
           role="menuitem"
           className={"agency-option" + (key === current ? " is-current" : "")}
           aria-current={key === current ? "true" : undefined}
-          onClick={() => { onSelect(key); onClose(); }}
-          onKeyDown={e => handleKeyDown(e, i)}
+          onClick={() => {
+            onSelect(key);
+            onClose();
+          }}
+          onKeyDown={(e) => handleKeyDown(e, i)}
         >
           <span className={"agency-option-badge agency-badge-" + key} aria-hidden="true">
             {cfg.label}
           </span>
           <span className="agency-option-name">{cfg.name}</span>
-          {key === current && <span className="agency-option-check" aria-hidden="true"><IconCheck /></span>}
+          {key === current && (
+            <span className="agency-option-check" aria-hidden="true">
+              <IconCheck />
+            </span>
+          )}
         </button>
       ))}
     </div>
@@ -84,12 +100,15 @@ function AgencyMenu({ current, onSelect, onClose }) {
 
 // ─── Quarter chooser dropdown ─────────────────────────────────────
 function QuarterMenu({ current, onSelect, onClose }) {
-  const years = [...new Set(QUARTERS.map(q => q.year))];
+  const years = [...new Set(QUARTERS.map((q) => q.year))];
   const allItems = QUARTERS; // flat ordered list for keyboard nav
   const itemRefs = useRef([]);
 
   useEffect(() => {
-    const activeIdx = Math.max(0, allItems.findIndex(q => q.suffix === current));
+    const activeIdx = Math.max(
+      0,
+      allItems.findIndex((q) => q.suffix === current)
+    );
     itemRefs.current[activeIdx]?.focus();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -121,20 +140,27 @@ function QuarterMenu({ current, onSelect, onClose }) {
   let flatIdx = 0;
   return (
     <div className="menu is-open" role="menu">
-      {years.map(year => (
+      {years.map((year) => (
         <React.Fragment key={year}>
-          <div className="group" role="presentation">{year}</div>
-          {QUARTERS.filter(q => q.year === year).map(q => {
+          <div className="group" role="presentation">
+            {year}
+          </div>
+          {QUARTERS.filter((q) => q.year === year).map((q) => {
             const idx = flatIdx++;
             return (
               <button
                 key={q.suffix}
-                ref={el => { itemRefs.current[idx] = el; }}
+                ref={(el) => {
+                  itemRefs.current[idx] = el;
+                }}
                 role="menuitem"
                 aria-current={q.suffix === current ? "true" : undefined}
                 className={"menu-item" + (q.suffix === current ? " active" : "")}
-                onClick={() => { onSelect(q.suffix); onClose(); }}
-                onKeyDown={e => handleKeyDown(e, idx)}
+                onClick={() => {
+                  onSelect(q.suffix);
+                  onClose();
+                }}
+                onKeyDown={(e) => handleKeyDown(e, idx)}
               >
                 {q.label} — {q.rangeLabel}
               </button>
@@ -148,19 +174,19 @@ function QuarterMenu({ current, onSelect, onClose }) {
 
 // ─── Single combined nav bar ──────────────────────────────────────
 export function AppNav({ agency, view, quarter, onNavigate, onOpenPalette }) {
-  const [agencyOpen,  setAgencyOpen]  = useState(false);
+  const [agencyOpen, setAgencyOpen] = useState(false);
   const [quarterOpen, setQuarterOpen] = useState(false);
-  const [scrolled,    setScrolled]    = useState(false);
-  const [indicator,   setIndicator]   = useState(null);
+  const [scrolled, setScrolled] = useState(false);
+  const [indicator, setIndicator] = useState(null);
 
-  const agencyRef  = useRef();
+  const agencyRef = useRef();
   const quarterRef = useRef();
-  const tabsRef    = useRef();
+  const tabsRef = useRef();
 
-  const closeAgency  = useCallback(() => setAgencyOpen(false),  []);
+  const closeAgency = useCallback(() => setAgencyOpen(false), []);
   const closeQuarter = useCallback(() => setQuarterOpen(false), []);
 
-  useCloseOnOutside(agencyRef,  closeAgency);
+  useCloseOnOutside(agencyRef, closeAgency);
   useCloseOnOutside(quarterRef, closeQuarter);
 
   // Elevation: the nav casts a soft shadow once the page scrolls under it
@@ -187,29 +213,29 @@ export function AppNav({ agency, view, quarter, onNavigate, onOpenPalette }) {
   }, [measureIndicator]);
 
   const cfg = AGENCIES[agency] || AGENCIES.isl;
-  const q   = QUARTERS.find(q => q.suffix === quarter) || QUARTERS[0];
+  const q = QUARTERS.find((q) => q.suffix === quarter) || QUARTERS[0];
 
   return (
     <header className={"app-nav" + (scrolled ? " is-scrolled" : "")}>
       <div className="wrap app-nav-row">
-
         <div className="app-nav-left">
-
           <div className="app-nav-agency" ref={agencyRef}>
             <button
               className="app-nav-agency-btn serif"
-              onClick={() => setAgencyOpen(o => !o)}
+              onClick={() => setAgencyOpen((o) => !o)}
               aria-haspopup="menu"
               aria-expanded={agencyOpen}
               aria-label={`Current agency: ${cfg.name}. Activate to switch.`}
             >
               <span className="app-nav-agency-name">{cfg.name}</span>
-              <span className="app-nav-caret" aria-hidden="true"><IconCaret /></span>
+              <span className="app-nav-caret" aria-hidden="true">
+                <IconCaret />
+              </span>
             </button>
             {agencyOpen && (
               <AgencyMenu
                 current={agency}
-                onSelect={key => onNavigate({ agency: key })}
+                onSelect={(key) => onNavigate({ agency: key })}
                 onClose={() => setAgencyOpen(false)}
               />
             )}
@@ -218,7 +244,7 @@ export function AppNav({ agency, view, quarter, onNavigate, onOpenPalette }) {
           <div className="app-nav-divider" aria-hidden="true" />
 
           <nav className="app-nav-tabs" aria-label="Report views" ref={tabsRef}>
-            {TABS.map(t => (
+            {TABS.map((t) => (
               <button
                 key={t.id}
                 className={view === t.id ? "is-active" : ""}
@@ -236,7 +262,6 @@ export function AppNav({ agency, view, quarter, onNavigate, onOpenPalette }) {
               />
             )}
           </nav>
-
         </div>
 
         <div className="app-nav-right">
@@ -246,34 +271,43 @@ export function AppNav({ agency, view, quarter, onNavigate, onOpenPalette }) {
               onClick={onOpenPalette}
               aria-label={`Open command menu (${isMacLike ? "Command" : "Control"}+K)`}
             >
-              <span className="nav-cmdk-icon" aria-hidden="true"><IconSearch /></span>
-              <kbd className="nav-cmdk-kbd" aria-hidden="true">{isMacLike ? "⌘" : "Ctrl"} K</kbd>
+              <span className="nav-cmdk-icon" aria-hidden="true">
+                <IconSearch />
+              </span>
+              <kbd className="nav-cmdk-kbd" aria-hidden="true">
+                {isMacLike ? "⌘" : "Ctrl"} K
+              </kbd>
             </button>
           )}
-          <span className="app-nav-range" aria-hidden="true">{q.rangeLabel}</span>
+          <span className="app-nav-range" aria-hidden="true">
+            {q.rangeLabel}
+          </span>
           <div ref={quarterRef} style={{ position: "relative" }}>
             <button
               className="qchooser"
               aria-haspopup="menu"
               aria-expanded={quarterOpen}
               aria-label={`Current quarter: ${q.label} ${q.rangeLabel}. Activate to change.`}
-              onClick={() => setQuarterOpen(o => !o)}
+              onClick={() => setQuarterOpen((o) => !o)}
             >
               <span>{q.label}</span>
-              <span className="caret" aria-hidden="true"><IconCaret /></span>
+              <span className="caret" aria-hidden="true">
+                <IconCaret />
+              </span>
             </button>
             {quarterOpen && (
               <QuarterMenu
                 current={quarter}
-                onSelect={suffix => onNavigate({ quarter: suffix })}
+                onSelect={(suffix) => onNavigate({ quarter: suffix })}
                 onClose={() => setQuarterOpen(false)}
               />
             )}
           </div>
 
-          <a href="/admin" className="app-nav-admin-link">Admin</a>
+          <a href="/admin" className="app-nav-admin-link">
+            Admin
+          </a>
         </div>
-
       </div>
     </header>
   );

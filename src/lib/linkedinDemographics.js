@@ -28,21 +28,17 @@ import { parseCsvRecords } from "./formSubmissions.js";
 // a table, so the ranking is visible in the numbers.
 export const AUDIENCE_DIMENSIONS = [
   { key: "job_function", label: "Job Function", layout: "bars" },
-  { key: "seniority",    label: "Seniority",    layout: "bars" },
-  { key: "industry",     label: "Industry",     layout: "bars" },
+  { key: "seniority", label: "Seniority", layout: "bars" },
+  { key: "industry", label: "Industry", layout: "bars" },
   { key: "company_size", label: "Company Size", layout: "bars" },
-  { key: "location",     label: "Location",     layout: "bars" },
-  { key: "company",      label: "Company",      layout: "list" },
-  { key: "job_title",    label: "Job Title",    layout: "bars" },
+  { key: "location", label: "Location", layout: "bars" },
+  { key: "company", label: "Company", layout: "list" },
+  { key: "job_title", label: "Job Title", layout: "bars" },
 ];
 
-export const AUDIENCE_LAYOUTS = Object.fromEntries(
-  AUDIENCE_DIMENSIONS.map(d => [d.key, d.layout])
-);
+export const AUDIENCE_LAYOUTS = Object.fromEntries(AUDIENCE_DIMENSIONS.map((d) => [d.key, d.layout]));
 
-export const AUDIENCE_DIMENSION_LABELS = Object.fromEntries(
-  AUDIENCE_DIMENSIONS.map(d => [d.key, d.label])
-);
+export const AUDIENCE_DIMENSION_LABELS = Object.fromEntries(AUDIENCE_DIMENSIONS.map((d) => [d.key, d.label]));
 
 // The Companies export runs to thousands of rows, nearly all of them a single
 // impression deep. Only the strongest MAX_SEGMENTS are stored; the rest are
@@ -74,12 +70,12 @@ export function compareSegments(dimension) {
 // ("company size" before "company").
 const DIMENSION_MATCHERS = [
   { key: "job_function", re: /job function|member function/ },
-  { key: "seniority",    re: /seniority/ },
-  { key: "industry",     re: /industry/ },
+  { key: "seniority", re: /seniority/ },
+  { key: "industry", re: /industry/ },
   { key: "company_size", re: /company size/ },
-  { key: "job_title",    re: /job title/ },
-  { key: "location",     re: /location|region|geo/ },
-  { key: "company",      re: /company/ },
+  { key: "job_title", re: /job title/ },
+  { key: "location", re: /location|region|geo/ },
+  { key: "company", re: /company/ },
 ];
 
 // Columns that name the segment but aren't the segment itself — the Companies
@@ -90,7 +86,9 @@ const NOT_A_SEGMENT = /\burl\b|link|website/i;
 // "1,234" → 1234. Returns null for blanks and anything non-numeric (a stray
 // "-" placeholder, or a rate column routed here by a malformed row).
 function parseCount(value) {
-  const s = String(value ?? "").replace(/,/g, "").trim();
+  const s = String(value ?? "")
+    .replace(/,/g, "")
+    .trim();
   if (!s || !/^\d+(\.\d+)?$/.test(s)) return null;
   return Math.round(Number(s));
 }
@@ -107,9 +105,7 @@ function detectDimension(header) {
 // carries both, and only the paid side belongs in a paid media report. An
 // organic-only column is never used — that file has nothing to say about ads.
 function findMetricColumn(headers, re) {
-  const matches = headers
-    .map((h, i) => ({ h: h.toLowerCase(), i }))
-    .filter(({ h }) => re.test(h));
+  const matches = headers.map((h, i) => ({ h: h.toLowerCase(), i })).filter(({ h }) => re.test(h));
   const paid = matches.find(({ h }) => /paid/.test(h));
   if (paid) return paid.i;
   const neutral = matches.find(({ h }) => !/organic/.test(h));
@@ -126,15 +122,20 @@ export function parseLinkedInDemographics(text) {
   // Hunt for the real header row: metadata preamble lines precede it, so scan
   // until a record pairs a known dimension column with an impressions column.
   for (let i = 0; i < records.length; i++) {
-    const headers = records[i].map(h => h.trim());
+    const headers = records[i].map((h) => h.trim());
     const iImpressions = findMetricColumn(headers, /impression/);
     if (iImpressions === -1) continue;
 
-    let iSegment = -1, dimension = null;
+    let iSegment = -1,
+      dimension = null;
     for (let c = 0; c < headers.length; c++) {
       if (c === iImpressions || NOT_A_SEGMENT.test(headers[c])) continue;
       const d = detectDimension(headers[c]);
-      if (d) { iSegment = c; dimension = d; break; }
+      if (d) {
+        iSegment = c;
+        dimension = d;
+        break;
+      }
     }
     if (!dimension) continue;
 
@@ -167,9 +168,7 @@ export function parseLinkedInDemographics(text) {
       kept.push({
         segment: otherLabel(tail.length),
         impressions: tail.reduce((a, r) => a + r.impressions, 0),
-        clicks: tail.some(r => r.clicks != null)
-          ? tail.reduce((a, r) => a + (r.clicks || 0), 0)
-          : null,
+        clicks: tail.some((r) => r.clicks != null) ? tail.reduce((a, r) => a + (r.clicks || 0), 0) : null,
         isOther: true,
       });
     }

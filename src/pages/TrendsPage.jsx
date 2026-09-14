@@ -1,6 +1,20 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import Chart from "chart.js/auto";
-import { useTrendsData, METRICS, extractMetric, computePace, getMetricHistory, quarterCompletion, quarterComplete, buildProjectionAudits, blendCalibrationHistory, getWeekAgoProjection, getProjectionTimeline, annotateTimelineSpikes, projectionBand } from "../hooks/useTrendsData.js";
+import {
+  useTrendsData,
+  METRICS,
+  extractMetric,
+  computePace,
+  getMetricHistory,
+  quarterCompletion,
+  quarterComplete,
+  buildProjectionAudits,
+  blendCalibrationHistory,
+  getWeekAgoProjection,
+  getProjectionTimeline,
+  annotateTimelineSpikes,
+  projectionBand,
+} from "../hooks/useTrendsData.js";
 import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { fmt, fmtApprox } from "../utils.js";
 import { PageLoader } from "../components/PageLoader.jsx";
@@ -10,9 +24,24 @@ import { SectionRail } from "../components/SectionRail.jsx";
 // Chart colours — q2/q3 follow the agency accent; proj stays visually
 // distinct from q3 for every palette.
 const CHART_PALETTES = {
-  isl: { q1: "rgba(100,116,139,.7)", q2: "rgba(0,61,114,.8)",  q3: "rgba(0,84,154,.85)",   proj: "rgba(180,130,0,.85)" },
-  as:  { q1: "rgba(100,116,139,.7)", q2: "rgba(92,69,0,.8)",   q3: "rgba(122,92,0,.85)",   proj: "rgba(10,77,140,.85)" },
-  ads: { q1: "rgba(100,116,139,.7)", q2: "rgba(10,67,89,.8)",  q3: "rgba(15,91,120,.85)",  proj: "rgba(180,130,0,.85)" },
+  isl: {
+    q1: "rgba(100,116,139,.7)",
+    q2: "rgba(0,61,114,.8)",
+    q3: "rgba(0,84,154,.85)",
+    proj: "rgba(180,130,0,.85)",
+  },
+  as: {
+    q1: "rgba(100,116,139,.7)",
+    q2: "rgba(92,69,0,.8)",
+    q3: "rgba(122,92,0,.85)",
+    proj: "rgba(10,77,140,.85)",
+  },
+  ads: {
+    q1: "rgba(100,116,139,.7)",
+    q2: "rgba(10,67,89,.8)",
+    q3: "rgba(15,91,120,.85)",
+    proj: "rgba(180,130,0,.85)",
+  },
 };
 const paletteFor = (agency) => CHART_PALETTES[agency] || CHART_PALETTES.isl;
 
@@ -56,33 +85,44 @@ function makeTooltipHandler(isPercent) {
 // ─── Chart card ───────────────────────────────────────────────────
 function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
   const canvasRef = useRef(null);
-  const chartRef  = useRef(null);
+  const chartRef = useRef(null);
   const C = paletteFor(agency);
   const [d1, d2, d3] = qdata;
   const [tq1, tq2, tq3] = TRENDS_QUARTERS;
   const q3 = tq3;
   const done = quarterComplete(q3);
-  const rangeShort = q => q.rangeLabel.split(" ")[0];
+  const rangeShort = (q) => q.rangeLabel.split(" ")[0];
 
   const q1v = extractMetric(d1, metric);
   const q2v = extractMetric(d2, metric);
   const q3v = extractMetric(d3, metric);
 
-  const q2Rate = q2v !== null
-    ? (metric.baselineFromQ2 && q1v !== null ? (q2v - q1v) : q2v) / ((tq2.end - tq2.start) / 86400000)
-    : null;
+  const q2Rate =
+    q2v !== null
+      ? (metric.baselineFromQ2 && q1v !== null ? q2v - q1v : q2v) / ((tq2.end - tq2.start) / 86400000)
+      : null;
 
   const q3input = metric.baselineFromQ2 && q2v !== null && q3v !== null ? q3v - q2v : q3v;
   const histBaseline = metric.baselineFromQ2 && q2v !== null ? q2v : 0;
 
-  let pace = metric.isPace && !done
-    ? computePace(metric, q3input, q3.start, q3.end, q2Rate, getMetricHistory(snaps, metric.id), histBaseline, new Date(), calibrationFactor)
-    : null;
+  let pace =
+    metric.isPace && !done
+      ? computePace(
+          metric,
+          q3input,
+          q3.start,
+          q3.end,
+          q2Rate,
+          getMetricHistory(snaps, metric.id),
+          histBaseline,
+          new Date(),
+          calibrationFactor
+        )
+      : null;
 
   const projected = pace?.projected ?? null;
-  const chartQ3val = projected !== null
-    ? (metric.baselineFromQ2 && q2v !== null ? q2v + projected : projected)
-    : (q3v ?? 0);
+  const chartQ3val =
+    projected !== null ? (metric.baselineFromQ2 && q2v !== null ? q2v + projected : projected) : (q3v ?? 0);
 
   const isProjected = projected !== null;
   const labels = [
@@ -100,19 +140,24 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
   // Create the chart instance once per agency change; options (scales, tooltip) are stable.
   useEffect(() => {
     if (!canvasRef.current) return;
-    if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
+    if (chartRef.current) {
+      chartRef.current.destroy();
+      chartRef.current = null;
+    }
 
     chartRef.current = new Chart(canvasRef.current, {
       type: "bar",
       data: {
         labels,
-        datasets: [{
-          data: values,
-          backgroundColor: colors,
-          borderWidth: 0,
-          borderRadius: 2,
-          borderSkipped: false,
-        }],
+        datasets: [
+          {
+            data: values,
+            backgroundColor: colors,
+            borderWidth: 0,
+            borderRadius: 2,
+            borderSkipped: false,
+          },
+        ],
       },
       options: {
         responsive: true,
@@ -136,15 +181,22 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
             grid: { color: "rgba(0,0,0,.04)" },
             border: { display: false, dash: [3, 3] },
             ticks: {
-              font: { size: 11, family: "Inter Tight, system-ui" }, color: "#64748b", padding: 6,
-              callback: v => metric.isPercent ? `${v.toFixed(1)}%` : v >= 1000 ? v.toLocaleString() : v,
+              font: { size: 11, family: "Inter Tight, system-ui" },
+              color: "#64748b",
+              padding: 6,
+              callback: (v) => (metric.isPercent ? `${v.toFixed(1)}%` : v >= 1000 ? v.toLocaleString() : v),
             },
           },
         },
       },
     });
 
-    return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
+    return () => {
+      if (chartRef.current) {
+        chartRef.current.destroy();
+        chartRef.current = null;
+      }
+    };
   }, [agency]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update data in-place when values change — avoids destroy/recreate on every data refresh.
@@ -164,7 +216,7 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
     { color: C.q2, label: `${tq2.label} Actual` },
     isProjected
       ? { color: C.proj, label: `${tq3.label} Projected` }
-      : { color: C.q3,   label: `${tq3.label} ${done ? "Actual" : "To Date"}` },
+      : { color: C.q3, label: `${tq3.label} ${done ? "Actual" : "To Date"}` },
   ];
 
   return (
@@ -175,7 +227,7 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
         <canvas ref={canvasRef} />
       </div>
       <div className="chart-legend" aria-hidden="true">
-        {legendItems.map(item => (
+        {legendItems.map((item) => (
           <div key={item.label} className="legend-item">
             <div className="legend-dot" style={{ background: item.color }} />
             {item.label}
@@ -188,7 +240,12 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
 
 // ─── Projection trajectory chart (how the projected final has moved) ──
 function ProjTrajectoryChart({ timeline, metric }) {
-  const W = 880, H = 260, pL = 68, pR = 64, pT = 28, pB = 48;
+  const W = 880,
+    H = 260,
+    pL = 68,
+    pR = 64,
+    pT = 28,
+    pB = 48;
   const [hovered, setHovered] = useState(null);
   if (!timeline || timeline.length < 2) {
     return (
@@ -200,39 +257,53 @@ function ProjTrajectoryChart({ timeline, metric }) {
 
   // Domain spans the projection line *and* the band, so the shaded range never
   // clips at the top or bottom of the plot.
-  const vals = timeline.flatMap(p => [p.projected, p.low, p.high].filter(Number.isFinite));
-  const minV = Math.min(...vals), maxV = Math.max(...vals);
+  const vals = timeline.flatMap((p) => [p.projected, p.low, p.high].filter(Number.isFinite));
+  const minV = Math.min(...vals),
+    maxV = Math.max(...vals);
   const span = maxV - minV;
-  const pad  = span > 0 ? span * 0.15 : (maxV || 1) * 0.05;
+  const pad = span > 0 ? span * 0.15 : (maxV || 1) * 0.05;
   const domMin = Math.max(0, minV - pad);
   const domMax = maxV + pad;
   const domRange = domMax - domMin || 1;
 
-  const minT = timeline[0].t, maxT = timeline[timeline.length - 1].t;
+  const minT = timeline[0].t,
+    maxT = timeline[timeline.length - 1].t;
   const tRange = maxT - minT || 1;
-  const X = t => pL + ((t - minT) / tRange) * (W - pL - pR);
-  const Y = v => pT + (H - pT - pB) * (1 - (v - domMin) / domRange);
+  const X = (t) => pL + ((t - minT) / tRange) * (W - pL - pR);
+  const Y = (v) => pT + (H - pT - pB) * (1 - (v - domMin) / domRange);
 
-  const pts = timeline.map(p => ({
-    x: X(p.t), y: Y(p.projected), v: p.projected, spike: p.spike,
-    yLow:  Number.isFinite(p.low)  ? Y(p.low)  : null,
+  const pts = timeline.map((p) => ({
+    x: X(p.t),
+    y: Y(p.projected),
+    v: p.projected,
+    spike: p.spike,
+    yLow: Number.isFinite(p.low) ? Y(p.low) : null,
     yHigh: Number.isFinite(p.high) ? Y(p.high) : null,
   }));
   const linePath = pts.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.y.toFixed(1)).join(" ");
-  const areaPath = linePath
-    + ` L${pts[pts.length - 1].x.toFixed(1)},${(H - pB).toFixed(1)}`
-    + ` L${pts[0].x.toFixed(1)},${(H - pB).toFixed(1)} Z`;
+  const areaPath =
+    linePath +
+    ` L${pts[pts.length - 1].x.toFixed(1)},${(H - pB).toFixed(1)}` +
+    ` L${pts[0].x.toFixed(1)},${(H - pB).toFixed(1)} Z`;
 
   // Band polygon: high edge left→right, then low edge right→left, closed.
-  const bandPts = pts.filter(p => p.yLow != null && p.yHigh != null);
-  const bandPath = bandPts.length >= 2
-    ? bandPts.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.yHigh.toFixed(1)).join(" ")
-      + " " + [...bandPts].reverse().map(p => "L" + p.x.toFixed(1) + "," + p.yLow.toFixed(1)).join(" ")
-      + " Z"
-    : null;
+  const bandPts = pts.filter((p) => p.yLow != null && p.yHigh != null);
+  const bandPath =
+    bandPts.length >= 2
+      ? bandPts.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.yHigh.toFixed(1)).join(" ") +
+        " " +
+        [...bandPts]
+          .reverse()
+          .map((p) => "L" + p.x.toFixed(1) + "," + p.yLow.toFixed(1))
+          .join(" ") +
+        " Z"
+      : null;
 
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => ({ v: domMin + domRange * f, y: pT + (H - pT - pB) * (1 - f) }));
-  const fmtDate = t => new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => ({
+    v: domMin + domRange * f,
+    y: pT + (H - pT - pB) * (1 - f),
+  }));
+  const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const nLabels = Math.min(4, timeline.length);
   const xLabels = Array.from({ length: nLabels }, (_, i) => {
     const t = minT + tRange * (i / (nLabels - 1));
@@ -248,12 +319,16 @@ function ProjTrajectoryChart({ timeline, metric }) {
   let tip = null;
   if (active && spikePost) {
     const name = spikePost.post_name || "Untitled post";
-    const tipW = 232, tipH = 52;
+    const tipW = 232,
+      tipH = 52;
     let tx = active.x - tipW / 2;
     tx = Math.max(pL, Math.min(tx, W - pR - tipW));
     const ty = active.y - tipH - 14 < pT ? active.y + 14 : active.y - tipH - 14;
     tip = {
-      tx, ty, tipW, tipH,
+      tx,
+      ty,
+      tipW,
+      tipH,
       title: name.length > 30 ? name.slice(0, 29) + "…" : name,
       dir: active.spike.direction === "up" ? "▲" : "▼",
       pctTxt: `${active.spike.deltaPct >= 0 ? "+" : "−"}${Math.abs(active.spike.deltaPct).toFixed(1)}%`,
@@ -262,59 +337,130 @@ function ProjTrajectoryChart({ timeline, metric }) {
   }
 
   return (
-    <svg className="kpi-history-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
-         role="img" aria-label={`${metric.label}: projected final over the quarter so far`}>
+    <svg
+      className="kpi-history-svg"
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="xMidYMid meet"
+      role="img"
+      aria-label={`${metric.label}: projected final over the quarter so far`}
+    >
       {ticks.map((t, i) => (
         <g key={i}>
           <line x1={pL} x2={W - pR} y1={t.y} y2={t.y} stroke="var(--rule-soft)" strokeWidth="1" />
-          <text x={pL - 8} y={t.y + 4} textAnchor="end" fontSize="11" fill="var(--ink-4)" fontFamily="var(--sans)">
+          <text
+            x={pL - 8}
+            y={t.y + 4}
+            textAnchor="end"
+            fontSize="11"
+            fill="var(--ink-4)"
+            fontFamily="var(--sans)"
+          >
             {fmt(t.v)}
           </text>
         </g>
       ))}
       <line x1={pL} x2={W - pR} y1={H - pB} y2={H - pB} stroke="var(--ink)" strokeWidth="1" />
-      {bandPath
-        ? <path d={bandPath} fill="var(--accent)" opacity="0.10" />
-        : <path d={areaPath} fill="var(--accent)" opacity="0.06" />}
+      {bandPath ? (
+        <path d={bandPath} fill="var(--accent)" opacity="0.10" />
+      ) : (
+        <path d={areaPath} fill="var(--accent)" opacity="0.06" />
+      )}
       <path d={linePath} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
       {pts.map((p, i) => {
         const isSpike = !!p.spike?.post;
         const isLast = i === pts.length - 1;
         if (!isSpike) {
           return (
-            <circle key={i} cx={p.x} cy={p.y} r={isLast ? 5 : 2.5}
-                    fill="var(--paper)" stroke="var(--accent)" strokeWidth="2" />
+            <circle
+              key={i}
+              cx={p.x}
+              cy={p.y}
+              r={isLast ? 5 : 2.5}
+              fill="var(--paper)"
+              stroke="var(--accent)"
+              strokeWidth="2"
+            />
           );
         }
         // Spike points get a larger, filled, focusable marker with a halo and
         // a hover/focus tooltip naming the post that landed as it jumped.
         return (
-          <g key={i} tabIndex={0} role="button"
-             aria-label={`Projection jump ${p.spike.deltaPct >= 0 ? "up" : "down"} ${Math.abs(p.spike.deltaPct).toFixed(1)} percent near post ${p.spike.post.post_name || "untitled"}`}
-             style={{ cursor: "pointer", outline: "none" }}
-             onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}
-             onFocus={() => setHovered(i)} onBlur={() => setHovered(null)}>
+          <g
+            key={i}
+            tabIndex={0}
+            role="button"
+            aria-label={`Projection jump ${p.spike.deltaPct >= 0 ? "up" : "down"} ${Math.abs(p.spike.deltaPct).toFixed(1)} percent near post ${p.spike.post.post_name || "untitled"}`}
+            style={{ cursor: "pointer", outline: "none" }}
+            onMouseEnter={() => setHovered(i)}
+            onMouseLeave={() => setHovered(null)}
+            onFocus={() => setHovered(i)}
+            onBlur={() => setHovered(null)}
+          >
             <circle cx={p.x} cy={p.y} r="11" fill="var(--accent)" opacity="0.12" />
-            <circle cx={p.x} cy={p.y} r={isLast ? 6 : 5}
-                    fill="var(--accent)" stroke="var(--paper)" strokeWidth="2" />
+            <circle
+              cx={p.x}
+              cy={p.y}
+              r={isLast ? 6 : 5}
+              fill="var(--accent)"
+              stroke="var(--paper)"
+              strokeWidth="2"
+            />
           </g>
         );
       })}
-      <text x={last.x} y={last.y - 14} textAnchor="end" fontFamily="var(--serif)" fontStyle="italic" fontSize="13" fill="var(--accent)">
+      <text
+        x={last.x}
+        y={last.y - 14}
+        textAnchor="end"
+        fontFamily="var(--serif)"
+        fontStyle="italic"
+        fontSize="13"
+        fill="var(--accent)"
+      >
         latest · {fmtApprox(last.v, metric.isPercent)}
       </text>
       {xLabels.map((l, i) => (
-        <text key={i} x={l.x} y={H - pB + 20} textAnchor="middle" fontSize="11" fill="var(--ink-3)" fontFamily="var(--sans)">
+        <text
+          key={i}
+          x={l.x}
+          y={H - pB + 20}
+          textAnchor="middle"
+          fontSize="11"
+          fill="var(--ink-3)"
+          fontFamily="var(--sans)"
+        >
           {l.label}
         </text>
       ))}
       {tip && (
         <g pointerEvents="none">
-          <rect x={tip.tx} y={tip.ty} width={tip.tipW} height={tip.tipH} rx="3" fill="var(--ink)" opacity="0.95" />
-          <text x={tip.tx + 12} y={tip.ty + 20} fontSize="12" fontFamily="var(--serif)" fontStyle="italic" fill="var(--paper)">
+          <rect
+            x={tip.tx}
+            y={tip.ty}
+            width={tip.tipW}
+            height={tip.tipH}
+            rx="3"
+            fill="var(--ink)"
+            opacity="0.95"
+          />
+          <text
+            x={tip.tx + 12}
+            y={tip.ty + 20}
+            fontSize="12"
+            fontFamily="var(--serif)"
+            fontStyle="italic"
+            fill="var(--paper)"
+          >
             {tip.title}
           </text>
-          <text x={tip.tx + 12} y={tip.ty + 38} fontSize="10.5" fontFamily="var(--sans)" fill="var(--paper)" opacity="0.8">
+          <text
+            x={tip.tx + 12}
+            y={tip.ty + 38}
+            fontSize="10.5"
+            fontFamily="var(--sans)"
+            fill="var(--paper)"
+            opacity="0.8"
+          >
             {tip.dir} {tip.pctTxt} · {fmt(tip.impressions)} impressions
           </text>
         </g>
@@ -329,17 +475,18 @@ function ProjectionTrajectory({ qdata, snaps, calibrationFactors, calibrationHis
   const [, tq2, tq3] = TRENDS_QUARTERS;
   const [activeKey, setActiveKey] = useState(METRICS[0].id);
 
-  const metric = METRICS.find(m => m.id === activeKey) || METRICS[0];
+  const metric = METRICS.find((m) => m.id === activeKey) || METRICS[0];
 
   const timeline = useMemo(() => {
     const q1v = extractMetric(d1, metric);
     const q2v = extractMetric(d2, metric);
     const histBaseline = metric.baselineFromQ2 && q2v !== null ? q2v : 0;
-    const q2Rate = q2v !== null
-      ? (metric.baselineFromQ2 && q1v !== null ? (q2v - q1v) : q2v) / ((tq2.end - tq2.start) / 86400000)
-      : null;
+    const q2Rate =
+      q2v !== null
+        ? (metric.baselineFromQ2 && q1v !== null ? q2v - q1v : q2v) / ((tq2.end - tq2.start) / 86400000)
+        : null;
     const calibrationFactor = calibrationFactors[metric.id] ?? 1;
-    const errs = (calibrationHistory?.[metric.id] ?? []).map(h => h.percent_error).filter(Number.isFinite);
+    const errs = (calibrationHistory?.[metric.id] ?? []).map((h) => h.percent_error).filter(Number.isFinite);
     const avgAbsErr = errs.length ? errs.reduce((a, e) => a + Math.abs(e), 0) / errs.length : null;
     const raw = getProjectionTimeline(snaps, metric, tq3, q2Rate, histBaseline, calibrationFactor, avgAbsErr);
     // Tie sharp jumps to the post that landed as the metric accelerated.
@@ -347,17 +494,19 @@ function ProjectionTrajectory({ qdata, snaps, calibrationFactors, calibrationHis
   }, [d1, d2, metric, tq2, tq3, snaps, calibrationFactors, calibrationHistory, posts]);
 
   // Show the section once any metric has enough snapshot history to plot.
-  const hasData = METRICS.some(m => getMetricHistory(snaps, m.id).length >= 2);
+  const hasData = METRICS.some((m) => getMetricHistory(snaps, m.id).length >= 2);
   if (!hasData) return null;
 
   return (
     <section id="projection-trajectory" className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">Projection <em>Trajectory</em></h2>
+        <h2 className="section-title serif">
+          Projection <em>Trajectory</em>
+        </h2>
       </header>
       <div className="kpi-history-body">
         <nav className="kpi-history-nav" aria-label="Select metric">
-          {METRICS.map(m => (
+          {METRICS.map((m) => (
             <button
               key={m.id}
               className={"kpi-history-nav-item" + (activeKey === m.id ? " is-active" : "")}
@@ -378,10 +527,10 @@ function ProjectionTrajectory({ qdata, snaps, calibrationFactors, calibrationHis
 
 // ─── Calibration accuracy (how well past projections landed) ──────────
 function CalibrationAccuracy({ calibrationHistory }) {
-  const rows = METRICS.map(metric => {
-    const hist = (calibrationHistory?.[metric.id] ?? []).filter(h => Number.isFinite(h.percent_error));
+  const rows = METRICS.map((metric) => {
+    const hist = (calibrationHistory?.[metric.id] ?? []).filter((h) => Number.isFinite(h.percent_error));
     if (!hist.length) return { metric, quarters: 0 };
-    const absErrs = hist.map(h => Math.abs(h.percent_error)); // most-recent-first
+    const absErrs = hist.map((h) => Math.abs(h.percent_error)); // most-recent-first
     const avgAbs = absErrs.reduce((a, e) => a + e, 0) / absErrs.length;
     const latest = absErrs[0];
     const older = absErrs.slice(1);
@@ -395,36 +544,38 @@ function CalibrationAccuracy({ calibrationHistory }) {
     return { metric, quarters: hist.length, avgAbs, latest, trend };
   });
 
-  const withHistory = rows.filter(r => r.quarters > 0);
+  const withHistory = rows.filter((r) => r.quarters > 0);
   // Only render once at least one metric has a completed-quarter audit to show.
   if (!withHistory.length) return null;
 
   return (
     <section id="accuracy" className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">Projection <em>Accuracy</em></h2>
+        <h2 className="section-title serif">
+          Projection <em>Accuracy</em>
+        </h2>
       </header>
-        <div className="proj-grid">
-          {withHistory.map(({ metric, quarters, avgAbs, latest, trend }) => (
-            <div key={metric.id} className="proj-card">
-              <div className="proj-card-label">{metric.label}</div>
-              <div className="proj-number serif">±{avgAbs.toFixed(1)}%</div>
-              <div className="proj-number-sub">Avg miss · {quarters}Q</div>
-              <div className="proj-stats-grid">
-                <div className="proj-stat">
-                  <div className="proj-stat-label">Most Recent</div>
-                  <div className="proj-stat-value">±{latest.toFixed(1)}%</div>
-                </div>
-                {trend && (
-                  <div className="proj-stat">
-                    <div className="proj-stat-label">Trend</div>
-                    <div className={"proj-stat-value " + trend.cls}>{trend.label}</div>
-                  </div>
-                )}
+      <div className="proj-grid">
+        {withHistory.map(({ metric, quarters, avgAbs, latest, trend }) => (
+          <div key={metric.id} className="proj-card">
+            <div className="proj-card-label">{metric.label}</div>
+            <div className="proj-number serif">±{avgAbs.toFixed(1)}%</div>
+            <div className="proj-number-sub">Avg miss · {quarters}Q</div>
+            <div className="proj-stats-grid">
+              <div className="proj-stat">
+                <div className="proj-stat-label">Most Recent</div>
+                <div className="proj-stat-value">±{latest.toFixed(1)}%</div>
               </div>
+              {trend && (
+                <div className="proj-stat">
+                  <div className="proj-stat-label">Trend</div>
+                  <div className={"proj-stat-value " + trend.cls}>{trend.label}</div>
+                </div>
+              )}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
@@ -440,42 +591,70 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
   const histBaseline = metric.baselineFromQ2 && q2v !== null ? q2v : 0;
   const q3input = metric.baselineFromQ2 && q2v !== null && q3v !== null ? q3v - q2v : q3v;
 
-  const q2Rate = q2v !== null
-    ? (metric.baselineFromQ2 && q1v !== null ? (q2v - q1v) : q2v) / ((tq2.end - tq2.start) / 86400000)
-    : null;
+  const q2Rate =
+    q2v !== null
+      ? (metric.baselineFromQ2 && q1v !== null ? q2v - q1v : q2v) / ((tq2.end - tq2.start) / 86400000)
+      : null;
 
-  let pace = metric.isPace && !q3done
-    ? computePace(metric, q3input, tq3.start, tq3.end, q2Rate, getMetricHistory(snaps, metric.id), histBaseline, new Date(), calibrationFactor)
-    : null;
+  let pace =
+    metric.isPace && !q3done
+      ? computePace(
+          metric,
+          q3input,
+          tq3.start,
+          tq3.end,
+          q2Rate,
+          getMetricHistory(snaps, metric.id),
+          histBaseline,
+          new Date(),
+          calibrationFactor
+        )
+      : null;
 
   const projected = pace?.projected ?? null;
-  const rateVsQ2  = pace && q2Rate ? ((pace.dailyRate - q2Rate) / q2Rate * 100) : null;
+  const rateVsQ2 = pace && q2Rate ? ((pace.dailyRate - q2Rate) / q2Rate) * 100 : null;
   const headlineVal = projected !== null ? projected : q3v;
-  const headline  = headlineVal !== null ? fmtApprox(headlineVal, metric.isPercent) : "—";
+  const headline = headlineVal !== null ? fmtApprox(headlineVal, metric.isPercent) : "—";
   const ql = tq3.label;
-  const headlineSub = projected !== null
-    ? (q3done ? `${ql} Final` : `Projected Final · ${ql}`)
-    : (metric.baselineFromQ2 ? `${ql} Current Total` : `${ql} Current`);
+  const headlineSub =
+    projected !== null
+      ? q3done
+        ? `${ql} Final`
+        : `Projected Final · ${ql}`
+      : metric.baselineFromQ2
+        ? `${ql} Current Total`
+        : `${ql} Current`;
 
   // Empirical miss from persisted audits feeds both the band floor and the
   // "Past Accuracy" stat below; compute once.
-  const errors = (history ?? []).map(h => h.percent_error).filter(Number.isFinite);
+  const errors = (history ?? []).map((h) => h.percent_error).filter(Number.isFinite);
   const avgAbsErr = errors.length ? errors.reduce((a, e) => a + Math.abs(e), 0) / errors.length : null;
 
   // Uncertainty range around the projected final. Kept in the same (net) space
   // as the headline above, so card and range never contradict each other.
-  const band = pace && !q3done
-    ? projectionBand(pace, { elapsedFraction: pace.elapsedFraction, empiricalErrorPct: avgAbsErr, current: q3input })
-    : null;
+  const band =
+    pace && !q3done
+      ? projectionBand(pace, {
+          elapsedFraction: pace.elapsedFraction,
+          empiricalErrorPct: avgAbsErr,
+          current: q3input,
+        })
+      : null;
 
   const stat1Label = metric.baselineFromQ2 ? `${ql} Net New` : `${ql} to Date`;
-  const stat1Val   = metric.baselineFromQ2 && q3v !== null && q2v !== null ? fmt(q3v - q2v, metric.isPercent) : fmt(q3v, metric.isPercent);
+  const stat1Val =
+    metric.baselineFromQ2 && q3v !== null && q2v !== null
+      ? fmt(q3v - q2v, metric.isPercent)
+      : fmt(q3v, metric.isPercent);
 
   const stat2Val = pace
-    ? (metric.isPercent ? `${pace.dailyRate.toFixed(3)}%/day` : `${pace.dailyRate.toFixed(1)}/day`)
+    ? metric.isPercent
+      ? `${pace.dailyRate.toFixed(3)}%/day`
+      : `${pace.dailyRate.toFixed(1)}/day`
     : "—";
 
-  let stat3Val = "—", stat3Cls = "na";
+  let stat3Val = "—",
+    stat3Cls = "na";
   if (rateVsQ2 !== null) {
     stat3Val = `${rateVsQ2 >= 0 ? "+" : "−"}${Math.abs(rateVsQ2).toFixed(1)}%`;
     stat3Cls = rateVsQ2 >= 0 ? "pos" : "neg";
@@ -484,10 +663,10 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
   }
 
   // Week-over-week projection change
-  const weekAgoProj = projected !== null && !q3done
-    ? getWeekAgoProjection(snaps, metric, tq3, q2Rate, histBaseline)
-    : null;
-  let wowVal = "—", wowCls = "na";
+  const weekAgoProj =
+    projected !== null && !q3done ? getWeekAgoProjection(snaps, metric, tq3, q2Rate, histBaseline) : null;
+  let wowVal = "—",
+    wowCls = "na";
   if (weekAgoProj !== null && projected !== null) {
     const delta = projected - weekAgoProj;
     wowVal = `${delta >= 0 ? "+" : "−"}${fmtApprox(Math.abs(delta), metric.isPercent)}`;
@@ -497,29 +676,27 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
   // Track record: average absolute miss across persisted past-quarter audits.
   // Stays absent (rather than showing a "—") until at least one prior quarter
   // has been audited, so a fresh dashboard doesn't read as unfinished.
-  const trackRecordVal = errors.length
-    ? `±${avgAbsErr.toFixed(1)}% · ${errors.length}Q`
-    : "—";
+  const trackRecordVal = errors.length ? `±${avgAbsErr.toFixed(1)}% · ${errors.length}Q` : "—";
 
   // Band coverage: of the past quarters audited, how many landed the actual
   // final inside the range that was being shown. Validates the range itself,
   // not just the point estimate — a narrow band that's always wrong is worse
   // than a wider one that's honest.
-  const coverageEntries = (history ?? []).filter(h => typeof h.band_covered === "boolean");
-  const coverageHits = coverageEntries.filter(h => h.band_covered).length;
+  const coverageEntries = (history ?? []).filter((h) => typeof h.band_covered === "boolean");
+  const coverageHits = coverageEntries.filter((h) => h.band_covered).length;
   const coverageVal = coverageEntries.length ? `${coverageHits}/${coverageEntries.length}Q` : "—";
 
   // Build the stat rows, then drop any that have no value yet ("—"). Early in a
   // quarter the rate-derived stats and the past-accuracy row simply aren't
   // there; the card fills in as data accrues instead of showing empty dashes.
   const stats = [
-    { label: stat1Label,              value: stat1Val },
-    { label: "Daily Rate",            value: stat2Val,      cls: "rate" },
-    { label: `Rate vs ${tq2.label}`,  value: stat3Val,      cls: stat3Cls },
-    { label: "vs Last Week",          value: wowVal,        cls: wowCls },
-    { label: "Past Accuracy",         value: trackRecordVal },
-    { label: "Band Coverage",         value: coverageVal },
-  ].filter(s => s.value !== "—");
+    { label: stat1Label, value: stat1Val },
+    { label: "Daily Rate", value: stat2Val, cls: "rate" },
+    { label: `Rate vs ${tq2.label}`, value: stat3Val, cls: stat3Cls },
+    { label: "vs Last Week", value: wowVal, cls: wowCls },
+    { label: "Past Accuracy", value: trackRecordVal },
+    { label: "Band Coverage", value: coverageVal },
+  ].filter((s) => s.value !== "—");
 
   return (
     <div className="proj-card">
@@ -529,16 +706,19 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
       {band && (
         <div
           className="proj-range"
-          title={metric.sporadic
-            ? "Likely range from a spike-aware model: a steady median background rate plus an expected bonus for occasional standout posts, based on how often those have shown up this quarter"
-            : "Likely range, widens with method disagreement, time remaining, and past miss"}
+          title={
+            metric.sporadic
+              ? "Likely range from a spike-aware model: a steady median background rate plus an expected bonus for occasional standout posts, based on how often those have shown up this quarter"
+              : "Likely range, widens with method disagreement, time remaining, and past miss"
+          }
         >
-          {fmtApprox(band.low, metric.isPercent)} – {fmtApprox(band.high, metric.isPercent)} <span className="proj-range-tag">likely range</span>
+          {fmtApprox(band.low, metric.isPercent)} – {fmtApprox(band.high, metric.isPercent)}{" "}
+          <span className="proj-range-tag">likely range</span>
           {metric.sporadic && <span className="proj-range-tag">spike-aware model</span>}
         </div>
       )}
       <div className="proj-stats-grid">
-        {stats.map(s => (
+        {stats.map((s) => (
           <div className="proj-stat" key={s.label}>
             <div className="proj-stat-label">{s.label}</div>
             <div className={"proj-stat-value" + (s.cls ? " " + s.cls : "")}>{s.value}</div>
@@ -560,13 +740,24 @@ function computeMetricRateVsQ2(metric, qdata, snaps, tq2, tq3, calibrationFactor
   const q3v = extractMetric(d3, metric);
   const histBaseline = metric.baselineFromQ2 && q2v !== null ? q2v : 0;
   const q3input = metric.baselineFromQ2 && q2v !== null && q3v !== null ? q3v - q2v : q3v;
-  const q2Rate = q2v !== null
-    ? (metric.baselineFromQ2 && q1v !== null ? (q2v - q1v) : q2v) / ((tq2.end - tq2.start) / 86400000)
-    : null;
+  const q2Rate =
+    q2v !== null
+      ? (metric.baselineFromQ2 && q1v !== null ? q2v - q1v : q2v) / ((tq2.end - tq2.start) / 86400000)
+      : null;
   if (!q2Rate) return null;
-  const pace = computePace(metric, q3input, tq3.start, tq3.end, q2Rate, getMetricHistory(snaps, metric.id), histBaseline, new Date(), calibrationFactor);
+  const pace = computePace(
+    metric,
+    q3input,
+    tq3.start,
+    tq3.end,
+    q2Rate,
+    getMetricHistory(snaps, metric.id),
+    histBaseline,
+    new Date(),
+    calibrationFactor
+  );
   if (!pace) return null;
-  return (pace.dailyRate - q2Rate) / q2Rate * 100;
+  return ((pace.dailyRate - q2Rate) / q2Rate) * 100;
 }
 
 // ─── Drivers (auto-surfaced highlights) ────────────────────────────
@@ -581,14 +772,22 @@ function Drivers({ drivers, pacing }) {
   return (
     <section id="drivers" className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">What’s <em>Driving This</em></h2>
+        <h2 className="section-title serif">
+          What’s <em>Driving This</em>
+        </h2>
       </header>
       <div className="proj-grid">
         {post && (
           <div className="proj-card">
             <div className="proj-card-label">Top Post</div>
             <div className="driver-title">
-              {post.url ? <a href={post.url} target="_blank" rel="noreferrer">{post.post_name || "Untitled post"}</a> : (post.post_name || "Untitled post")}
+              {post.url ? (
+                <a href={post.url} target="_blank" rel="noreferrer">
+                  {post.post_name || "Untitled post"}
+                </a>
+              ) : (
+                post.post_name || "Untitled post"
+              )}
             </div>
             <div className="proj-number-sub">{post.platforms || "—"}</div>
             <div className="proj-stats-grid">
@@ -649,18 +848,20 @@ function Drivers({ drivers, pacing }) {
 }
 
 // ─── Platform breakdown (QoQ standings, not a forecast) ───────────────
-const platDeltaCls = d => !Number.isFinite(d) ? "na" : d >= 0 ? "pos" : "neg";
-const platDeltaTxt = d => !Number.isFinite(d) ? "—" : `${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(1)}%`;
+const platDeltaCls = (d) => (!Number.isFinite(d) ? "na" : d >= 0 ? "pos" : "neg");
+const platDeltaTxt = (d) => (!Number.isFinite(d) ? "—" : `${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(1)}%`);
 function PlatformBreakdown({ platforms, tq2 }) {
-  const rows = (platforms || []).filter(p => p && p.name);
+  const rows = (platforms || []).filter((p) => p && p.name);
   if (!rows.length) return null;
   return (
     <section id="platforms" className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">Platform <em>Breakdown</em></h2>
+        <h2 className="section-title serif">
+          Platform <em>Breakdown</em>
+        </h2>
       </header>
       <div className="proj-grid">
-        {rows.map(p => (
+        {rows.map((p) => (
           <div key={p.name} className="proj-card">
             <div className="proj-card-label">{p.name}</div>
             <div className="proj-number serif">{p.followers != null ? fmt(p.followers) : "—"}</div>
@@ -668,15 +869,21 @@ function PlatformBreakdown({ platforms, tq2 }) {
             <div className="proj-stats-grid">
               <div className="proj-stat">
                 <div className="proj-stat-label">Followers vs {tq2.label}</div>
-                <div className={"proj-stat-value " + platDeltaCls(p.followersDelta)}>{platDeltaTxt(p.followersDelta)}</div>
+                <div className={"proj-stat-value " + platDeltaCls(p.followersDelta)}>
+                  {platDeltaTxt(p.followersDelta)}
+                </div>
               </div>
               <div className="proj-stat">
                 <div className="proj-stat-label">Engagement Rate</div>
-                <div className="proj-stat-value rate">{p.engagementRate != null ? p.engagementRate.toFixed(2) + "%" : "—"}</div>
+                <div className="proj-stat-value rate">
+                  {p.engagementRate != null ? p.engagementRate.toFixed(2) + "%" : "—"}
+                </div>
               </div>
               <div className="proj-stat">
                 <div className="proj-stat-label">Engagement vs {tq2.label}</div>
-                <div className={"proj-stat-value " + platDeltaCls(p.engagementDelta)}>{platDeltaTxt(p.engagementDelta)}</div>
+                <div className={"proj-stat-value " + platDeltaCls(p.engagementDelta)}>
+                  {platDeltaTxt(p.engagementDelta)}
+                </div>
               </div>
               <div className="proj-stat">
                 <div className="proj-stat-label">Reach</div>
@@ -706,13 +913,27 @@ function Hero({ agency, q3comp, q3done }) {
           <div className="hero-b-divider" />
           <div className="hero-b-meta">
             <div className="hero-b-meta-name">{cfg.name}</div>
-            <div className="hero-b-meta-range">{TRENDS_QUARTERS.map(q => q.label).join(" · ")} · {TRENDS_QUARTERS[2].year}</div>
+            <div className="hero-b-meta-range">
+              {TRENDS_QUARTERS.map((q) => q.label).join(" · ")} · {TRENDS_QUARTERS[2].year}
+            </div>
           </div>
         </div>
         <div className="hero-b-type trends-progress">
-          <span className="trends-pct-label">{pct}% elapsed{q3done ? " · complete" : ""}</span>
-          <span className="hero-progress-track" role="progressbar" aria-valuenow={Math.round(q3comp * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={`Quarter ${Math.round(q3comp * 100)}% elapsed`}>
-            <span className="hero-progress-fill" style={{ width: `${Math.min(100, q3comp * 100).toFixed(1)}%` }} />
+          <span className="trends-pct-label">
+            {pct}% elapsed{q3done ? " · complete" : ""}
+          </span>
+          <span
+            className="hero-progress-track"
+            role="progressbar"
+            aria-valuenow={Math.round(q3comp * 100)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`Quarter ${Math.round(q3comp * 100)}% elapsed`}
+          >
+            <span
+              className="hero-progress-fill"
+              style={{ width: `${Math.min(100, q3comp * 100).toFixed(1)}%` }}
+            />
           </span>
         </div>
       </div>
@@ -721,24 +942,25 @@ function Hero({ agency, q3comp, q3done }) {
 }
 
 const TRENDS_SECTIONS = [
-  { id: "drivers",               label: "Drivers" },
-  { id: "projections",           label: "Projections" },
+  { id: "drivers", label: "Drivers" },
+  { id: "projections", label: "Projections" },
   { id: "projection-trajectory", label: "Trajectory" },
-  { id: "accuracy",              label: "Accuracy" },
-  { id: "platforms",             label: "Platforms" },
-  { id: "quarterly-trends",      label: "Trends" },
+  { id: "accuracy", label: "Accuracy" },
+  { id: "platforms", label: "Platforms" },
+  { id: "quarterly-trends", label: "Trends" },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────
 export function TrendsPage({ agency, onReady }) {
-  const { qdata, snapsByQuarter, calibrationHistory, drivers, platforms, status, error } = useTrendsData(agency);
+  const { qdata, snapsByQuarter, calibrationHistory, drivers, platforms, status, error } =
+    useTrendsData(agency);
 
   useEffect(() => {
     if (status === "ready" || status === "error") onReady?.();
   }, [status, onReady]);
 
   const projectionAudits = useMemo(
-    () => qdata ? buildProjectionAudits(qdata, snapsByQuarter) : {},
+    () => (qdata ? buildProjectionAudits(qdata, snapsByQuarter) : {}),
     [qdata, snapsByQuarter]
   );
 
@@ -746,22 +968,30 @@ export function TrendsPage({ agency, onReady }) {
   // across past quarters' audits; fall back to this session's live
   // one-quarter-back audit when no history has been persisted yet (new
   // agency, or before this quarter's first run has had a chance to write it).
-  const calibrationFactors = useMemo(() => Object.fromEntries(
-    METRICS.map(m => {
-      const blended = blendCalibrationHistory(calibrationHistory?.[m.id]);
-      const factor = blended ?? projectionAudits[m.id]?.calibrationFactor ?? 1;
-      return [m.id, factor];
-    })
-  ), [calibrationHistory, projectionAudits]);
+  const calibrationFactors = useMemo(
+    () =>
+      Object.fromEntries(
+        METRICS.map((m) => {
+          const blended = blendCalibrationHistory(calibrationHistory?.[m.id]);
+          const factor = blended ?? projectionAudits[m.id]?.calibrationFactor ?? 1;
+          return [m.id, factor];
+        })
+      ),
+    [calibrationHistory, projectionAudits]
+  );
 
   if (status === "error") {
     return (
       <main className="report-wrap">
         <section className="section wrap">
-          <header className="section-head"><h2 className="section-title serif">Unable to load trends</h2></header>
+          <header className="section-head">
+            <h2 className="section-title serif">Unable to load trends</h2>
+          </header>
           <div className="error-section" role="alert">
             <p>{error}</p>
-            <button className="error-retry-btn" onClick={() => window.location.reload()}>Try again</button>
+            <button className="error-retry-btn" onClick={() => window.location.reload()}>
+              Try again
+            </button>
           </div>
         </section>
       </main>
@@ -770,13 +1000,22 @@ export function TrendsPage({ agency, onReady }) {
 
   if (!qdata) return <PageLoader view="trends" />;
 
-  const q3     = TRENDS_QUARTERS[2];
+  const q3 = TRENDS_QUARTERS[2];
   const q3comp = quarterCompletion(q3);
   const q3done = quarterComplete(q3);
 
-  const pacingRanked = METRICS
-    .map(m => ({ metric: m, rateVsQ2: computeMetricRateVsQ2(m, qdata, snapsByQuarter[q3.suffix] ?? [], TRENDS_QUARTERS[1], q3, calibrationFactors[m.id]) }))
-    .filter(r => Number.isFinite(r.rateVsQ2))
+  const pacingRanked = METRICS.map((m) => ({
+    metric: m,
+    rateVsQ2: computeMetricRateVsQ2(
+      m,
+      qdata,
+      snapsByQuarter[q3.suffix] ?? [],
+      TRENDS_QUARTERS[1],
+      q3,
+      calibrationFactors[m.id]
+    ),
+  }))
+    .filter((r) => Number.isFinite(r.rateVsQ2))
     .sort((a, b) => b.rateVsQ2 - a.rateVsQ2);
   const pacing = pacingRanked.length
     ? [pacingRanked[0], pacingRanked[pacingRanked.length - 1]]
@@ -784,13 +1023,17 @@ export function TrendsPage({ agency, onReady }) {
 
   // Drop the Accuracy rail link when the section itself won't render (no
   // completed-quarter audits yet).
-  const hasAccuracyData = METRICS.some(m => (calibrationHistory?.[m.id] ?? []).some(h => Number.isFinite(h.percent_error)));
-  const sections = hasAccuracyData ? TRENDS_SECTIONS : TRENDS_SECTIONS.filter(s => s.id !== "accuracy");
+  const hasAccuracyData = METRICS.some((m) =>
+    (calibrationHistory?.[m.id] ?? []).some((h) => Number.isFinite(h.percent_error))
+  );
+  const sections = hasAccuracyData ? TRENDS_SECTIONS : TRENDS_SECTIONS.filter((s) => s.id !== "accuracy");
 
   return (
     <main className="report-wrap">
       <SectionRail sections={sections} />
-      <ErrorBoundary><Hero agency={agency} q3comp={q3comp} q3done={q3done} /></ErrorBoundary>
+      <ErrorBoundary>
+        <Hero agency={agency} q3comp={q3comp} q3done={q3done} />
+      </ErrorBoundary>
 
       <ErrorBoundary>
         <Drivers drivers={drivers} pacing={pacing} />
@@ -799,18 +1042,34 @@ export function TrendsPage({ agency, onReady }) {
       <ErrorBoundary>
         <section id="projections" className="section wrap">
           <header className="section-head">
-            <h2 className="section-title serif">{TRENDS_QUARTERS[2].label} Projected <em>Finals</em></h2>
+            <h2 className="section-title serif">
+              {TRENDS_QUARTERS[2].label} Projected <em>Finals</em>
+            </h2>
           </header>
           <div className="proj-grid">
-            {METRICS.map(m => (
-              <ProjCard key={m.id} metric={m} qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} q3done={q3done} calibrationFactor={calibrationFactors[m.id]} history={calibrationHistory?.[m.id]} />
+            {METRICS.map((m) => (
+              <ProjCard
+                key={m.id}
+                metric={m}
+                qdata={qdata}
+                snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []}
+                q3done={q3done}
+                calibrationFactor={calibrationFactors[m.id]}
+                history={calibrationHistory?.[m.id]}
+              />
             ))}
           </div>
         </section>
       </ErrorBoundary>
 
       <ErrorBoundary>
-        <ProjectionTrajectory qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} calibrationFactors={calibrationFactors} calibrationHistory={calibrationHistory} posts={drivers?.posts ?? []} />
+        <ProjectionTrajectory
+          qdata={qdata}
+          snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []}
+          calibrationFactors={calibrationFactors}
+          calibrationHistory={calibrationHistory}
+          posts={drivers?.posts ?? []}
+        />
       </ErrorBoundary>
 
       <ErrorBoundary>
@@ -824,11 +1083,20 @@ export function TrendsPage({ agency, onReady }) {
       <ErrorBoundary>
         <section id="quarterly-trends" className="section wrap">
           <header className="section-head">
-            <h2 className="section-title serif">Quarterly <em>Trends</em></h2>
+            <h2 className="section-title serif">
+              Quarterly <em>Trends</em>
+            </h2>
           </header>
           <div className="charts-grid">
-            {METRICS.map(m => (
-              <ChartCard key={m.id} metric={m} agency={agency} qdata={qdata} snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []} calibrationFactor={calibrationFactors[m.id]} />
+            {METRICS.map((m) => (
+              <ChartCard
+                key={m.id}
+                metric={m}
+                agency={agency}
+                qdata={qdata}
+                snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []}
+                calibrationFactor={calibrationFactors[m.id]}
+              />
             ))}
           </div>
         </section>

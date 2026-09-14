@@ -14,7 +14,7 @@ import {
 
 const DAY = 86400000;
 const qStart = new Date(2026, 2, 1); // Mar 1
-const qEnd = new Date(2026, 5, 1);   // Jun 1 (exclusive), 92-day quarter
+const qEnd = new Date(2026, 5, 1); // Jun 1 (exclusive), 92-day quarter
 
 // Decelerating cumulative series: increments shrink from 40/day toward ~4/day.
 // Early daily-rate extrapolation over-projects; late projections are accurate.
@@ -32,12 +32,30 @@ const metric = { id: "m", label: "m", isPace: true };
 describe("computeAdvancedPace — continuous blending", () => {
   // Build a fixed decelerating history up to day 50, then evaluate the
   // projection just below and just above the old 0.55 weight threshold.
-  const snaps = decelSnapshots().slice(0, 51).map(s => ({ t: s.t, val: s.vals.m }));
+  const snaps = decelSnapshots()
+    .slice(0, 51)
+    .map((s) => ({ t: s.t, val: s.vals.m }));
   const current = snaps[snaps.length - 1].val;
 
   it("has no discontinuity crossing the old 0.55 blend threshold", () => {
-    const below = computeAdvancedPace(current, qStart, qEnd, null, snaps, 0, new Date(qStart.getTime() + 50.5 * DAY));
-    const above = computeAdvancedPace(current, qStart, qEnd, null, snaps, 0, new Date(qStart.getTime() + 50.7 * DAY));
+    const below = computeAdvancedPace(
+      current,
+      qStart,
+      qEnd,
+      null,
+      snaps,
+      0,
+      new Date(qStart.getTime() + 50.5 * DAY)
+    );
+    const above = computeAdvancedPace(
+      current,
+      qStart,
+      qEnd,
+      null,
+      snaps,
+      0,
+      new Date(qStart.getTime() + 50.7 * DAY)
+    );
     expect(below).not.toBeNull();
     expect(above).not.toBeNull();
     // A 0.2-day nudge should move the projection by well under 0.5%.
@@ -48,7 +66,15 @@ describe("computeAdvancedPace — continuous blending", () => {
   it("recovers the exact rate on a perfectly linear series", () => {
     const linear = [];
     for (let i = 0; i <= 40; i++) linear.push({ t: qStart.getTime() + i * DAY, val: 10 * i });
-    const pace = computeAdvancedPace(400, qStart, qEnd, null, linear, 0, new Date(qStart.getTime() + 40 * DAY));
+    const pace = computeAdvancedPace(
+      400,
+      qStart,
+      qEnd,
+      null,
+      linear,
+      0,
+      new Date(qStart.getTime() + 40 * DAY)
+    );
     expect(pace.dailyRate).toBeCloseTo(10, 6);
     expect(pace.projected).toBeCloseTo(920, 0); // 10/day × 92 days
   });
@@ -59,23 +85,28 @@ describe("computeAdvancedPace — regression weight decays as the quarter mature
   // the early slope while the trailing window has already seen the plateau, so
   // reg sits well above rolling. Where the blend lands between those two is a
   // direct read on the regression's weight, without exporting blendWeights.
-  const all = decelSnapshots().map(s => ({ t: s.t, val: s.vals.m }));
+  const all = decelSnapshots().map((s) => ({ t: s.t, val: s.vals.m }));
   const leanTowardReg = (day) => {
     const history = all.slice(0, day + 1);
     const pace = computeAdvancedPace(
-      history[history.length - 1].val, qStart, qEnd, null, history, 0,
-      new Date(qStart.getTime() + day * DAY),
+      history[history.length - 1].val,
+      qStart,
+      qEnd,
+      null,
+      history,
+      0,
+      new Date(qStart.getTime() + day * DAY)
     );
     // 0 = sits exactly on the rolling projection, 1 = sits on the regression.
-    return (pace.projected - pace.components.reg === 0)
+    return pace.projected - pace.components.reg === 0
       ? 1
       : (pace.projected - pace.components.rolling) / (pace.components.reg - pace.components.rolling);
   };
 
   it("leans further toward the trailing window the later the quarter gets", () => {
     const early = leanTowardReg(25);
-    const mid   = leanTowardReg(55);
-    const late  = leanTowardReg(82);
+    const mid = leanTowardReg(55);
+    const late = leanTowardReg(82);
     expect(mid).toBeLessThan(early);
     expect(late).toBeLessThan(mid);
   });
@@ -97,10 +128,11 @@ describe("computeAdvancedPace — least-squares rolling rate", () => {
     // Seven days of clean slope-10 growth, then a spurious high final point.
     const base = [];
     for (let i = 44; i <= 51; i++) base.push({ t: qStart.getTime() + i * DAY, val: 10 * i });
-    const noisy = base.map((s, idx) => idx === base.length - 1 ? { ...s, val: s.val + 60 } : s);
+    const noisy = base.map((s, idx) => (idx === base.length - 1 ? { ...s, val: s.val + 60 } : s));
     const current = noisy[noisy.length - 1].val;
 
-    const first = noisy[0], last = noisy[noisy.length - 1];
+    const first = noisy[0],
+      last = noisy[noisy.length - 1];
     const endpointSlope = (last.val - first.val) / ((last.t - first.t) / DAY);
 
     const pace = computeAdvancedPace(current, qStart, qEnd, null, noisy, 0, new Date(last.t));
@@ -118,7 +150,7 @@ function spikeSnapshots() {
   const snaps = [];
   let acc = 0;
   for (let i = 0; i <= 30; i++) {
-    if (i > 0) acc += (i === 15 ? 200 : 2);
+    if (i > 0) acc += i === 15 ? 200 : 2;
     snaps.push({ t: qStart.getTime() + i * DAY, val: acc });
   }
   return snaps;
@@ -172,14 +204,23 @@ describe("computeSporadicPace", () => {
 
 describe("computePace", () => {
   it("marks the Comments metric as sporadic", () => {
-    expect(METRICS.find(m => m.id === "comments").sporadic).toBe(true);
+    expect(METRICS.find((m) => m.id === "comments").sporadic).toBe(true);
   });
 
   it("dispatches to the sporadic model when metric.sporadic is set", () => {
     const history = spikeSnapshots();
     const current = history[history.length - 1].val;
     const asOf = new Date(qStart.getTime() + 30 * DAY);
-    const viaDispatch = computePace({ id: "comments", sporadic: true }, current, qStart, qEnd, null, history, 0, asOf);
+    const viaDispatch = computePace(
+      { id: "comments", sporadic: true },
+      current,
+      qStart,
+      qEnd,
+      null,
+      history,
+      0,
+      asOf
+    );
     const viaDirect = computeSporadicPace(current, qStart, qEnd, history, asOf);
     expect(viaDispatch.projected).toBeCloseTo(viaDirect.projected, 6);
   });
@@ -270,14 +311,18 @@ describe("buildProjectionAudit — band coverage", () => {
   it("flags coverage false when the actual final lands far outside the band", () => {
     // Same projection trajectory, but a wildly different actual — the band
     // itself (built only from the trajectory) can't have moved to cover it.
-    const audit = buildProjectionAudit({ ...common, actualValue: common.actualValue * 5, targetElapsedFraction: 0.5 });
+    const audit = buildProjectionAudit({
+      ...common,
+      actualValue: common.actualValue * 5,
+      targetElapsedFraction: 0.5,
+    });
     expect(audit.bandCovered).toBe(false);
     expect(audit.bandHigh).toBeLessThan(audit.actual);
   });
 });
 
 describe("buildProjectionAudit — self-dampening on poor fit", () => {
-  const lastVal = snaps => snaps[snaps.length - 1].vals.m;
+  const lastVal = (snaps) => snaps[snaps.length - 1].vals.m;
   const base = {
     metric,
     completedQuarter: { start: qStart, end: qEnd },
@@ -299,9 +344,14 @@ describe("buildProjectionAudit — self-dampening on poor fit", () => {
   it("shrinks the factor toward 1 when the fit was scattered", () => {
     // Same decelerating trend, but a day-to-day zig-zag so the fit is noisy.
     const snapshotHistory = decelSnapshots().map((s, i) => ({
-      t: s.t, vals: { m: s.vals.m * (1 + (i % 2 ? -0.06 : 0.06)) },
+      t: s.t,
+      vals: { m: s.vals.m * (1 + (i % 2 ? -0.06 : 0.06)) },
     }));
-    const clean = buildProjectionAudit({ ...base, actualValue: lastVal(decelSnapshots()), snapshotHistory: decelSnapshots() });
+    const clean = buildProjectionAudit({
+      ...base,
+      actualValue: lastVal(decelSnapshots()),
+      snapshotHistory: decelSnapshots(),
+    });
     const noisy = buildProjectionAudit({ ...base, actualValue: lastVal(snapshotHistory), snapshotHistory });
     expect(noisy.calibrationConfidence).toBeLessThan(clean.calibrationConfidence);
     // The damped factor is at least as close to 1 as the raw clamped ratio.
@@ -341,12 +391,8 @@ describe("blendCalibrationHistory", () => {
   });
 
   it("gives near-zero weight to a quarter whose own confidence was low", () => {
-    const confident = blendCalibrationHistory([
-      { calibration_factor: 1.4, calibration_confidence: 1 },
-    ]);
-    const unsure = blendCalibrationHistory([
-      { calibration_factor: 1.4, calibration_confidence: 0.05 },
-    ]);
+    const confident = blendCalibrationHistory([{ calibration_factor: 1.4, calibration_confidence: 1 }]);
+    const unsure = blendCalibrationHistory([{ calibration_factor: 1.4, calibration_confidence: 0.05 }]);
     // Both are single-entry, so confidence has no other factor to average
     // against — but the clamp still applies; check the unsure one shrinks
     // toward 1 relative to the confident one once mixed with a neutral prior.
@@ -360,9 +406,7 @@ describe("blendCalibrationHistory", () => {
   });
 
   it("stays within the same sane bounds as a single-quarter calibration factor", () => {
-    const blended = blendCalibrationHistory([
-      { calibration_factor: 5, calibration_confidence: 1 },
-    ]);
+    const blended = blendCalibrationHistory([{ calibration_factor: 5, calibration_confidence: 1 }]);
     expect(blended).toBeLessThanOrEqual(1.5);
   });
 
@@ -386,13 +430,13 @@ describe("annotateTimelineSpikes", () => {
     const proj = [100, 101, 100.5, 101.5, 102, 162, 163, 162.5];
     return proj.map((projected, i) => ({ t: t0 + i * DAY, projected }));
   }
-  const dayStr = i => new Date(qStart.getTime() + i * DAY).toISOString().slice(0, 10);
+  const dayStr = (i) => new Date(qStart.getTime() + i * DAY).toISOString().slice(0, 10);
 
   it("returns the timeline unchanged when there are no posts", () => {
     const tl = flatThenSpike();
     const out = annotateTimelineSpikes(tl, []);
     expect(out).toHaveLength(tl.length);
-    expect(out.some(p => p.spike)).toBe(false);
+    expect(out.some((p) => p.spike)).toBe(false);
   });
 
   it("attributes a sharp jump to a post published in that window", () => {
@@ -402,7 +446,7 @@ describe("annotateTimelineSpikes", () => {
     const out = annotateTimelineSpikes(tl, [
       { post_name: "Big winner", post_date: dayStr(5), impressions: 5000 },
     ]);
-    const spikes = out.filter(p => p.spike);
+    const spikes = out.filter((p) => p.spike);
     expect(spikes).toHaveLength(1);
     expect(spikes[0].spike.post.post_name).toBe("Big winner");
     expect(spikes[0].spike.direction).toBe("up");
@@ -413,9 +457,9 @@ describe("annotateTimelineSpikes", () => {
     const tl = flatThenSpike();
     const out = annotateTimelineSpikes(tl, [
       { post_name: "Small", post_date: dayStr(5), impressions: 200 },
-      { post_name: "Huge",  post_date: dayStr(5), impressions: 9000 },
+      { post_name: "Huge", post_date: dayStr(5), impressions: 9000 },
     ]);
-    const spike = out.find(p => p.spike);
+    const spike = out.find((p) => p.spike);
     expect(spike.spike.post.post_name).toBe("Huge");
   });
 
@@ -426,16 +470,20 @@ describe("annotateTimelineSpikes", () => {
       { post_name: "Unrelated", post_date: dayStr(1), impressions: 5000 },
     ]);
     // Day-1 movement is tiny, so even with a post there it isn't a spike.
-    expect(out.some(p => p.spike)).toBe(false);
+    expect(out.some((p) => p.spike)).toBe(false);
   });
 
   it("does not over-flag a steadily drifting projection", () => {
     const t0 = qStart.getTime();
     const tl = Array.from({ length: 10 }, (_, i) => ({ t: t0 + i * DAY, projected: 100 + i * 5 }));
-    const posts = tl.map((p, i) => ({ post_name: `p${i}`, post_date: new Date(p.t).toISOString().slice(0, 10), impressions: 100 }));
+    const posts = tl.map((p, i) => ({
+      post_name: `p${i}`,
+      post_date: new Date(p.t).toISOString().slice(0, 10),
+      impressions: 100,
+    }));
     const out = annotateTimelineSpikes(tl, posts);
     // Uniform +5/day movement: nothing stands out against the median.
-    expect(out.some(p => p.spike)).toBe(false);
+    expect(out.some((p) => p.spike)).toBe(false);
   });
 
   it("handles short or missing input without throwing", () => {
@@ -455,22 +503,28 @@ describe("projectionBand", () => {
   });
 
   it("brackets the point estimate: low ≤ expected ≤ high", () => {
-    const band = projectionBand(pace(1000, { simple: 1100, rolling: 980, reg: 1020 }, 0.5), { elapsedFraction: 0.5 });
+    const band = projectionBand(pace(1000, { simple: 1100, rolling: 980, reg: 1020 }, 0.5), {
+      elapsedFraction: 0.5,
+    });
     expect(band.low).toBeLessThanOrEqual(band.expected);
     expect(band.high).toBeGreaterThanOrEqual(band.expected);
     expect(band.expected).toBe(1000);
   });
 
   it("widens when the three methods disagree", () => {
-    const tight = projectionBand(pace(1000, { simple: 1000, rolling: 1005, reg: 995 }, 0.5), { elapsedFraction: 0.5 });
-    const wide  = projectionBand(pace(1000, { simple: 1300, rolling: 800,  reg: 1000 }, 0.5), { elapsedFraction: 0.5 });
+    const tight = projectionBand(pace(1000, { simple: 1000, rolling: 1005, reg: 995 }, 0.5), {
+      elapsedFraction: 0.5,
+    });
+    const wide = projectionBand(pace(1000, { simple: 1300, rolling: 800, reg: 1000 }, 0.5), {
+      elapsedFraction: 0.5,
+    });
     expect(wide.relHalf).toBeGreaterThan(tight.relHalf);
   });
 
   it("narrows as the quarter completes", () => {
     const comps = { simple: 1100, rolling: 950, reg: 1010 };
     const early = projectionBand(pace(1000, comps, 0.2), { elapsedFraction: 0.2 });
-    const late  = projectionBand(pace(1000, comps, 0.9), { elapsedFraction: 0.9 });
+    const late = projectionBand(pace(1000, comps, 0.9), { elapsedFraction: 0.9 });
     expect(late.relHalf).toBeLessThan(early.relHalf);
   });
 
@@ -490,11 +544,11 @@ describe("projectionBand", () => {
     // dominates late, which is what lifts end-of-quarter coverage to ~80%.
     const comps = { simple: 1000, rolling: 1000, reg: 1000 };
     const at = (f) => projectionBand(pace(1000, comps, f), { elapsedFraction: f }).relHalf;
-    const tenLeft  = at(0.90);
+    const tenLeft = at(0.9);
     const fiveLeft = at(0.95);
     expect(fiveLeft).toBeGreaterThan(tenLeft * 0.5);
     // And it is meaningfully wider than the linear drift term alone would give.
-    expect(tenLeft).toBeGreaterThan(0.10 * 0.12 * 1.5);
+    expect(tenLeft).toBeGreaterThan(0.1 * 0.12 * 1.5);
   });
 
   it("still collapses to the floor once the quarter is over", () => {
@@ -504,7 +558,10 @@ describe("projectionBand", () => {
 
   it("floors the low end at the value already banked", () => {
     // Big band, but we've already accrued 990 — the final can't come in below it.
-    const band = projectionBand(pace(1000, { simple: 1400, rolling: 700, reg: 1000 }, 0.3), { elapsedFraction: 0.3, current: 990 });
+    const band = projectionBand(pace(1000, { simple: 1400, rolling: 700, reg: 1000 }, 0.3), {
+      elapsedFraction: 0.3,
+      current: 990,
+    });
     expect(band.low).toBe(990);
   });
 });
@@ -517,14 +574,17 @@ describe("detectTrendsAnomalies", () => {
     const snaps = [];
     // Up to ~half a day before `now`, so the fixture isn't itself stale.
     for (let i = 0; i <= 30; i++) {
-      snaps.push({ t: currentQuarter.start.getTime() + i * DAY + DAY / 2, vals: { impressions: 100 + i * 10 } });
+      snaps.push({
+        t: currentQuarter.start.getTime() + i * DAY + DAY / 2,
+        vals: { impressions: 100 + i * 10 },
+      });
     }
     return snaps;
   }
   const qdata = [
-    { overall: { impressions: 500 } },  // two-back
-    { overall: { impressions: 800 } },  // previous (has a value)
-    { overall: { impressions: 380 } },  // current
+    { overall: { impressions: 500 } }, // two-back
+    { overall: { impressions: 800 } }, // previous (has a value)
+    { overall: { impressions: 380 } }, // current
   ];
 
   it("reports no flags for a fresh, dense, rising quarter", () => {
@@ -533,22 +593,22 @@ describe("detectTrendsAnomalies", () => {
   });
 
   it("flags stale snapshots when the latest is several days old", () => {
-    const stale = healthySnaps().map(s => ({ ...s, t: s.t - 6 * DAY }));
+    const stale = healthySnaps().map((s) => ({ ...s, t: s.t - 6 * DAY }));
     const flags = detectTrendsAnomalies({ snaps: stale, qdata, currentQuarter, now });
-    expect(flags.some(f => f.type === "stale")).toBe(true);
+    expect(flags.some((f) => f.type === "stale")).toBe(true);
   });
 
   it("flags a cumulative metric that moved backward", () => {
     const snaps = healthySnaps();
     snaps[20].vals.impressions = 50; // sudden drop below its neighbours
     const flags = detectTrendsAnomalies({ snaps, qdata, currentQuarter, now });
-    expect(flags.some(f => f.type === "backward" && f.metricId === "impressions")).toBe(true);
+    expect(flags.some((f) => f.type === "backward" && f.metricId === "impressions")).toBe(true);
   });
 
   it("flags a metric present last quarter but missing this quarter", () => {
     const missing = [qdata[0], qdata[1], { overall: {} }];
     const flags = detectTrendsAnomalies({ snaps: healthySnaps(), qdata: missing, currentQuarter, now });
-    expect(flags.some(f => f.type === "missing" && f.metricId === "impressions")).toBe(true);
+    expect(flags.some((f) => f.type === "missing" && f.metricId === "impressions")).toBe(true);
   });
 
   it("flags thin history deep into the quarter", () => {
@@ -557,7 +617,7 @@ describe("detectTrendsAnomalies", () => {
       { t: currentQuarter.start.getTime() + 20 * DAY, vals: { impressions: 300 } },
     ];
     const flags = detectTrendsAnomalies({ snaps: thin, qdata, currentQuarter, now });
-    expect(flags.some(f => f.type === "thin" && f.metricId === "impressions")).toBe(true);
+    expect(flags.some((f) => f.type === "thin" && f.metricId === "impressions")).toBe(true);
   });
 
   it("returns nothing without a current quarter", () => {
@@ -586,7 +646,10 @@ describe("buildTrendsNarrative", () => {
 
   it("names the top post and weaves in accuracy and warnings", () => {
     const s = buildTrendsNarrative({
-      currentQuarter, elapsedPct: 50, pacing, drivers,
+      currentQuarter,
+      elapsedPct: 50,
+      pacing,
+      drivers,
       overallAccuracyPct: 4.2,
       anomalies: [{ severity: "warn" }, { severity: "info" }],
     });

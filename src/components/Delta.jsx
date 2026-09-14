@@ -4,15 +4,13 @@
 export function Delta({ d, className = "", invertGood = false }) {
   if (!d) return null;
   const label = d.dir === "up" ? "increased" : d.dir === "down" ? "decreased" : "unchanged";
-  const tone = !invertGood || d.dir === "flat"
-    ? d.dir
-    : d.dir === "up" ? "down" : "up";
+  const tone = !invertGood || d.dir === "flat" ? d.dir : d.dir === "up" ? "down" : "up";
   return (
-    <span
-      className={`delta ${tone} ${className}`}
-      aria-label={`${label} ${d.pct.toFixed(1)} percent`}
-    >
-      <span>{d.dir === "up" ? "+" : d.dir === "down" ? "−" : ""}{d.pct.toFixed(1)}%</span>
+    <span className={`delta ${tone} ${className}`} aria-label={`${label} ${d.pct.toFixed(1)} percent`}>
+      <span>
+        {d.dir === "up" ? "+" : d.dir === "down" ? "−" : ""}
+        {d.pct.toFixed(1)}%
+      </span>
     </span>
   );
 }

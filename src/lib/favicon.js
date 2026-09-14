@@ -4,7 +4,8 @@
 function faviconDataUrl(label) {
   // A plain glyph on a transparent background disappears on dark tab bars, so
   // it sits on a white plate — visible against light or dark browser chrome.
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">` +
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">` +
     `<rect width="100" height="100" rx="20" fill="#ffffff"/>` +
     `<rect x="1" y="1" width="98" height="98" rx="19" fill="none" stroke="#e5e3df" stroke-width="2"/>` +
     `<text x="50" y="72" font-family="Georgia, 'Times New Roman', Times, serif" ` +

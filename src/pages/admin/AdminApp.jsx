@@ -7,7 +7,7 @@ import { LoadingScreen } from "../../components/LoadingScreen.jsx";
 export function AdminApp() {
   const { session, loading, authError, signIn, signOut } = useAuth();
 
-  if (loading)    return <LoadingScreen visible />;
-  if (!session)   return <LoginPage onSignIn={signIn} initialError={authError} />;
+  if (loading) return <LoadingScreen visible />;
+  if (!session) return <LoginPage onSignIn={signIn} initialError={authError} />;
   return <AdminDashboard onSignOut={signOut} />;
 }

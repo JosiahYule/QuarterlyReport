@@ -12,7 +12,15 @@ function Block({ w = "100%", h = 14, style }) {
 
 function KpiCard() {
   return (
-    <div style={{ paddingTop: 16, borderTop: "1px solid var(--ink)", display: "flex", flexDirection: "column", gap: 14 }}>
+    <div
+      style={{
+        paddingTop: 16,
+        borderTop: "1px solid var(--ink)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+      }}
+    >
       <Block w="55%" h={11} />
       <Block w="72%" h={50} />
       <Block w="38%" h={13} />
@@ -32,7 +40,16 @@ function RowSkel() {
 // live inside each campaign, so its skeleton is rows all the way down.
 function CampaignSkeleton() {
   return (
-    <div style={{ paddingTop: 26, borderTop: "1px solid var(--rule)", display: "flex", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
+    <div
+      style={{
+        paddingTop: 26,
+        borderTop: "1px solid var(--rule)",
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 24,
+        flexWrap: "wrap",
+      }}
+    >
       <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: "1 1 280px" }}>
         <Block w="52%" h={24} />
         <Block w="34%" h={16} />
@@ -62,16 +79,20 @@ export function PageSkeleton({ view = "social" }) {
               <div className="hero-b-divider" />
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <Block w={150} h={14} />
-                <Block w={90}  h={12} />
+                <Block w={90} h={12} />
               </div>
             </div>
           </div>
           <Block w="min(60ch, 100%)" h={22} style={{ marginTop: 24 }} />
         </section>
         <section className="section wrap">
-          <header className="section-head"><Block w={180} h={36} /></header>
+          <header className="section-head">
+            <Block w={180} h={36} />
+          </header>
           <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
-            {Array.from({ length: 4 }).map((_, i) => <CampaignSkeleton key={i} />)}
+            {Array.from({ length: 4 }).map((_, i) => (
+              <CampaignSkeleton key={i} />
+            ))}
           </div>
         </section>
       </main>
@@ -88,7 +109,7 @@ export function PageSkeleton({ view = "social" }) {
             <div className="hero-b-divider" />
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <Block w={150} h={14} />
-              <Block w={90}  h={12} />
+              <Block w={90} h={12} />
             </div>
           </div>
         </div>
@@ -101,7 +122,9 @@ export function PageSkeleton({ view = "social" }) {
           <Block w={180} h={36} />
         </header>
         <div className="kpi-grid">
-          {Array.from({ length: kpiCount }).map((_, i) => <KpiCard key={i} />)}
+          {Array.from({ length: kpiCount }).map((_, i) => (
+            <KpiCard key={i} />
+          ))}
         </div>
       </section>
 
@@ -110,7 +133,9 @@ export function PageSkeleton({ view = "social" }) {
         <header className="section-head">
           <Block w={220} h={36} />
         </header>
-        {Array.from({ length: 5 }).map((_, i) => <RowSkel key={i} />)}
+        {Array.from({ length: 5 }).map((_, i) => (
+          <RowSkel key={i} />
+        ))}
       </section>
     </main>
   );

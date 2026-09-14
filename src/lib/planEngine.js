@@ -21,23 +21,87 @@ export const MIN_SAMPLE_SIZE = 3;
 // matching against the post name is only a fallback for older/undated rows
 // logged without a notes entry, so they don't all collapse into "Other".
 const FALLBACK_CATEGORIES = [
-  { label: "Job Posting",           keywords: ["hiring", "now hiring", "job opening", "apply now", "apply today", "we're hiring", "job alert", "career opportunity"] },
-  { label: "Client/Candidate Story", keywords: ["testimonial", "success story", "spotlight", "case study", "client review", "candidate story", "placement story"] },
-  { label: "Team & Culture",        keywords: ["our team", "team culture", "welcome to the team", "work anniversary", "congrat", "staff appreciation", "employee spotlight"] },
-  { label: "Industry Tips/Advice",  keywords: ["tip", "tips", "advice", "how to", "resume", "interview", "guide", "checklist", "did you know"] },
-  { label: "Event/Webinar",         keywords: ["webinar", "job fair", "career fair", "open house", "register now", "join us"] },
-  { label: "Holiday/Seasonal",      keywords: ["happy holidays", "merry christmas", "season", "thanksgiving", "halloween", "new year", "long weekend"] },
-  { label: "Company Update",        keywords: ["announce", "milestone", "award", "partnership", "proud to", "we've moved", "new office"] },
-  { label: "Video",                 keywords: ["video", "watch now", "reel", "behind the scenes"] },
+  {
+    label: "Job Posting",
+    keywords: [
+      "hiring",
+      "now hiring",
+      "job opening",
+      "apply now",
+      "apply today",
+      "we're hiring",
+      "job alert",
+      "career opportunity",
+    ],
+  },
+  {
+    label: "Client/Candidate Story",
+    keywords: [
+      "testimonial",
+      "success story",
+      "spotlight",
+      "case study",
+      "client review",
+      "candidate story",
+      "placement story",
+    ],
+  },
+  {
+    label: "Team & Culture",
+    keywords: [
+      "our team",
+      "team culture",
+      "welcome to the team",
+      "work anniversary",
+      "congrat",
+      "staff appreciation",
+      "employee spotlight",
+    ],
+  },
+  {
+    label: "Industry Tips/Advice",
+    keywords: [
+      "tip",
+      "tips",
+      "advice",
+      "how to",
+      "resume",
+      "interview",
+      "guide",
+      "checklist",
+      "did you know",
+    ],
+  },
+  {
+    label: "Event/Webinar",
+    keywords: ["webinar", "job fair", "career fair", "open house", "register now", "join us"],
+  },
+  {
+    label: "Holiday/Seasonal",
+    keywords: [
+      "happy holidays",
+      "merry christmas",
+      "season",
+      "thanksgiving",
+      "halloween",
+      "new year",
+      "long weekend",
+    ],
+  },
+  {
+    label: "Company Update",
+    keywords: ["announce", "milestone", "award", "partnership", "proud to", "we've moved", "new office"],
+  },
+  { label: "Video", keywords: ["video", "watch now", "reel", "behind the scenes"] },
 ];
 const OTHER_LABEL = "Other";
 
 // The known content-type vocabulary, exposed so the planner's type picker
 // offers the same labels the classifier uses (free text is still allowed).
-export const SUGGESTED_CONTENT_TYPES = [...FALLBACK_CATEGORIES.map(c => c.label), OTHER_LABEL];
+export const SUGGESTED_CONTENT_TYPES = [...FALLBACK_CATEGORIES.map((c) => c.label), OTHER_LABEL];
 
 function titleCase(s) {
-  return s.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
+  return s.replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
 }
 
 export function classifyPost(post) {
@@ -49,7 +113,7 @@ export function classifyPost(post) {
 
   const text = (post?.post_name || "").toLowerCase();
   for (const cat of FALLBACK_CATEGORIES) {
-    if (cat.keywords.some(k => text.includes(k))) return { key: cat.label.toLowerCase(), label: cat.label };
+    if (cat.keywords.some((k) => text.includes(k))) return { key: cat.label.toLowerCase(), label: cat.label };
   }
   return { key: OTHER_LABEL.toLowerCase(), label: OTHER_LABEL };
 }
@@ -85,11 +149,11 @@ export { DAY_NAMES };
 // (see SocialForm.jsx). Older/back-filled rows without one just don't count
 // toward this — no penalty, no guess.
 export const TIME_BUCKETS = [
-  { key: "early_morning",  label: "Early Morning (6–9am)",    startHour: 6,  endHour: 9  },
-  { key: "late_morning",   label: "Late Morning (9am–12pm)",  startHour: 9,  endHour: 12 },
-  { key: "afternoon",      label: "Afternoon (12–3pm)",       startHour: 12, endHour: 15 },
-  { key: "late_afternoon", label: "Late Afternoon (3–6pm)",   startHour: 15, endHour: 18 },
-  { key: "evening",        label: "Evening (6pm+)",           startHour: 18, endHour: 24 },
+  { key: "early_morning", label: "Early Morning (6–9am)", startHour: 6, endHour: 9 },
+  { key: "late_morning", label: "Late Morning (9am–12pm)", startHour: 9, endHour: 12 },
+  { key: "afternoon", label: "Afternoon (12–3pm)", startHour: 12, endHour: 15 },
+  { key: "late_afternoon", label: "Late Afternoon (3–6pm)", startHour: 15, endHour: 18 },
+  { key: "evening", label: "Evening (6pm+)", startHour: 18, endHour: 24 },
 ];
 
 // Anything before 6am folds into Evening (previous night's window) rather
@@ -100,7 +164,9 @@ export function classifyTimeOfDay(post_time) {
   if (!m) return null;
   const hour = Number(m[1]);
   if (!Number.isFinite(hour) || hour < 0 || hour > 23) return null;
-  const bucket = TIME_BUCKETS.find(b => hour >= b.startHour && hour < b.endHour) || TIME_BUCKETS[TIME_BUCKETS.length - 1];
+  const bucket =
+    TIME_BUCKETS.find((b) => hour >= b.startHour && hour < b.endHour) ||
+    TIME_BUCKETS[TIME_BUCKETS.length - 1];
   return { key: bucket.key, label: bucket.label };
 }
 
@@ -151,7 +217,8 @@ function groupAndScore(posts, keyFn, { now = null, halfLife = RECENCY_HALF_LIFE_
     const imp = Number(p.impressions) || 0;
     const eng = Number(p.engagements) || 0;
     const w = recencyWeight(p.post_date, nowTs, halfLife);
-    if (!buckets.has(meta.key)) buckets.set(meta.key, { ...meta, count: 0, impressions: 0, engagements: 0, wImp: 0, wEng: 0 });
+    if (!buckets.has(meta.key))
+      buckets.set(meta.key, { ...meta, count: 0, impressions: 0, engagements: 0, wImp: 0, wEng: 0 });
     const b = buckets.get(meta.key);
     b.count += 1;
     b.impressions += imp;
@@ -159,7 +226,7 @@ function groupAndScore(posts, keyFn, { now = null, halfLife = RECENCY_HALF_LIFE_
     b.wImp += imp * w;
     b.wEng += eng * w;
   }
-  return [...buckets.values()].map(b => ({ ...b, avgEngagementRate: engagementRate(b.wImp, b.wEng) }));
+  return [...buckets.values()].map((b) => ({ ...b, avgEngagementRate: engagementRate(b.wImp, b.wEng) }));
 }
 
 const byRateDesc = (a, b) => (b.avgEngagementRate ?? -1) - (a.avgEngagementRate ?? -1);
@@ -171,17 +238,21 @@ const byRankDesc = (a, b) => (b.rankScore ?? -1) - (a.rankScore ?? -1);
 // at least one impression are used — undated or zero-impression rows can't
 // inform a day/content pattern.
 export function buildPlanSuggestion(posts, { now = new Date() } = {}) {
-  const valid = (posts || []).filter(p => p.post_date && Number(p.impressions) > 0);
+  const valid = (posts || []).filter((p) => p.post_date && Number(p.impressions) > 0);
   if (!valid.length) return { status: "empty" };
 
-  const dayBuckets = groupAndScore(valid, p => {
-    const idx = dayOfWeekIndex(p.post_date);
-    return idx === null ? null : { key: idx, name: DAY_NAMES[idx] };
-  }, { now }).sort(byRateDesc);
+  const dayBuckets = groupAndScore(
+    valid,
+    (p) => {
+      const idx = dayOfWeekIndex(p.post_date);
+      return idx === null ? null : { key: idx, name: DAY_NAMES[idx] };
+    },
+    { now }
+  ).sort(byRateDesc);
   const typeBuckets = groupAndScore(valid, classifyPost, { now }).sort(byRateDesc);
   // Time-of-day is optional (post_time may be unset on older/back-filled
   // rows), so this bucket set can legitimately come back empty.
-  const timeBuckets = groupAndScore(valid, p => classifyTimeOfDay(p.post_time), { now }).sort(byRateDesc);
+  const timeBuckets = groupAndScore(valid, (p) => classifyTimeOfDay(p.post_time), { now }).sort(byRateDesc);
 
   // Recency-weighted overall baseline, so "vs overall" in the narrative
   // compares like-for-like against the weighted type/day rates.
@@ -189,16 +260,20 @@ export function buildPlanSuggestion(posts, { now = new Date() } = {}) {
   const totalWEng = typeBuckets.reduce((a, b) => a + b.wEng, 0);
   const overallRate = engagementRate(totalWImp, totalWEng);
 
-  const qualifiedDays  = dayBuckets.filter(b => b.count >= MIN_SAMPLE_SIZE && b.avgEngagementRate !== null);
-  const qualifiedTypes = typeBuckets.filter(b => b.count >= MIN_SAMPLE_SIZE && b.avgEngagementRate !== null);
-  const qualifiedTimes = timeBuckets.filter(b => b.count >= MIN_SAMPLE_SIZE && b.avgEngagementRate !== null);
+  const qualifiedDays = dayBuckets.filter((b) => b.count >= MIN_SAMPLE_SIZE && b.avgEngagementRate !== null);
+  const qualifiedTypes = typeBuckets.filter(
+    (b) => b.count >= MIN_SAMPLE_SIZE && b.avgEngagementRate !== null
+  );
+  const qualifiedTimes = timeBuckets.filter(
+    (b) => b.count >= MIN_SAMPLE_SIZE && b.avgEngagementRate !== null
+  );
 
-  const bestDay  = qualifiedDays[0]  || null;
+  const bestDay = qualifiedDays[0] || null;
   const bestType = qualifiedTypes[0] || null;
   const bestTime = qualifiedTimes[0] || null;
 
   const todayIdx = todayWeekdayIndex(now);
-  const todayBucket = dayBuckets.find(b => b.key === todayIdx) || null;
+  const todayBucket = dayBuckets.find((b) => b.key === todayIdx) || null;
 
   // Time-of-day is a bonus signal, not a gate — confidence stays keyed to
   // day+type so it doesn't dip just because post_time hasn't been logged yet.
@@ -234,7 +309,7 @@ const JOB_AD_KEYWORDS = ["job", "hiring", "perm", "contract", "vacanc"];
 
 export function isJobAdType(label) {
   const l = (label || "").toLowerCase();
-  return JOB_AD_KEYWORDS.some(k => l.includes(k));
+  return JOB_AD_KEYWORDS.some((k) => l.includes(k));
 }
 
 // Job ads can't run back-to-back or with just one rest day between — at
@@ -266,7 +341,8 @@ export function thisWeekDates(now = new Date()) {
   const out = {};
   for (const dayIndex of WEEKDAYS) {
     const dt = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + (dayIndex - 1));
-    out[dayIndex] = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    out[dayIndex] =
+      `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
   }
   return out;
 }
@@ -275,10 +351,7 @@ function combinations(arr, k) {
   if (k === 0) return [[]];
   if (k > arr.length) return [];
   const [head, ...tail] = arr;
-  return [
-    ...combinations(tail, k - 1).map(c => [head, ...c]),
-    ...combinations(tail, k),
-  ];
+  return [...combinations(tail, k - 1).map((c) => [head, ...c]), ...combinations(tail, k)];
 }
 
 // Max-weight assignment of distinct content types to days — each type used at
@@ -294,7 +367,7 @@ function assignDistinct(days, cellsByDay) {
   let best = { score: skip.score, picks: { ...skip.picks, [day]: null } };
   for (const cell of cells) {
     const remaining = {};
-    for (const d of rest) remaining[d] = (cellsByDay[d] || []).filter(c => c.key !== cell.key);
+    for (const d of rest) remaining[d] = (cellsByDay[d] || []).filter((c) => c.key !== cell.key);
     const sub = assignDistinct(rest, remaining);
     const score = (cell.rankScore ?? cell.avgEngagementRate ?? 0) + sub.score;
     if (score > best.score) best = { score, picks: { ...sub.picks, [day]: cell } };
@@ -349,19 +422,26 @@ function weightedShare(posts, keyFn, test, { now, halfLife = RECENCY_HALF_LIFE_D
 // Days that are already past with nothing logged or planned are flagged as
 // missed. The plan for what's left is adjusted so it doesn't repeat a
 // job-ad slot or content type already posted or planned earlier this week.
-export function buildWeekPlan(posts, {
-  now = new Date(), minPerCell = 2, plannedItems = [],
-  platformFocus = null, jobAdSignal = null, webFunnel = null,
-} = {}) {
+export function buildWeekPlan(
+  posts,
+  {
+    now = new Date(),
+    minPerCell = 2,
+    plannedItems = [],
+    platformFocus = null,
+    jobAdSignal = null,
+    webFunnel = null,
+  } = {}
+) {
   const allPosts = posts || [];
-  const valid = allPosts.filter(p => p.post_date && Number(p.impressions) > 0);
+  const valid = allPosts.filter((p) => p.post_date && Number(p.impressions) > 0);
 
   // Any logged post counts as "already posted" (even before impressions are
   // in) — this is "did I already post," not "how did it perform."
   const weekDates = thisWeekDates(now);
   const postedByDay = {};
   for (const dayIndex of WEEKDAYS) {
-    const dayPosts = allPosts.filter(p => p.post_date === weekDates[dayIndex]);
+    const dayPosts = allPosts.filter((p) => p.post_date === weekDates[dayIndex]);
     postedByDay[dayIndex] = dayPosts.length ? dayPosts : null;
   }
 
@@ -369,9 +449,12 @@ export function buildWeekPlan(posts, {
   // that haven't actually gone out yet.
   const plannedByDay = {};
   for (const dayIndex of WEEKDAYS) {
-    if (postedByDay[dayIndex]) { plannedByDay[dayIndex] = null; continue; }
+    if (postedByDay[dayIndex]) {
+      plannedByDay[dayIndex] = null;
+      continue;
+    }
     const dateStr = weekDates[dayIndex];
-    const items = (plannedItems || []).filter(it => it.status === "planned" && it.planned_date === dateStr);
+    const items = (plannedItems || []).filter((it) => it.status === "planned" && it.planned_date === dateStr);
     plannedByDay[dayIndex] = items.length ? items : null;
   }
 
@@ -401,36 +484,47 @@ export function buildWeekPlan(posts, {
   }
 
   const todayOffset = mondayOffset(now.getDay());
-  const remainingDays = WEEKDAYS.filter(d => !postedByDay[d] && !plannedByDay[d] && mondayOffset(d) >= todayOffset);
+  const remainingDays = WEEKDAYS.filter(
+    (d) => !postedByDay[d] && !plannedByDay[d] && mondayOffset(d) >= todayOffset
+  );
 
   // Per remaining day: the aggregated job-ad track record, and the ranked
   // non-job cells (types already used this week excluded, for variety).
   const jobByDay = {};
   const contentByDay = {};
   for (const dayIndex of remainingDays) {
-    const dayPosts = valid.filter(p => dayOfWeekIndex(p.post_date) === dayIndex);
-    const jobPosts = dayPosts.filter(p => isJobAdType(classifyPost(p).label));
-    const nonJobPosts = dayPosts.filter(p => !isJobAdType(classifyPost(p).label));
+    const dayPosts = valid.filter((p) => dayOfWeekIndex(p.post_date) === dayIndex);
+    const jobPosts = dayPosts.filter((p) => isJobAdType(classifyPost(p).label));
+    const nonJobPosts = dayPosts.filter((p) => !isJobAdType(classifyPost(p).label));
 
     const jobAgg = groupAndScore(jobPosts, () => ({ key: "job" }), { now })[0] || null;
     const jobRate = jobAgg?.avgEngagementRate ?? null;
-    const jobRankRate = jobAdSignal?.status === "ready" && jobRate !== null
-      ? jobRate * (1 + JOB_BOOST_MAX * jobAdSignal.weight)
-      : jobRate;
+    const jobRankRate =
+      jobAdSignal?.status === "ready" && jobRate !== null
+        ? jobRate * (1 + JOB_BOOST_MAX * jobAdSignal.weight)
+        : jobRate;
     jobByDay[dayIndex] = { rate: jobRate, rankRate: jobRankRate, count: jobAgg?.count ?? 0 };
 
-    const platformShares = platformFocus?.status === "ready"
-      ? weightedShare(nonJobPosts, classifyPost, p => (p.platforms || "").toLowerCase().includes(platformFocus.platform.toLowerCase()), { now })
-      : null;
-    const linkedShares = webFunnel?.status === "ready"
-      ? weightedShare(nonJobPosts, classifyPost, p => !!String(p.url || "").trim(), { now })
-      : null;
+    const platformShares =
+      platformFocus?.status === "ready"
+        ? weightedShare(
+            nonJobPosts,
+            classifyPost,
+            (p) => (p.platforms || "").toLowerCase().includes(platformFocus.platform.toLowerCase()),
+            { now }
+          )
+        : null;
+    const linkedShares =
+      webFunnel?.status === "ready"
+        ? weightedShare(nonJobPosts, classifyPost, (p) => !!String(p.url || "").trim(), { now })
+        : null;
 
     contentByDay[dayIndex] = groupAndScore(nonJobPosts, classifyPost, { now })
-      .filter(b => b.avgEngagementRate !== null && !usedTypesThisWeek.has(b.label.toLowerCase()))
-      .map(b => {
+      .filter((b) => b.avgEngagementRate !== null && !usedTypesThisWeek.has(b.label.toLowerCase()))
+      .map((b) => {
         let rankScore = b.avgEngagementRate;
-        if (platformShares) rankScore *= 1 + PLATFORM_FOCUS_BOOST * platformFocus.weight * platformShares.get(b.key);
+        if (platformShares)
+          rankScore *= 1 + PLATFORM_FOCUS_BOOST * platformFocus.weight * platformShares.get(b.key);
         if (linkedShares) rankScore *= 1 + LINK_BIAS_BOOST * webFunnel.weight * linkedShares.get(b.key);
         return { ...b, rankScore };
       })
@@ -439,7 +533,7 @@ export function buildWeekPlan(posts, {
 
   const jobSlotsRemaining = Math.max(0, JOB_AD_SLOTS - jobSlotsUsedThisWeek);
   const roleLabelsRemaining = usedJobRoles.size
-    ? JOB_ROLE_LABELS.filter(r => !usedJobRoles.has(r))
+    ? JOB_ROLE_LABELS.filter((r) => !usedJobRoles.has(r))
     : JOB_ROLE_LABELS;
 
   // A candidate set of new job days is only legal if every pair keeps the
@@ -452,7 +546,7 @@ export function buildWeekPlan(posts, {
         if (!hasMinJobGap(jobDays[i], jobDays[j])) return false;
       }
     }
-    return jobDays.every(d => usedJobDays.every(u => hasMinJobGap(d, u)));
+    return jobDays.every((d) => usedJobDays.every((u) => hasMinJobGap(d, u)));
   };
 
   // Job ads are a fixed obligation, so the full remaining quota is placed
@@ -465,13 +559,16 @@ export function buildWeekPlan(posts, {
   const maxJobK = Math.min(jobSlotsRemaining, remainingDays.length);
   let feasibleK = 0;
   for (let k = maxJobK; k >= 0; k--) {
-    if (combinations(remainingDays, k).some(jobDaysValid)) { feasibleK = k; break; }
+    if (combinations(remainingDays, k).some(jobDaysValid)) {
+      feasibleK = k;
+      break;
+    }
   }
 
   let bestPlan = null;
   for (const jobDays of combinations(remainingDays, feasibleK)) {
     if (!jobDaysValid(jobDays)) continue;
-    const contentDays = remainingDays.filter(d => !jobDays.includes(d));
+    const contentDays = remainingDays.filter((d) => !jobDays.includes(d));
     const jobScore = jobDays.reduce((a, d) => a + (jobByDay[d].rankRate ?? jobByDay[d].rate ?? 0), 0);
     const { score: contentScore, picks } = assignDistinct(contentDays, contentByDay);
     const total = jobScore + contentScore;
@@ -480,34 +577,57 @@ export function buildWeekPlan(posts, {
   if (!bestPlan) bestPlan = { total: 0, jobDays: [], picks: {} };
 
   const roleByDay = {};
-  [...bestPlan.jobDays].sort((a, b) => a - b).forEach((d, i) => {
-    roleByDay[d] = roleLabelsRemaining[i] || `Job ad ${i + 1}`;
-  });
+  [...bestPlan.jobDays]
+    .sort((a, b) => a - b)
+    .forEach((d, i) => {
+      roleByDay[d] = roleLabelsRemaining[i] || `Job ad ${i + 1}`;
+    });
 
-  return WEEKDAYS.map(dayIndex => {
+  return WEEKDAYS.map((dayIndex) => {
     const dayPosts = postedByDay[dayIndex];
     if (dayPosts) {
       return {
-        dayIndex, dayName: DAY_NAMES[dayIndex], slot: "posted", roleLabel: null, bestType: null,
-        posted: dayPosts.map(p => ({ label: classifyPost(p).label, postName: p.post_name || "" })),
-        confident: true, recommendBoost: false,
+        dayIndex,
+        dayName: DAY_NAMES[dayIndex],
+        slot: "posted",
+        roleLabel: null,
+        bestType: null,
+        posted: dayPosts.map((p) => ({ label: classifyPost(p).label, postName: p.post_name || "" })),
+        confident: true,
+        recommendBoost: false,
       };
     }
     const dayPlanned = plannedByDay[dayIndex];
     if (dayPlanned) {
       return {
-        dayIndex, dayName: DAY_NAMES[dayIndex], slot: "planned", roleLabel: null, bestType: null,
-        planned: dayPlanned.map(it => ({ label: it.content_type || "Planned", idea: it.idea || "" })),
-        confident: true, recommendBoost: false,
+        dayIndex,
+        dayName: DAY_NAMES[dayIndex],
+        slot: "planned",
+        roleLabel: null,
+        bestType: null,
+        planned: dayPlanned.map((it) => ({ label: it.content_type || "Planned", idea: it.idea || "" })),
+        confident: true,
+        recommendBoost: false,
       };
     }
     if (mondayOffset(dayIndex) < todayOffset) {
-      return { dayIndex, dayName: DAY_NAMES[dayIndex], slot: "missed", roleLabel: null, bestType: null, confident: false, recommendBoost: false };
+      return {
+        dayIndex,
+        dayName: DAY_NAMES[dayIndex],
+        slot: "missed",
+        roleLabel: null,
+        bestType: null,
+        confident: false,
+        recommendBoost: false,
+      };
     }
     if (bestPlan.jobDays.includes(dayIndex)) {
       const job = jobByDay[dayIndex];
       return {
-        dayIndex, dayName: DAY_NAMES[dayIndex], slot: "job", roleLabel: roleByDay[dayIndex],
+        dayIndex,
+        dayName: DAY_NAMES[dayIndex],
+        slot: "job",
+        roleLabel: roleByDay[dayIndex],
         bestType: { label: "Job Posting", count: job.count, avgEngagementRate: job.rate },
         confident: job.count >= minPerCell,
         recommendBoost: jobAdSignal?.status === "ready",
@@ -515,8 +635,13 @@ export function buildWeekPlan(posts, {
     }
     const cell = bestPlan.picks[dayIndex] || null;
     return {
-      dayIndex, dayName: DAY_NAMES[dayIndex], slot: "content", roleLabel: null,
-      bestType: cell ? { label: cell.label, count: cell.count, avgEngagementRate: cell.avgEngagementRate } : null,
+      dayIndex,
+      dayName: DAY_NAMES[dayIndex],
+      slot: "content",
+      roleLabel: null,
+      bestType: cell
+        ? { label: cell.label, count: cell.count, avgEngagementRate: cell.avgEngagementRate }
+        : null,
       confident: !!cell && cell.count >= minPerCell,
       recommendBoost: false,
     };
@@ -533,10 +658,13 @@ export function buildWeekPlan(posts, {
 // daysSinceLast and the "gone dark" flag are measured against today (clamped
 // to the quarter end, so a past quarter reports how early posting tailed off
 // rather than how long ago the quarter was).
-export function buildCadence(posts, { now = new Date(), quarterStart = null, quarterEnd = null, darkThreshold = 7 } = {}) {
+export function buildCadence(
+  posts,
+  { now = new Date(), quarterStart = null, quarterEnd = null, darkThreshold = 7 } = {}
+) {
   const times = (posts || [])
-    .map(p => (p.post_date ? dateToLocalTs(p.post_date) : null))
-    .filter(t => t !== null)
+    .map((p) => (p.post_date ? dateToLocalTs(p.post_date) : null))
+    .filter((t) => t !== null)
     .sort((a, b) => a - b);
   if (!times.length) return { status: "empty" };
 

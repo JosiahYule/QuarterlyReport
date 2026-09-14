@@ -5,15 +5,15 @@ import { buildSourceTrend, findSourceSpike } from "../lib/sourceTrends.js";
 import { CountUp } from "./CountUp.jsx";
 import { Delta } from "./Delta.jsx";
 
-const WORK  = "var(--chart-work)";
+const WORK = "var(--chart-work)";
 const STAFF = "var(--chart-staff)";
 
-const parseDay = s => {
+const parseDay = (s) => {
   const [y, m, d] = String(s).split("-").map(Number);
   return new Date(y, m - 1, d);
 };
-const dayLabel = d => d.toLocaleDateString("en-CA", { month: "short", day: "numeric" });
-const longDay  = d => d.toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric" });
+const dayLabel = (d) => d.toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+const longDay = (d) => d.toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric" });
 
 function mondayOf(date) {
   const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -21,7 +21,7 @@ function mondayOf(date) {
   return d;
 }
 
-const weekKey = d =>
+const weekKey = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 // Continuous Monday-keyed weeks across the quarter (up to today for the
@@ -47,25 +47,30 @@ function weeksElapsed(q) {
 
 // ─── Weekly trend ─────────────────────────────────────────────────
 const SERIES = [
-  { key: "work",  name: "Job seekers",    color: WORK },
+  { key: "work", name: "Job seekers", color: WORK },
   { key: "staff", name: "Employer leads", color: STAFF },
 ];
 
 function WeeklyChart({ weeks }) {
   const [hover, setHover] = useState(null);
-  const W = 1100, H = 300, pL = 44, pR = 110, pT = 24, pB = 36;
+  const W = 1100,
+    H = 300,
+    pL = 44,
+    pR = 110,
+    pT = 24,
+    pB = 36;
   const series = SERIES;
 
-  const rawMax = Math.max(1, ...weeks.flatMap(w => series.map(s => w[s.key])));
-  const max    = rawMax * 1.15;
-  const xStep  = (W - pL - pR) / Math.max(weeks.length - 1, 1);
-  const x = i => pL + i * xStep;
-  const y = v => pT + (H - pT - pB) * (1 - v / max);
-  const ticks = [0, 0.5, 1].map(t => ({ v: Math.round(max * t), y: y(max * t) }));
+  const rawMax = Math.max(1, ...weeks.flatMap((w) => series.map((s) => w[s.key])));
+  const max = rawMax * 1.15;
+  const xStep = (W - pL - pR) / Math.max(weeks.length - 1, 1);
+  const x = (i) => pL + i * xStep;
+  const y = (v) => pT + (H - pT - pB) * (1 - v / max);
+  const ticks = [0, 0.5, 1].map((t) => ({ v: Math.round(max * t), y: y(max * t) }));
   // Thin the x-axis labels so long quarters don't collide
   const labelEvery = weeks.length > 8 ? Math.ceil(weeks.length / 7) : 1;
 
-  const onMove = e => {
+  const onMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const px = ((e.clientX - rect.left) / rect.width) * W;
     const i = Math.min(weeks.length - 1, Math.max(0, Math.round((px - pL) / xStep)));
@@ -75,28 +80,54 @@ function WeeklyChart({ weeks }) {
   return (
     <div className="cf-chart-wrap">
       <div className="cf-chart-area">
-        <svg className="cf-chart-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
-          role="img" aria-label="Contact form submissions week by week — job seekers vs employer leads"
-          onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+        <svg
+          className="cf-chart-svg"
+          viewBox={`0 0 ${W} ${H}`}
+          preserveAspectRatio="xMidYMid meet"
+          role="img"
+          aria-label="Contact form submissions week by week — job seekers vs employer leads"
+          onMouseMove={onMove}
+          onMouseLeave={() => setHover(null)}
+        >
           {ticks.map((t, i) => (
             <g key={i}>
               <line x1={pL} x2={W - pR} y1={t.y} y2={t.y} stroke="var(--rule-soft)" strokeWidth="1" />
-              <text x={pL - 8} y={t.y + 4} textAnchor="end" fontSize="11" fill="var(--ink-4)" fontFamily="var(--sans)">{t.v}</text>
+              <text
+                x={pL - 8}
+                y={t.y + 4}
+                textAnchor="end"
+                fontSize="11"
+                fill="var(--ink-4)"
+                fontFamily="var(--sans)"
+              >
+                {t.v}
+              </text>
             </g>
           ))}
           <line x1={pL} x2={W - pR} y1={H - pB} y2={H - pB} stroke="var(--ink)" strokeWidth="1" />
-          {weeks.map((w, i) => (i % labelEvery === 0 || i === weeks.length - 1) && (
-            <text key={i} x={x(i)} y={H - pB + 18} textAnchor="middle" fontSize="11" fill="var(--ink-3)" fontFamily="var(--sans)">
-              {dayLabel(w.date)}
-            </text>
-          ))}
+          {weeks.map(
+            (w, i) =>
+              (i % labelEvery === 0 || i === weeks.length - 1) && (
+                <text
+                  key={i}
+                  x={x(i)}
+                  y={H - pB + 18}
+                  textAnchor="middle"
+                  fontSize="11"
+                  fill="var(--ink-3)"
+                  fontFamily="var(--sans)"
+                >
+                  {dayLabel(w.date)}
+                </text>
+              )
+          )}
           {hover != null && (
             <line x1={x(hover)} x2={x(hover)} y1={pT} y2={H - pB} stroke="var(--rule)" strokeWidth="1" />
           )}
           {(() => {
             const last = weeks.length - 1;
             // Nudge the end-of-line labels apart when the lines converge
-            const labelYs = series.map(s => y(weeks[last][s.key]));
+            const labelYs = series.map((s) => y(weeks[last][s.key]));
             if (labelYs.length === 2 && Math.abs(labelYs[0] - labelYs[1]) < 16) {
               const shift = (16 - Math.abs(labelYs[0] - labelYs[1])) / 2;
               const topFirst = labelYs[0] <= labelYs[1];
@@ -104,27 +135,49 @@ function WeeklyChart({ weeks }) {
               labelYs[1] += topFirst ? shift : -shift;
             }
             return series.map((s, si) => {
-            const path = weeks.map((w, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(w[s.key]).toFixed(1)}`).join(" ");
-            return (
-              <g key={s.key}>
-                <path d={path} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" />
-                {/* Direct label at the line's end — identity never rides on color alone */}
-                <circle cx={x(last)} cy={y(weeks[last][s.key])} r="3.5" fill="var(--paper)" stroke={s.color} strokeWidth="2" />
-                <text x={x(last) + 10} y={labelYs[si] + 4} fontSize="12" fontFamily="var(--sans)" fill="var(--ink-2)">
-                  {s.name}
-                </text>
-                {hover != null && (
-                  <circle cx={x(hover)} cy={y(weeks[hover][s.key])} r="4.5" fill="var(--paper)" stroke={s.color} strokeWidth="2" />
-                )}
-              </g>
-            );
+              const path = weeks
+                .map((w, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(w[s.key]).toFixed(1)}`)
+                .join(" ");
+              return (
+                <g key={s.key}>
+                  <path d={path} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" />
+                  {/* Direct label at the line's end — identity never rides on color alone */}
+                  <circle
+                    cx={x(last)}
+                    cy={y(weeks[last][s.key])}
+                    r="3.5"
+                    fill="var(--paper)"
+                    stroke={s.color}
+                    strokeWidth="2"
+                  />
+                  <text
+                    x={x(last) + 10}
+                    y={labelYs[si] + 4}
+                    fontSize="12"
+                    fontFamily="var(--sans)"
+                    fill="var(--ink-2)"
+                  >
+                    {s.name}
+                  </text>
+                  {hover != null && (
+                    <circle
+                      cx={x(hover)}
+                      cy={y(weeks[hover][s.key])}
+                      r="4.5"
+                      fill="var(--paper)"
+                      stroke={s.color}
+                      strokeWidth="2"
+                    />
+                  )}
+                </g>
+              );
             });
           })()}
         </svg>
         {hover != null && (
           <div className="cf-tooltip" style={{ left: `${(x(hover) / W) * 100}%` }}>
             <div className="cf-tooltip-title">Week of {dayLabel(weeks[hover].date)}</div>
-            {series.map(s => (
+            {series.map((s) => (
               <div className="cf-tooltip-row" key={s.key}>
                 <span className="cf-dot" style={{ background: s.color }} />
                 {s.name} <strong>{fmtInt(weeks[hover][s.key])}</strong>
@@ -134,7 +187,7 @@ function WeeklyChart({ weeks }) {
         )}
       </div>
       <div className="trend-legend" aria-hidden="true">
-        {series.map(s => (
+        {series.map((s) => (
           <span className="legend-item" key={s.key} style={{ cursor: "default" }}>
             <span className="swatch" style={{ background: s.color }} />
             {s.name}
@@ -152,10 +205,16 @@ function BarRow({ label, total, max, segments, title }) {
     <div className="cf-bar-row" title={title}>
       <span className="cf-bar-label">{label}</span>
       <span className="cf-bar-track">
-        {segments.map((s, i) => s.value > 0 && (
-          <span key={i} className="cf-bar-seg"
-            style={{ width: `${(s.value / max) * 100}%`, background: s.color }} />
-        ))}
+        {segments.map(
+          (s, i) =>
+            s.value > 0 && (
+              <span
+                key={i}
+                className="cf-bar-seg"
+                style={{ width: `${(s.value / max) * 100}%`, background: s.color }}
+              />
+            )
+        )}
       </span>
       <span className="cf-bar-value num">{fmtInt(total)}</span>
     </div>
@@ -164,15 +223,23 @@ function BarRow({ label, total, max, segments, title }) {
 
 function Locations({ locations }) {
   if (!locations?.length) return null;
-  const max = Math.max(...locations.map(l => l.total));
+  const max = Math.max(...locations.map((l) => l.total));
   return (
     <div className="cf-panel">
       <h3 className="cf-panel-title serif">By branch</h3>
       <div className="cf-bars">
-        {locations.map(l => (
-          <BarRow key={l.location} label={l.location} total={l.total} max={max}
+        {locations.map((l) => (
+          <BarRow
+            key={l.location}
+            label={l.location}
+            total={l.total}
+            max={max}
             title={`${l.location} — ${fmtInt(l.work)} job seeker${l.work === 1 ? "" : "s"}, ${fmtInt(l.staff)} employer lead${l.staff === 1 ? "" : "s"}`}
-            segments={[{ value: l.work, color: WORK }, { value: l.staff, color: STAFF }]} />
+            segments={[
+              { value: l.work, color: WORK },
+              { value: l.staff, color: STAFF },
+            ]}
+          />
         ))}
       </div>
     </div>
@@ -182,7 +249,7 @@ function Locations({ locations }) {
 function Sources({ sources, sourceSince, sourceEligible, q }) {
   if (!sources?.length) return null;
   const answered = sources.reduce((a, s) => a + s.count, 0);
-  const max = Math.max(...sources.map(s => s.count));
+  const max = Math.max(...sources.map((s) => s.count));
   // The question was added to the form mid-stream — note the coverage window
   // instead of letting early submissions read as non-responses.
   const since = sourceSince ? parseDay(sourceSince) : null;
@@ -191,10 +258,15 @@ function Sources({ sources, sourceSince, sourceEligible, q }) {
     <div className="cf-panel">
       <h3 className="cf-panel-title serif">How they heard about us</h3>
       <div className="cf-bars">
-        {sources.map(s => (
-          <BarRow key={s.source} label={s.source} total={s.count} max={max}
+        {sources.map((s) => (
+          <BarRow
+            key={s.source}
+            label={s.source}
+            total={s.count}
+            max={max}
             title={`${s.source} — ${fmtInt(s.count)} of ${fmtInt(answered)} (${Math.round((s.count / answered) * 100)}%)`}
-            segments={[{ value: s.count, color: WORK }]} />
+            segments={[{ value: s.count, color: WORK }]}
+          />
         ))}
       </div>
       <p className="cf-note">
@@ -210,8 +282,8 @@ function Sources({ sources, sourceSince, sourceEligible, q }) {
 // A line per answer over the quarter's weeks. Twelve answers at once is
 // spaghetti, so the legend is the control: the five biggest are drawn by
 // default and any answer can be switched in or out, up to six at a time.
-const clipLabel = s => (s.length > 30 ? s.slice(0, 29) + "…" : s);
-const fmtTypical = n => (n % 1 ? n.toFixed(1) : String(n));
+const clipLabel = (s) => (s.length > 30 ? s.slice(0, 29) + "…" : s);
+const fmtTypical = (n) => (n % 1 ? n.toFixed(1) : String(n));
 
 // Validated against paper with the skill's palette checker (light mode,
 // adjacent pairlist — the one that governs lines): worst adjacent CVD ΔE 9.4,
@@ -234,32 +306,43 @@ function axisTop(peak) {
 function SourceTrend({ sources, sourceWeekly, sourceSince, weeks }) {
   const [hover, setHover] = useState(null);
 
-  const { rows, coveredFrom } = useMemo(() => buildSourceTrend({
-    sourceWeekly,
-    sources,
-    weekKeys: weeks.map(w => w.key),
-    since: sourceSince,
-  }), [sourceWeekly, sources, sourceSince, weeks]);
+  const { rows, coveredFrom } = useMemo(
+    () =>
+      buildSourceTrend({
+        sourceWeekly,
+        sources,
+        weekKeys: weeks.map((w) => w.key),
+        since: sourceSince,
+      }),
+    [sourceWeekly, sources, sourceSince, weeks]
+  );
 
   // source → hue index. A hue belongs to the answer that holds it until that
   // answer is switched off, so toggling one line never repaints the others.
   const [hues, setHues] = useState(() => new Map());
-  const defaults = rows.slice(0, DEFAULT_LINES).map(r => r.source).join("|");
+  const defaults = rows
+    .slice(0, DEFAULT_LINES)
+    .map((r) => r.source)
+    .join("|");
   const [seeded, setSeeded] = useState(null);
   if (seeded !== defaults && rows.length) {
     setSeeded(defaults);
     setHues(new Map(rows.slice(0, DEFAULT_LINES).map((r, i) => [r.source, i])));
   }
 
-  const toggle = source => setHues(prev => {
-    const next = new Map(prev);
-    if (next.has(source)) { next.delete(source); return next; }
-    const taken = new Set(next.values());
-    const free = SOURCE_HUES.findIndex((_, i) => !taken.has(i));
-    if (free === -1) return prev;          // at the cap — the chip is disabled
-    next.set(source, free);
-    return next;
-  });
+  const toggle = (source) =>
+    setHues((prev) => {
+      const next = new Map(prev);
+      if (next.has(source)) {
+        next.delete(source);
+        return next;
+      }
+      const taken = new Set(next.values());
+      const free = SOURCE_HUES.findIndex((_, i) => !taken.has(i));
+      if (free === -1) return prev; // at the cap — the chip is disabled
+      next.set(source, free);
+      return next;
+    });
 
   const spike = useMemo(() => findSourceSpike(rows, coveredFrom), [rows, coveredFrom]);
 
@@ -267,32 +350,39 @@ function SourceTrend({ sources, sourceWeekly, sourceSince, weeks }) {
   // before the breakdown existed has no sourceWeekly at all — stay off the page.
   if (!sourceWeekly?.length || rows.length < 2 || weeks.length - coveredFrom < 3) return null;
 
-  const shown = rows.filter(r => hues.has(r.source));
+  const shown = rows.filter((r) => hues.has(r.source));
   const full = hues.size >= MAX_LINES;
 
-  const W = 1100, H = 320, pL = 46, pR = 26, pT = 20, pB = 34;
-  const max = axisTop(Math.max(1, ...shown.flatMap(r => r.values.slice(coveredFrom))));
+  const W = 1100,
+    H = 320,
+    pL = 46,
+    pR = 26,
+    pT = 20,
+    pB = 34;
+  const max = axisTop(Math.max(1, ...shown.flatMap((r) => r.values.slice(coveredFrom))));
   const xStep = (W - pL - pR) / Math.max(weeks.length - 1, 1);
-  const x = i => pL + i * xStep;
-  const y = v => pT + (H - pT - pB) * (1 - v / max);
-  const ticks = [0, 1 / 3, 2 / 3, 1].map(t => ({ v: Math.round(max * t), y: y(max * t) }));
+  const x = (i) => pL + i * xStep;
+  const y = (v) => pT + (H - pT - pB) * (1 - v / max);
+  const ticks = [0, 1 / 3, 2 / 3, 1].map((t) => ({ v: Math.round(max * t), y: y(max * t) }));
   const labelEvery = weeks.length > 10 ? Math.ceil(weeks.length / 7) : 1;
 
-  const onMove = e => {
+  const onMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const px = ((e.clientX - rect.left) / rect.width) * W;
     const i = Math.min(weeks.length - 1, Math.max(0, Math.round((px - pL) / xStep)));
     setHover(i);
   };
 
-  const hovered = hover != null
-    ? shown.map(r => ({ source: r.source, count: r.values[hover], hue: SOURCE_HUES[hues.get(r.source)] }))
-        .sort((a, b) => b.count - a.count)
-    : [];
+  const hovered =
+    hover != null
+      ? shown
+          .map((r) => ({ source: r.source, count: r.values[hover], hue: SOURCE_HUES[hues.get(r.source)] }))
+          .sort((a, b) => b.count - a.count)
+      : [];
 
   // Sit the tooltip beside the hovered week rather than over it, flipping to
   // the near side past the midpoint so it never leaves the panel.
-  const tooltipStyle = i => {
+  const tooltipStyle = (i) => {
     const left = (x(i) / W) * 100;
     return {
       left: `${left}%`,
@@ -305,16 +395,28 @@ function SourceTrend({ sources, sourceWeekly, sourceSince, weeks }) {
       <h3 className="cf-panel-title serif">How they heard about us, week by week</h3>
 
       <div className="cf-chart-area">
-        <svg className="cf-chart-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
+        <svg
+          className="cf-chart-svg"
+          viewBox={`0 0 ${W} ${H}`}
+          preserveAspectRatio="xMidYMid meet"
           role="img"
           aria-label={`Weekly count for each selected "how did you hear about us" answer${spike ? `. ${spike.source} peaks at ${spike.count} in the week of ${dayLabel(weeks[spike.at].date)}` : ""}`}
-          onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
-
+          onMouseMove={onMove}
+          onMouseLeave={() => setHover(null)}
+        >
           {ticks.map((t, i) => (
             <g key={i}>
               <line x1={pL} x2={W - pR} y1={t.y} y2={t.y} stroke="var(--rule-soft)" strokeWidth="1" />
-              <text x={pL - 8} y={t.y + 4} textAnchor="end" fontSize="11" fill="var(--ink-4)"
-                fontFamily="var(--sans)">{t.v}</text>
+              <text
+                x={pL - 8}
+                y={t.y + 4}
+                textAnchor="end"
+                fontSize="11"
+                fill="var(--ink-4)"
+                fontFamily="var(--sans)"
+              >
+                {t.v}
+              </text>
             </g>
           ))}
           <line x1={pL} x2={W - pR} y1={H - pB} y2={H - pB} stroke="var(--ink)" strokeWidth="1" />
@@ -322,10 +424,16 @@ function SourceTrend({ sources, sourceWeekly, sourceSince, weeks }) {
           {/* Weeks before the question existed — blank by design, not by silence */}
           {coveredFrom > 0 && (
             <g>
-              <rect x={pL} y={pT} width={Math.max(0, x(coveredFrom) - xStep / 2 - pL)} height={H - pT - pB}
-                fill="var(--paper-2)" />
-              <text x={pL + 6} y={pT + 14} fontSize="10" fill="var(--ink-4)"
-                fontFamily="var(--sans)">not asked yet</text>
+              <rect
+                x={pL}
+                y={pT}
+                width={Math.max(0, x(coveredFrom) - xStep / 2 - pL)}
+                height={H - pT - pB}
+                fill="var(--paper-2)"
+              />
+              <text x={pL + 6} y={pT + 14} fontSize="10" fill="var(--ink-4)" fontFamily="var(--sans)">
+                not asked yet
+              </text>
             </g>
           )}
 
@@ -333,24 +441,57 @@ function SourceTrend({ sources, sourceWeekly, sourceSince, weeks }) {
             <line x1={x(hover)} x2={x(hover)} y1={pT} y2={H - pB} stroke="var(--rule)" strokeWidth="1" />
           )}
 
-          {weeks.map((w, i) => (i % labelEvery === 0 || i === weeks.length - 1) && (
-            <text key={i} x={x(i)} y={H - pB + 18} textAnchor="middle" fontSize="11"
-              fill="var(--ink-3)" fontFamily="var(--sans)">{dayLabel(w.date)}</text>
-          ))}
+          {weeks.map(
+            (w, i) =>
+              (i % labelEvery === 0 || i === weeks.length - 1) && (
+                <text
+                  key={i}
+                  x={x(i)}
+                  y={H - pB + 18}
+                  textAnchor="middle"
+                  fontSize="11"
+                  fill="var(--ink-3)"
+                  fontFamily="var(--sans)"
+                >
+                  {dayLabel(w.date)}
+                </text>
+              )
+          )}
 
-          {shown.map(r => {
+          {shown.map((r) => {
             const hue = SOURCE_HUES[hues.get(r.source)];
             const pts = r.values.map((v, i) => ({ v, i })).slice(coveredFrom);
-            const path = pts.map((p, n) => `${n ? "L" : "M"}${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
+            const path = pts
+              .map((p, n) => `${n ? "L" : "M"}${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`)
+              .join(" ");
             const last = pts[pts.length - 1];
             return (
               <g key={r.source}>
-                <path d={path} fill="none" stroke={hue} strokeWidth="2" strokeLinejoin="round"
-                  strokeLinecap="round" />
-                <circle cx={x(last.i)} cy={y(last.v)} r="3.5" fill="var(--paper)" stroke={hue} strokeWidth="2" />
+                <path
+                  d={path}
+                  fill="none"
+                  stroke={hue}
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+                <circle
+                  cx={x(last.i)}
+                  cy={y(last.v)}
+                  r="3.5"
+                  fill="var(--paper)"
+                  stroke={hue}
+                  strokeWidth="2"
+                />
                 {hover != null && hover >= coveredFrom && (
-                  <circle cx={x(hover)} cy={y(r.values[hover])} r="4.5" fill="var(--paper)"
-                    stroke={hue} strokeWidth="2" />
+                  <circle
+                    cx={x(hover)}
+                    cy={y(r.values[hover])}
+                    r="4.5"
+                    fill="var(--paper)"
+                    stroke={hue}
+                    strokeWidth="2"
+                  />
                 )}
               </g>
             );
@@ -360,16 +501,18 @@ function SourceTrend({ sources, sourceWeekly, sourceSince, weeks }) {
         {hover != null && (
           <div className="cf-tooltip" style={tooltipStyle(hover)}>
             <div className="cf-tooltip-title">Week of {dayLabel(weeks[hover].date)}</div>
-            {hover < coveredFrom
-              ? <div className="cf-tooltip-row">Question not on the form yet</div>
-              : hovered.length === 0
-                ? <div className="cf-tooltip-row">No answers selected</div>
-                : hovered.map(h => (
-                    <div className="cf-tooltip-row" key={h.source}>
-                      <span className="cf-dot" style={{ background: h.hue }} />
-                      {clipLabel(h.source)} <strong>{fmtInt(h.count)}</strong>
-                    </div>
-                  ))}
+            {hover < coveredFrom ? (
+              <div className="cf-tooltip-row">Question not on the form yet</div>
+            ) : hovered.length === 0 ? (
+              <div className="cf-tooltip-row">No answers selected</div>
+            ) : (
+              hovered.map((h) => (
+                <div className="cf-tooltip-row" key={h.source}>
+                  <span className="cf-dot" style={{ background: h.hue }} />
+                  {clipLabel(h.source)} <strong>{fmtInt(h.count)}</strong>
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>
@@ -377,15 +520,24 @@ function SourceTrend({ sources, sourceWeekly, sourceSince, weeks }) {
       {/* The legend is the filter: identity never rides on colour alone, and
           picking answers is how twelve of them fit on one chart. */}
       <div className="cf-source-legend">
-        {rows.map(r => {
+        {rows.map((r) => {
           const on = hues.has(r.source);
           return (
-            <button type="button" key={r.source} className="cf-source-chip"
-              aria-pressed={on} disabled={!on && full}
-              title={!on && full ? `Turn an answer off to add another — ${MAX_LINES} lines at a time` : undefined}
-              onClick={() => toggle(r.source)}>
-              <span className="cf-chip-swatch"
-                style={on ? { background: SOURCE_HUES[hues.get(r.source)] } : undefined} />
+            <button
+              type="button"
+              key={r.source}
+              className="cf-source-chip"
+              aria-pressed={on}
+              disabled={!on && full}
+              title={
+                !on && full ? `Turn an answer off to add another — ${MAX_LINES} lines at a time` : undefined
+              }
+              onClick={() => toggle(r.source)}
+            >
+              <span
+                className="cf-chip-swatch"
+                style={on ? { background: SOURCE_HUES[hues.get(r.source)] } : undefined}
+              />
               {r.source}
               <span className="cf-chip-total num">{fmtInt(r.total)}</span>
             </button>
@@ -394,46 +546,88 @@ function SourceTrend({ sources, sourceWeekly, sourceSince, weeks }) {
       </div>
 
       <p className="cf-note">
-        Click an answer to add or remove its line — up to {MAX_LINES} at a time, and each answer keeps its own colour.
-        {spike && ` Sharpest move: ${spike.source} at ${fmtInt(spike.count)} in the week of ${dayLabel(weeks[spike.at].date)}${spike.typical > 0 ? `, against a typical ${fmtTypical(spike.typical)} a week` : ", from a standing start"}.`}
+        Click an answer to add or remove its line — up to {MAX_LINES} at a time, and each answer keeps its own
+        colour.
+        {spike &&
+          ` Sharpest move: ${spike.source} at ${fmtInt(spike.count)} in the week of ${dayLabel(weeks[spike.at].date)}${spike.typical > 0 ? `, against a typical ${fmtTypical(spike.typical)} a week` : ", from a standing start"}.`}
       </p>
     </div>
   );
 }
 // ─── Day × hour heatmap ───────────────────────────────────────────
 const DOW_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const hourLabel = h => (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? " AM" : " PM");
+const hourLabel = (h) => (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? " AM" : " PM");
 
 function Heatmap({ heatmap }) {
   if (!heatmap?.length) return null;
   const counts = Array.from({ length: 7 }, () => Array(24).fill(0));
   for (const c of heatmap) counts[c.dow - 1][c.hour] = c.count;
-  const max = Math.max(...heatmap.map(c => c.count));
+  const max = Math.max(...heatmap.map((c) => c.count));
 
-  const cw = 40, ch = 24, gap = 3, pL = 44, pT = 8, pB = 26;
+  const cw = 40,
+    ch = 24,
+    gap = 3,
+    pL = 44,
+    pT = 8,
+    pB = 26;
   const W = pL + 24 * (cw + gap);
   const H = pT + 7 * (ch + gap) + pB;
 
   return (
     <div className="cf-panel cf-panel--wide">
       <h3 className="cf-panel-title serif">When submissions arrive</h3>
-      <svg className="cf-heatmap-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
-        role="img" aria-label="Submissions by day of week and hour of day">
+      <svg
+        className="cf-heatmap-svg"
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="xMidYMid meet"
+        role="img"
+        aria-label="Submissions by day of week and hour of day"
+      >
         {DOW_LABELS.map((d, r) => (
-          <text key={d} x={pL - 10} y={pT + r * (ch + gap) + ch / 2 + 4} textAnchor="end"
-            fontSize="11" fill="var(--ink-3)" fontFamily="var(--sans)">{d}</text>
+          <text
+            key={d}
+            x={pL - 10}
+            y={pT + r * (ch + gap) + ch / 2 + 4}
+            textAnchor="end"
+            fontSize="11"
+            fill="var(--ink-3)"
+            fontFamily="var(--sans)"
+          >
+            {d}
+          </text>
         ))}
-        {[0, 6, 12, 18].map(h => (
-          <text key={h} x={pL + h * (cw + gap)} y={H - 8} textAnchor="start"
-            fontSize="11" fill="var(--ink-4)" fontFamily="var(--sans)">{hourLabel(h)}</text>
+        {[0, 6, 12, 18].map((h) => (
+          <text
+            key={h}
+            x={pL + h * (cw + gap)}
+            y={H - 8}
+            textAnchor="start"
+            fontSize="11"
+            fill="var(--ink-4)"
+            fontFamily="var(--sans)"
+          >
+            {hourLabel(h)}
+          </text>
         ))}
-        {counts.map((row, r) => row.map((n, h) => (
-          <rect key={r + "-" + h}
-            x={pL + h * (cw + gap)} y={pT + r * (ch + gap)} width={cw} height={ch} rx="3"
-            fill={n === 0 ? "var(--paper-2)" : `color-mix(in srgb, var(--chart-work) ${Math.round(15 + 85 * (n / max))}%, var(--paper))`}>
-            <title>{`${DOW_LABELS[r]} ${hourLabel(h)}–${hourLabel((h + 1) % 24)} — ${n} submission${n === 1 ? "" : "s"}`}</title>
-          </rect>
-        )))}
+        {counts.map((row, r) =>
+          row.map((n, h) => (
+            <rect
+              key={r + "-" + h}
+              x={pL + h * (cw + gap)}
+              y={pT + r * (ch + gap)}
+              width={cw}
+              height={ch}
+              rx="3"
+              fill={
+                n === 0
+                  ? "var(--paper-2)"
+                  : `color-mix(in srgb, var(--chart-work) ${Math.round(15 + 85 * (n / max))}%, var(--paper))`
+              }
+            >
+              <title>{`${DOW_LABELS[r]} ${hourLabel(h)}–${hourLabel((h + 1) % 24)} — ${n} submission${n === 1 ? "" : "s"}`}</title>
+            </rect>
+          ))
+        )}
       </svg>
       <p className="cf-note">Halifax time. Darker cells are busier hours — hover any cell for the count.</p>
     </div>
@@ -442,7 +636,7 @@ function Heatmap({ heatmap }) {
 
 // ─── Section ──────────────────────────────────────────────────────
 export function ContactFormsSection({ stats, prevStats, quarter }) {
-  const q = QUARTERS.find(q => q.suffix === quarter);
+  const q = QUARTERS.find((q) => q.suffix === quarter);
   const t = stats?.totals;
 
   const weeks = useMemo(() => (t?.total > 0 && q ? fillWeeks(stats.weekly, q) : []), [stats, q, t]);
@@ -450,27 +644,49 @@ export function ContactFormsSection({ stats, prevStats, quarter }) {
   if (!q || !t || t.total === 0) return null;
 
   const p = prevStats?.totals;
-  const perWeek     = t.total / weeksElapsed(q);
+  const perWeek = t.total / weeksElapsed(q);
   const prevPerWeek = p?.total ? p.total / 13 : null;
 
   const kpis = [
-    { label: "Total Submissions", value: t.total,  prev: p?.total, fmt: fmtInt, note: "contact forms this quarter" },
-    { label: "Job Seekers",       value: t.work,   prev: p?.work,  fmt: fmtInt, note: "people looking for work" },
-    { label: "Employer Leads",    value: t.staff,  prev: p?.staff, fmt: fmtInt, note: "businesses looking for staff" },
-    { label: "Per Week",          value: perWeek,  prev: prevPerWeek, fmt: n => (typeof n === "number" ? n.toFixed(1) : "—"), note: "average weekly volume" },
+    {
+      label: "Total Submissions",
+      value: t.total,
+      prev: p?.total,
+      fmt: fmtInt,
+      note: "contact forms this quarter",
+    },
+    { label: "Job Seekers", value: t.work, prev: p?.work, fmt: fmtInt, note: "people looking for work" },
+    {
+      label: "Employer Leads",
+      value: t.staff,
+      prev: p?.staff,
+      fmt: fmtInt,
+      note: "businesses looking for staff",
+    },
+    {
+      label: "Per Week",
+      value: perWeek,
+      prev: prevPerWeek,
+      fmt: (n) => (typeof n === "number" ? n.toFixed(1) : "—"),
+      note: "average weekly volume",
+    },
   ];
 
   return (
     <section id="contact-forms" className="section wrap">
       <header className="section-head">
-        <h2 className="section-title serif">Contact <em>Forms</em></h2>
+        <h2 className="section-title serif">
+          Contact <em>Forms</em>
+        </h2>
       </header>
 
       <div className="kpi-grid cf-kpi-grid">
         {kpis.map((k, i) => (
           <div className="kpi" key={k.label} style={{ "--i": i }}>
             <div className="kpi-label">{k.label}</div>
-            <div className="kpi-value num"><CountUp value={k.value} format={k.fmt} /></div>
+            <div className="kpi-value num">
+              <CountUp value={k.value} format={k.fmt} />
+            </div>
             <div className="kpi-foot">
               <Delta d={calcAutoDelta(k.value, k.prev) || FLAT} />
               <span className="delta-note">{k.note}</span>
@@ -483,12 +699,20 @@ export function ContactFormsSection({ stats, prevStats, quarter }) {
 
       <div className="cf-panels">
         <Locations locations={stats.locations} />
-        <Sources sources={stats.sources} sourceSince={stats.sourceSince}
-          sourceEligible={stats.sourceEligible} q={q} />
+        <Sources
+          sources={stats.sources}
+          sourceSince={stats.sourceSince}
+          sourceEligible={stats.sourceEligible}
+          q={q}
+        />
       </div>
 
-      <SourceTrend sources={stats.sources} sourceWeekly={stats.sourceWeekly}
-        sourceSince={stats.sourceSince} weeks={weeks} />
+      <SourceTrend
+        sources={stats.sources}
+        sourceWeekly={stats.sourceWeekly}
+        sourceSince={stats.sourceSince}
+        weeks={weeks}
+      />
 
       <Heatmap heatmap={stats.heatmap} />
     </section>

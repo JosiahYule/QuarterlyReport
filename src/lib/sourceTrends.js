@@ -30,7 +30,7 @@ export function buildSourceTrend({ sourceWeekly, sources, weekKeys, since }) {
   if (!sources?.length || !weekKeys?.length) return empty;
 
   const index = new Map(weekKeys.map((k, i) => [k, i]));
-  const counts = new Map(sources.map(s => [s.source, Array(weekKeys.length).fill(0)]));
+  const counts = new Map(sources.map((s) => [s.source, Array(weekKeys.length).fill(0)]));
   for (const r of sourceWeekly || []) {
     const i = index.get(r.week);
     const row = counts.get(r.source);
@@ -39,19 +39,26 @@ export function buildSourceTrend({ sourceWeekly, sources, weekKeys, since }) {
 
   // A week counts as covered once any of its days falls on or after `since`.
   const coveredFrom = since
-    ? Math.max(0, weekKeys.findIndex(k => addDays(k, 6) >= since))
+    ? Math.max(
+        0,
+        weekKeys.findIndex((k) => addDays(k, 6) >= since)
+      )
     : 0;
 
-  const rows = sources.map(s => {
+  const rows = sources.map((s) => {
     const values = counts.get(s.source);
-    let peak = 0, peakAt = coveredFrom;
+    let peak = 0,
+      peakAt = coveredFrom;
     for (let i = coveredFrom; i < values.length; i++) {
-      if (values[i] > peak) { peak = values[i]; peakAt = i; }
+      if (values[i] > peak) {
+        peak = values[i];
+        peakAt = i;
+      }
     }
     return { source: s.source, total: s.count, values, peak, peakAt };
   });
 
-  return { rows, max: Math.max(1, ...rows.map(r => r.peak)), coveredFrom };
+  return { rows, max: Math.max(1, ...rows.map((r) => r.peak)), coveredFrom };
 }
 
 /**

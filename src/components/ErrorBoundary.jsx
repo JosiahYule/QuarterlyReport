@@ -20,13 +20,8 @@ export class ErrorBoundary extends React.Component {
       return (
         <section className="section wrap" role="alert" aria-live="assertive">
           <div className="error-section">
-            <p style={{ color: "var(--ink-3)", fontSize: 14 }}>
-              This section couldn't be displayed.
-            </p>
-            <button
-              className="error-retry-btn"
-              onClick={() => this.setState({ hasError: false })}
-            >
+            <p style={{ color: "var(--ink-3)", fontSize: 14 }}>This section couldn't be displayed.</p>
+            <button className="error-retry-btn" onClick={() => this.setState({ hasError: false })}>
               Retry
             </button>
           </div>

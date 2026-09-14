@@ -67,7 +67,7 @@ describe("parseClickPaths", () => {
       "/lp → /contact,25,4",
     ].join("\n");
     const out = parseClickPaths(csv);
-    expect(out.rows.map(r => r.steps)).toEqual([
+    expect(out.rows.map((r) => r.steps)).toEqual([
       ["/lp", "/jobs", "/apply"],
       ["/lp", "/jobs"],
       ["/lp", "/contact"],
@@ -159,15 +159,15 @@ describe("summarizePaths", () => {
 describe("topJourneys", () => {
   it("ranks by sessions and shares out of the routed traffic", () => {
     const rows = topJourneys([...SAMPLE, { steps: [], sessions: 999, isOther: true }]);
-    expect(rows.map(r => r.sessions)).toEqual([100, 50, 50]);
+    expect(rows.map((r) => r.sessions)).toEqual([100, 50, 50]);
     expect(rows[0].share).toBe(50);
   });
 });
 
 describe("buildFlow", () => {
   const flow = buildFlow(SAMPLE);
-  const col = d => flow.columns[d];
-  const node = (d, label) => col(d).nodes.find(n => n.label === label);
+  const col = (d) => flow.columns[d];
+  const node = (d, label) => col(d).nodes.find((n) => n.label === label);
 
   it("draws one column per step of the longest journey", () => {
     expect(flow.depth).toBe(3);
@@ -188,14 +188,14 @@ describe("buildFlow", () => {
   });
 
   it("puts leavers last in a column so drop-off sits at one edge", () => {
-    expect(col(1).nodes.map(n => n.label)).toEqual(["/jobs", EXIT_LABEL]);
+    expect(col(1).nodes.map((n) => n.label)).toEqual(["/jobs", EXIT_LABEL]);
   });
 
   it("stacks ribbons in node order, measured in sessions", () => {
-    const out = flow.links.filter(l => l.from === col(1).nodes[0].key);
-    expect(out.map(l => [l.value, l.fromOffset, l.toOffset])).toEqual([
-      [100, 0, 0],   // /jobs → /apply
-      [50, 100, 0],  // /jobs → left the site
+    const out = flow.links.filter((l) => l.from === col(1).nodes[0].key);
+    expect(out.map((l) => [l.value, l.fromOffset, l.toOffset])).toEqual([
+      [100, 0, 0], // /jobs → /apply
+      [50, 100, 0], // /jobs → left the site
     ]);
     for (const link of flow.links) expect(link.value).toBeGreaterThan(0);
   });
@@ -204,7 +204,7 @@ describe("buildFlow", () => {
     const many = [];
     for (let i = 0; i < 10; i++) many.push({ steps: ["/lp", `/p${i}`], sessions: 100 - i * 5 });
     const f = buildFlow(many, { maxNodes: 3 });
-    const folded = f.columns[1].nodes.find(n => n.label === OTHER_PAGES);
+    const folded = f.columns[1].nodes.find((n) => n.label === OTHER_PAGES);
     expect(f.columns[1].nodes).toHaveLength(4);
     expect(folded.pages).toBe(7);
     expect(f.columns[1].total).toBe(f.total);
@@ -216,7 +216,7 @@ describe("buildFlow", () => {
     expect(f.truncatedDepth).toBe(true);
     // Nothing "left the site" — those sessions were still going when the
     // diagram ran out of columns.
-    expect(f.columns.every(c => c.nodes.every(n => !n.isExit))).toBe(true);
+    expect(f.columns.every((c) => c.nodes.every((n) => !n.isExit))).toBe(true);
   });
 
   it("ignores the 'other' lump, which has no route to draw", () => {

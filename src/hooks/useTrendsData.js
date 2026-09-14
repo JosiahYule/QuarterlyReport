@@ -46,7 +46,7 @@ async function loadSnapshots(agency, quarter) {
       .eq("year", quarter.year)
       .order("snapshot_date", { ascending: true });
     if (error || !data) return [];
-    return data.map(row => ({ t: new Date(row.captured_at).getTime(), vals: row.vals }));
+    return data.map((row) => ({ t: new Date(row.captured_at).getTime(), vals: row.vals }));
   } catch (_) {
     return [];
   }
@@ -96,7 +96,7 @@ async function storeAudits(agency, qdata, snapsByQuarter) {
 async function auditAllAgencies() {
   await Promise.all(
     Object.keys(AGENCIES).map(async (a) => {
-      const qdata = await Promise.all(TRENDS_QUARTERS.map(q => fetchQuarter(a, q)));
+      const qdata = await Promise.all(TRENDS_QUARTERS.map((q) => fetchQuarter(a, q)));
       const snaps = await loadSnapshots(a, TRENDS_QUARTERS[1]);
       await storeAudits(a, qdata, { [TRENDS_QUARTERS[1].suffix]: snaps });
     })
@@ -109,7 +109,9 @@ async function loadCalibrationHistory(agency, metricId, limit = 4) {
   try {
     const { data, error } = await supabase
       .from("projection_audits")
-      .select("calibration_factor, calibration_confidence, percent_error, band_covered, band_rel_half, computed_at")
+      .select(
+        "calibration_factor, calibration_confidence, percent_error, band_covered, band_rel_half, computed_at"
+      )
       .eq("agency", agency)
       .eq("metric_id", metricId)
       .order("computed_at", { ascending: false })
@@ -129,25 +131,28 @@ async function fetchDrivers(agency, quarter) {
   try {
     const { data, error } = await supabase
       .from("social_reports")
-      .select("social_posts(post_name, post_date, platforms, impressions, engagements, url), social_platforms(name, engagement_rate)")
+      .select(
+        "social_posts(post_name, post_date, platforms, impressions, engagements, url), social_platforms(name, engagement_rate)"
+      )
       .eq("agency", agency)
       .eq("quarter", quarter.suffix)
       .eq("year", quarter.year)
       .maybeSingle();
     if (error || !data) return { topPost: null, platformLeader: null, platformLaggard: null, posts: [] };
 
-    const posts = (data.social_posts || []).filter(p => Number.isFinite(p.impressions));
+    const posts = (data.social_posts || []).filter((p) => Number.isFinite(p.impressions));
     const topPost = posts.length
-      ? posts.reduce((best, p) => p.impressions > best.impressions ? p : best)
+      ? posts.reduce((best, p) => (p.impressions > best.impressions ? p : best))
       : null;
 
-    const platforms = (data.social_platforms || []).filter(p => Number.isFinite(p.engagement_rate));
+    const platforms = (data.social_platforms || []).filter((p) => Number.isFinite(p.engagement_rate));
     const platformLeader = platforms.length
-      ? platforms.reduce((best, p) => p.engagement_rate > best.engagement_rate ? p : best)
+      ? platforms.reduce((best, p) => (p.engagement_rate > best.engagement_rate ? p : best))
       : null;
-    const platformLaggard = platforms.length > 1
-      ? platforms.reduce((worst, p) => p.engagement_rate < worst.engagement_rate ? p : worst)
-      : null;
+    const platformLaggard =
+      platforms.length > 1
+        ? platforms.reduce((worst, p) => (p.engagement_rate < worst.engagement_rate ? p : worst))
+        : null;
 
     // Full post list (with dates) so the trajectory chart can tie a projection
     // spike to whatever post landed as the metric accelerated.
@@ -163,7 +168,7 @@ async function fetchDrivers(agency, quarter) {
 // are no per-platform daily snapshots to project from, only one row per
 // quarter — so the UI frames it as standings, not a forecast.
 function relDelta(cur, prev) {
-  return Number.isFinite(cur) && Number.isFinite(prev) && prev > 0 ? (cur - prev) / prev * 100 : null;
+  return Number.isFinite(cur) && Number.isFinite(prev) && prev > 0 ? ((cur - prev) / prev) * 100 : null;
 }
 async function fetchPlatformBreakdown(agency, current, prev) {
   try {
@@ -171,20 +176,24 @@ async function fetchPlatformBreakdown(agency, current, prev) {
     // pull the wrong row in.
     const { data, error } = await supabase
       .from("social_reports")
-      .select("quarter, year, social_platforms(name, sort_order, followers, engagement_rate, page_reach, page_clicks)")
+      .select(
+        "quarter, year, social_platforms(name, sort_order, followers, engagement_rate, page_reach, page_clicks)"
+      )
       .eq("agency", agency)
-      .or(`and(quarter.eq.${current.suffix},year.eq.${current.year}),and(quarter.eq.${prev.suffix},year.eq.${prev.year})`);
+      .or(
+        `and(quarter.eq.${current.suffix},year.eq.${current.year}),and(quarter.eq.${prev.suffix},year.eq.${prev.year})`
+      );
     if (error || !data) return [];
     const key = (q) => `${q.suffix}-${q.year}`;
     const byQuarter = {};
     for (const r of data) byQuarter[`${r.quarter}-${r.year}`] = r.social_platforms || [];
     const cur = byQuarter[key(current)] || [];
     const prevByName = {};
-    for (const p of (byQuarter[key(prev)] || [])) prevByName[(p.name || "").toLowerCase()] = p;
+    for (const p of byQuarter[key(prev)] || []) prevByName[(p.name || "").toLowerCase()] = p;
 
     return [...cur]
       .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-      .map(p => {
+      .map((p) => {
         const pp = prevByName[(p.name || "").toLowerCase()];
         return {
           name: p.name,
@@ -204,25 +213,27 @@ async function fetchPlatformBreakdown(agency, current, prev) {
 // ─── Hook ─────────────────────────────────────────────────────────
 async function fetchQuarter(agency, quarter) {
   try {
-    const { data, error } = await withRetry(() => supabase
-      .from("social_reports")
-      .select("social_kpis(*)")
-      .eq("agency", agency)
-      .eq("quarter", quarter.suffix)
-      .eq("year", quarter.year)
-      .maybeSingle());
+    const { data, error } = await withRetry(() =>
+      supabase
+        .from("social_reports")
+        .select("social_kpis(*)")
+        .eq("agency", agency)
+        .eq("quarter", quarter.suffix)
+        .eq("year", quarter.year)
+        .maybeSingle()
+    );
     if (error) throw error;
     if (!data) return null;
     const k = data.social_kpis?.[0] || {};
     return {
       overall: {
-        posts:       k.posts,
+        posts: k.posts,
         impressions: k.impressions,
-        shares:      k.shares,
-        reactions:   k.reactions,
-        followers:   k.followers,
-        linkclicks:  k.link_clicks,
-        comments:    k.comments,
+        shares: k.shares,
+        reactions: k.reactions,
+        followers: k.followers,
+        linkclicks: k.link_clicks,
+        comments: k.comments,
       },
     };
   } catch (_) {
@@ -231,7 +242,15 @@ async function fetchQuarter(agency, quarter) {
 }
 
 export function useTrendsData(agency) {
-  const [state, setState] = useState({ qdata: null, snapsByQuarter: {}, calibrationHistory: {}, drivers: null, platforms: [], status: "loading", error: null });
+  const [state, setState] = useState({
+    qdata: null,
+    snapsByQuarter: {},
+    calibrationHistory: {},
+    drivers: null,
+    platforms: [],
+    status: "loading",
+    error: null,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -239,11 +258,11 @@ export function useTrendsData(agency) {
     const run = async () => {
       try {
         const [qdata, drivers, platforms, ...rest] = await Promise.all([
-          Promise.all(TRENDS_QUARTERS.map(q => fetchQuarter(agency, q))),
+          Promise.all(TRENDS_QUARTERS.map((q) => fetchQuarter(agency, q))),
           fetchDrivers(agency, TRENDS_QUARTERS[2]),
           fetchPlatformBreakdown(agency, TRENDS_QUARTERS[2], TRENDS_QUARTERS[1]),
-          ...TRENDS_QUARTERS.map(q => loadSnapshots(agency, q)),
-          ...METRICS.map(m => loadCalibrationHistory(agency, m.id)),
+          ...TRENDS_QUARTERS.map((q) => loadSnapshots(agency, q)),
+          ...METRICS.map((m) => loadCalibrationHistory(agency, m.id)),
         ]);
         const snapsArrays = rest.slice(0, TRENDS_QUARTERS.length);
         const historyArrays = rest.slice(TRENDS_QUARTERS.length);
@@ -252,30 +271,59 @@ export function useTrendsData(agency) {
           const snapsByQuarter = Object.fromEntries(
             TRENDS_QUARTERS.map((q, i) => [q.suffix, snapsArrays[i]])
           );
-          const calibrationHistory = Object.fromEntries(
-            METRICS.map((m, i) => [m.id, historyArrays[i]])
-          );
+          const calibrationHistory = Object.fromEntries(METRICS.map((m, i) => [m.id, historyArrays[i]]));
           // Fire-and-forget: persist an audit of last quarter's projection
           // accuracy for every agency, not just the one being viewed, so each
           // one accrues history regardless of whose Trends tab gets opened.
           // (Snapshot capture is the cron job's job now, not this page's.)
           auditAllAgencies();
-          setState({ qdata, snapsByQuarter, calibrationHistory, drivers, platforms, status: "ready", error: null });
+          setState({
+            qdata,
+            snapsByQuarter,
+            calibrationHistory,
+            drivers,
+            platforms,
+            status: "ready",
+            error: null,
+          });
         }
       } catch (err) {
         if (!cancelled) {
-          setState(s => s.status === "loading"
-            ? { qdata: null, snapsByQuarter: {}, calibrationHistory: {}, drivers: null, platforms: [], status: "error", error: friendlyError(err) }
-            : s);
+          setState((s) =>
+            s.status === "loading"
+              ? {
+                  qdata: null,
+                  snapsByQuarter: {},
+                  calibrationHistory: {},
+                  drivers: null,
+                  platforms: [],
+                  status: "error",
+                  error: friendlyError(err),
+                }
+              : s
+          );
         }
       }
     };
 
-    setState({ qdata: null, snapsByQuarter: {}, calibrationHistory: {}, drivers: null, platforms: [], status: "loading", error: null });
+    setState({
+      qdata: null,
+      snapsByQuarter: {},
+      calibrationHistory: {},
+      drivers: null,
+      platforms: [],
+      status: "loading",
+      error: null,
+    });
     run();
     // Refresh every 5 minutes, but only while the tab is visible
-    const id = setInterval(() => { if (!document.hidden) run(); }, 300_000);
-    return () => { cancelled = true; clearInterval(id); };
+    const id = setInterval(() => {
+      if (!document.hidden) run();
+    }, 300_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, [agency]);
 
   return state;

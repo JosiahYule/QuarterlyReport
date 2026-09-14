@@ -1,7 +1,12 @@
 export const AGENCIES = {
-  isl: { label: "ISL", name: "Integrated Staffing",    prefix: "isl", url: "https://integratedstaffing.ca" },
-  as:  { label: "AS",  name: "Accountant Staffing",     prefix: "as",  url: "https://accountantstaffing.ca" },
-  ads: { label: "ADS", name: "Administrative Staffing", prefix: "ads", url: "https://administrativestaffing.ca" },
+  isl: { label: "ISL", name: "Integrated Staffing", prefix: "isl", url: "https://integratedstaffing.ca" },
+  as: { label: "AS", name: "Accountant Staffing", prefix: "as", url: "https://accountantstaffing.ca" },
+  ads: {
+    label: "ADS",
+    name: "Administrative Staffing",
+    prefix: "ads",
+    url: "https://administrativestaffing.ca",
+  },
 };
 
 export const VIEWS = ["social", "web", "paid", "trends"];
@@ -16,10 +21,13 @@ export const REPORT_TZ = "America/Halifax";
 function nowInReportTZ() {
   try {
     const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: REPORT_TZ, year: "numeric", month: "numeric",
+      timeZone: REPORT_TZ,
+      year: "numeric",
+      month: "numeric",
     }).formatToParts(new Date());
-    const get = (type) => Number(parts.find(p => p.type === type)?.value);
-    const y = get("year"), m = get("month");
+    const get = (type) => Number(parts.find((p) => p.type === type)?.value);
+    const y = get("year"),
+      m = get("month");
     if (Number.isFinite(y) && Number.isFinite(m)) return { y, m: m - 1 };
   } catch {
     // Intl timezone data unavailable — fall through to local time
@@ -32,18 +40,18 @@ function nowInReportTZ() {
 // startM / endM are 0-indexed months; endM is the exclusive boundary
 // (first month of the following quarter, same convention as Date math).
 const Q_DEFS = [
-  { suffix: "q1", label: "Q1", startM: 8,  endM: 11, range: "Sep–Nov" },
-  { suffix: "q2", label: "Q2", startM: 11, endM: 2,  range: "Dec–Feb" },
-  { suffix: "q3", label: "Q3", startM: 2,  endM: 5,  range: "Mar–May" },
-  { suffix: "q4", label: "Q4", startM: 5,  endM: 8,  range: "Jun–Aug" },
+  { suffix: "q1", label: "Q1", startM: 8, endM: 11, range: "Sep–Nov" },
+  { suffix: "q2", label: "Q2", startM: 11, endM: 2, range: "Dec–Feb" },
+  { suffix: "q3", label: "Q3", startM: 2, endM: 5, range: "Mar–May" },
+  { suffix: "q4", label: "Q4", startM: 5, endM: 8, range: "Jun–Aug" },
 ];
 
 function buildQuarter(def, startYear) {
   const endYear = def.endM <= def.startM ? startYear + 1 : startYear;
-  const start   = new Date(startYear, def.startM, 1);
-  const end     = new Date(endYear,   def.endM,   1);
+  const start = new Date(startYear, def.startM, 1);
+  const end = new Date(endYear, def.endM, 1);
   // year label = calendar year of the last day of the quarter
-  const year    = String(new Date(end.getTime() - 86400000).getFullYear());
+  const year = String(new Date(end.getTime() - 86400000).getFullYear());
   return { suffix: def.suffix, label: def.label, rangeLabel: `${def.range} ${year}`, year, start, end };
 }
 
@@ -54,7 +62,7 @@ export function quarterForMonthYear(m, y) {
     } else {
       // Quarter wraps the calendar year boundary (Q2: Dec–Feb)
       if (m >= def.startM) return buildQuarter(def, y);
-      if (m < def.endM)    return buildQuarter(def, y - 1);
+      if (m < def.endM) return buildQuarter(def, y - 1);
     }
   }
 }
@@ -90,7 +98,7 @@ export const TRENDS_QUARTERS = recentQuarters(3).reverse();
 // to the current quarter for an unrecognised suffix, matching how useUrlState
 // and main.jsx already treat one.
 export function resolveQuarter(suffix) {
-  return QUARTERS.find(q => q.suffix === suffix) || CURRENT_QUARTER;
+  return QUARTERS.find((q) => q.suffix === suffix) || CURRENT_QUARTER;
 }
 
 // Year label for a quarter suffix, for queries that need nothing else.

@@ -5,13 +5,13 @@ import { QUARTERS } from "../config.js";
 function mapKpis(row) {
   if (!row) return null;
   return {
-    posts:             row.posts,
-    impressions:       row.impressions,
-    shares:            row.shares,
-    reactions:         row.reactions,
-    followers:         row.followers,
-    linkclicks:        row.link_clicks,
-    comments:          row.comments,
+    posts: row.posts,
+    impressions: row.impressions,
+    shares: row.shares,
+    reactions: row.reactions,
+    followers: row.followers,
+    linkclicks: row.link_clicks,
+    comments: row.comments,
     avgengagementrate: row.avg_engagement_rate,
   };
 }
@@ -27,15 +27,15 @@ export function useSocialKpiHistory(agency) {
           .from("social_reports")
           .select("quarter, year, social_kpis(*)")
           .eq("agency", agency)
-          .or(QUARTERS.map(q => `and(quarter.eq.${q.suffix},year.eq.${q.year})`).join(","));
+          .or(QUARTERS.map((q) => `and(quarter.eq.${q.suffix},year.eq.${q.year})`).join(","));
         if (error) throw error;
         if (!cancelled) {
           const byQuarter = {};
-          (data || []).forEach(r => {
+          (data || []).forEach((r) => {
             byQuarter[`${r.quarter}-${r.year}`] = mapKpis(r.social_kpis?.[0] || null);
           });
           // Oldest-first for the chart (QUARTERS is most-recent-first)
-          const result = [...QUARTERS].reverse().map(q => ({
+          const result = [...QUARTERS].reverse().map((q) => ({
             suffix: q.suffix,
             label: q.label,
             rangeLabel: q.rangeLabel,
@@ -47,7 +47,9 @@ export function useSocialKpiHistory(agency) {
         if (!cancelled) setHistory([]);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [agency]);
 
   return history;
