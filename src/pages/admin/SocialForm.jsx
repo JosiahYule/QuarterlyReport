@@ -484,12 +484,6 @@ const TABS = [
   { id: "insights", label: "Insights" },
 ];
 
-// Throws on Supabase error so callers don't have to destructure every response
-const dbOp = async (promise) => {
-  const { error } = await promise;
-  if (error) throw error;
-};
-
 // ─── Main form ───────────────────────────────────────────────────
 export function SocialForm({ agency, quarter, onDirtyChange }) {
   const [tab, setTab] = useState("overview");
@@ -743,192 +737,122 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
     dirty();
   };
 
-  const save = async () => {
-    setSaving(true);
-    setSaveMsg("");
-    try {
-      // Upsert report row
-      // Keyed on (agency, quarter, year): without the year this upsert would
-      // overwrite the same-suffix quarter from the previous fiscal year, and
-      // the social_kpis delete-and-reinsert below would take its KPIs with it.
-      const { data: rep, error: e1 } = await supabase
-        .from("social_reports")
-        .upsert(
-          {
-            agency,
-            quarter: resolveQuarter(quarter).suffix,
-            year: resolveQuarter(quarter).year,
-            editors_note: editorsNote,
-          },
-          { onConflict: "agency,quarter,year" }
-        )
-        .select("id")
-        .single();
-      if (e1) throw e1;
-      const rid = rep.id;
-
-      // KPIs
-      await dbOp(supabase.from("social_kpis").delete().eq("report_id", rid));
-      await dbOp(
-        supabase.from("social_kpis").insert({
-          report_id: rid,
-          ...Object.fromEntries(KPI_FIELDS.map((f) => [f.key, num(kpis[f.key])])),
-        })
-      );
-
-      // Platforms
-      await dbOp(supabase.from("social_platforms").delete().eq("report_id", rid));
-      if (platforms.length) {
-        await dbOp(
-          supabase.from("social_platforms").insert(
-            platforms.map((p, i) => ({
-              report_id: rid,
-              sort_order: i,
-              name: p.name,
-              followers: num(p.followers),
-              engagement_rate: num(p.engagement_rate),
-              page_reach: num(p.page_reach),
-              page_clicks: num(p.page_clicks),
-              note: p.note,
-            }))
-          )
-        );
-      }
-
-      // Top posts
-      await dbOp(supabase.from("social_top_posts").delete().eq("report_id", rid));
-      const allTop = Object.entries(topPosts).flatMap(([plat, posts]) =>
+  // One RPC, one transaction. This used to be ten separate statements from the
+  // browser — upsert the report, then delete-and-reinsert each of eight child
+  // tables — with nothing wrapping them, so a failure partway left the tables
+  // it had already reached empty on the server while this form still held the
+  // values. save_social_report() commits all of it or none of it.
+  const buildPayload = () => {
+    const liveCampaigns = new Set(campaigns.map((c) => c.id));
+    const perGroup = {};
+    const perScope = {};
+    return {
+      agency,
+      quarter: resolveQuarter(quarter).suffix,
+      year: String(resolveQuarter(quarter).year),
+      editors_note: editorsNote,
+      kpis: Object.fromEntries(KPI_FIELDS.map((f) => [f.key, num(kpis[f.key])])),
+      platforms: platforms.map((p) => ({
+        name: p.name,
+        followers: num(p.followers),
+        engagement_rate: num(p.engagement_rate),
+        page_reach: num(p.page_reach),
+        page_clicks: num(p.page_clicks),
+        note: p.note,
+      })),
+      top_posts: Object.entries(topPosts).flatMap(([plat, posts]) =>
         posts.map((p) => ({
-          report_id: rid,
           platform: plat,
           title: p.title,
           impressions: num(p.impressions),
           likes: num(p.likes),
           shares: num(p.shares),
         }))
-      );
-      if (allTop.length) await dbOp(supabase.from("social_top_posts").insert(allTop));
+      ),
+      posts: allPosts.map((p) => ({
+        post_name: p.post_name,
+        post_date: p.post_date || null,
+        post_time: p.post_time || null,
+        platforms: p.platforms,
+        impressions: num(p.impressions),
+        engagements: num(p.engagements),
+        url: p.url,
+        notes: p.notes,
+      })),
+      // Campaign ids are generated client-side so ads can reference their
+      // campaign without a round trip to read back inserted ids.
+      campaigns: campaigns.map((c) => ({
+        id: c.id,
+        name: c.name,
+        objective: c.objective,
+        platform: c.platform,
+        budget: num(c.budget),
+        start_date: c.start_date || null,
+        end_date: c.end_date || null,
+      })),
+      ads: campaigns.flatMap((c) =>
+        c.ads.map((a, j) => ({
+          id: a.id,
+          campaign_id: c.id,
+          sort_order: j,
+          name: a.name,
+          impressions: num(a.impressions),
+          reach: num(a.reach),
+          clicks: num(a.clicks),
+          cpc: num(a.cpc),
+          conversions: num(a.conversions),
+          engagement_rate: num(a.engagement_rate),
+          status: a.status || "active",
+        }))
+      ),
+      // sort_order runs within each campaign+dimension so the report renders
+      // segments in import order — strongest first, combined "Other" last.
+      // A row pointing at a removed campaign has nowhere to go.
+      demographics: demographics
+        .filter((d) => d.dimension && d.segment && (!d.campaign_id || liveCampaigns.has(d.campaign_id)))
+        .map((d) => {
+          const group = `${d.campaign_id || ""}:${d.dimension}`;
+          const order = (perGroup[group] = (perGroup[group] ?? -1) + 1);
+          return {
+            campaign_id: d.campaign_id || null,
+            dimension: d.dimension,
+            segment: d.segment,
+            is_other: !!d.is_other,
+            sort_order: order,
+            impressions: num(d.impressions),
+            clicks: num(d.clicks),
+          };
+        }),
+      // Journeys keep their edited order, which import leaves strongest-first,
+      // so the report's "top journeys" and this table read the same way down
+      // the page. A journey with no route and no "other" flag is an empty row
+      // the editor left behind; one with no sessions has nothing to draw.
+      click_paths: clickPaths
+        .filter((p) => !p.campaign_id || liveCampaigns.has(p.campaign_id))
+        .map((p) => ({ ...p, steps: p.is_other ? [] : parseRoute(p.path), sessions: num(p.sessions) }))
+        .filter((p) => (p.steps.length || p.is_other) && p.sessions > 0)
+        .map((p) => {
+          const scope = p.campaign_id || "";
+          const order = (perScope[scope] = (perScope[scope] ?? -1) + 1);
+          return {
+            campaign_id: p.campaign_id || null,
+            sort_order: order,
+            steps: p.steps,
+            sessions: p.sessions,
+            conversions: num(p.conversions),
+            is_other: !!p.is_other,
+          };
+        }),
+      insights,
+    };
+  };
 
-      // All posts
-      await dbOp(supabase.from("social_posts").delete().eq("report_id", rid));
-      if (allPosts.length) {
-        await dbOp(
-          supabase.from("social_posts").insert(
-            allPosts.map((p) => ({
-              report_id: rid,
-              post_name: p.post_name,
-              post_date: p.post_date || null,
-              post_time: p.post_time || null,
-              platforms: p.platforms,
-              impressions: num(p.impressions),
-              engagements: num(p.engagements),
-              url: p.url,
-              notes: p.notes,
-            }))
-          )
-        );
-      }
-
-      // Paid media (campaign ids are generated client-side so ads can
-      // reference their campaign without a round trip to read back inserted ids)
-      await dbOp(supabase.from("paid_media_campaigns").delete().eq("report_id", rid));
-      if (campaigns.length) {
-        await dbOp(
-          supabase.from("paid_media_campaigns").insert(
-            campaigns.map((c, i) => ({
-              id: c.id,
-              report_id: rid,
-              sort_order: i,
-              name: c.name,
-              objective: c.objective,
-              platform: c.platform,
-              budget: num(c.budget),
-              start_date: c.start_date || null,
-              end_date: c.end_date || null,
-            }))
-          )
-        );
-        const ads = campaigns.flatMap((c) =>
-          c.ads.map((a, j) => ({
-            id: a.id,
-            campaign_id: c.id,
-            sort_order: j,
-            name: a.name,
-            impressions: num(a.impressions),
-            reach: num(a.reach),
-            clicks: num(a.clicks),
-            cpc: num(a.cpc),
-            conversions: num(a.conversions),
-            engagement_rate: num(a.engagement_rate),
-            status: a.status || "active",
-          }))
-        );
-        if (ads.length) await dbOp(supabase.from("paid_media_ads").insert(ads));
-      }
-
-      // Paid media demographics (LinkedIn audience). Written after the
-      // campaigns they reference, since deleting a campaign above cascades to
-      // its rows. sort_order runs within each campaign+dimension so the report
-      // renders segments in import order — strongest first, with the combined
-      // "Other" row last.
-      await dbOp(supabase.from("paid_media_demographics").delete().eq("report_id", rid));
-      if (demographics.length) {
-        const liveCampaigns = new Set(campaigns.map((c) => c.id));
-        const perGroup = {};
-        const demoRows = demographics
-          // A row pointing at a campaign that's been removed has nowhere to go.
-          .filter((d) => d.dimension && d.segment && (!d.campaign_id || liveCampaigns.has(d.campaign_id)))
-          .map((d) => {
-            const group = `${d.campaign_id || ""}:${d.dimension}`;
-            const order = (perGroup[group] = (perGroup[group] ?? -1) + 1);
-            return {
-              report_id: rid,
-              campaign_id: d.campaign_id || null,
-              dimension: d.dimension,
-              segment: d.segment,
-              is_other: !!d.is_other,
-              sort_order: order,
-              impressions: num(d.impressions),
-              clicks: num(d.clicks),
-            };
-          });
-        if (demoRows.length) await dbOp(supabase.from("paid_media_demographics").insert(demoRows));
-      }
-
-      // Click paths (on-site journeys). Written after the campaigns they
-      // reference, for the same reason as demographics. Rows keep their edited
-      // order, which import leaves strongest-first, so the report's "top
-      // journeys" and this table read the same way down the page.
-      await dbOp(supabase.from("paid_media_click_paths").delete().eq("report_id", rid));
-      if (clickPaths.length) {
-        const liveCampaigns = new Set(campaigns.map((c) => c.id));
-        const perScope = {};
-        const pathRows = clickPaths
-          .filter((p) => !p.campaign_id || liveCampaigns.has(p.campaign_id))
-          .map((p) => ({ ...p, steps: p.is_other ? [] : parseRoute(p.path), sessions: num(p.sessions) }))
-          // A journey with no route and no "other" flag is an empty row the
-          // editor left behind; one with no sessions has nothing to draw.
-          .filter((p) => (p.steps.length || p.is_other) && p.sessions > 0)
-          .map((p) => {
-            const scope = p.campaign_id || "";
-            const order = (perScope[scope] = (perScope[scope] ?? -1) + 1);
-            return {
-              report_id: rid,
-              campaign_id: p.campaign_id || null,
-              sort_order: order,
-              steps: p.steps,
-              sessions: p.sessions,
-              conversions: num(p.conversions),
-              is_other: !!p.is_other,
-            };
-          });
-        if (pathRows.length) await dbOp(supabase.from("paid_media_click_paths").insert(pathRows));
-      }
-
-      // Insights
-      await dbOp(supabase.from("social_insights").delete().eq("report_id", rid));
-      await dbOp(supabase.from("social_insights").insert({ report_id: rid, ...insights }));
-
+  const save = async () => {
+    setSaving(true);
+    setSaveMsg("");
+    try {
+      const { error } = await supabase.rpc("save_social_report", { payload: buildPayload() });
+      if (error) throw error;
       onDirtyChange?.(false);
       flash("Saved ✓");
     } catch (err) {
