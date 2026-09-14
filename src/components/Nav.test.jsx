@@ -6,11 +6,10 @@ import { AGENCIES, QUARTERS } from "../config.js";
 
 const BASE = { agency: "isl", view: "social", quarter: QUARTERS[0].suffix };
 
-let onNavigate, onOpenPalette;
+let onNavigate;
 
 beforeEach(() => {
   onNavigate = vi.fn();
-  onOpenPalette = vi.fn();
 });
 
 afterEach(() => {
@@ -18,8 +17,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const nav = (extra) =>
-  render(<AppNav {...BASE} onNavigate={onNavigate} onOpenPalette={onOpenPalette} {...extra} />);
+const nav = (extra) => render(<AppNav {...BASE} onNavigate={onNavigate} {...extra} />);
 
 const agencyButton = () => screen.getByRole("button", { name: /Current agency/ });
 const quarterButton = () => screen.getByRole("button", { name: /Current quarter/ });
@@ -165,16 +163,11 @@ describe("AppNav quarter chooser", () => {
   });
 });
 
-describe("AppNav command menu button", () => {
-  it("opens the palette", () => {
+describe("AppNav has no command palette", () => {
+  it("offers no search control in the header", () => {
     nav();
-    fireEvent.click(screen.getByRole("button", { name: /Open command menu/ }));
-    expect(onOpenPalette).toHaveBeenCalledTimes(1);
-  });
-
-  it("is omitted entirely when no handler is supplied", () => {
-    nav({ onOpenPalette: undefined });
-    expect(screen.queryByRole("button", { name: /Open command menu/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /command menu|search/i })).toBeNull();
+    expect(document.querySelector(".nav-cmdk")).toBeNull();
   });
 });
 

@@ -1,14 +1,8 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
-import { AGENCIES, QUARTERS } from "../config.js";
-import { IconCaret, IconCheck, IconSearch } from "./Icons.jsx";
-import { isMacLike } from "./CommandPalette.jsx";
+import { AGENCIES, QUARTERS, VIEWS, VIEW_LABELS } from "../config.js";
+import { IconCaret, IconCheck } from "./Icons.jsx";
 
-const TABS = [
-  { id: "social", label: "Social Media" },
-  { id: "web", label: "Website" },
-  { id: "paid", label: "Paid Media" },
-  { id: "trends", label: "Trends" },
-];
+const TABS = VIEWS.map((id) => ({ id, label: VIEW_LABELS[id] }));
 
 function useCloseOnOutside(ref, onClose) {
   useEffect(() => {
@@ -173,7 +167,7 @@ function QuarterMenu({ current, onSelect, onClose }) {
 }
 
 // ─── Single combined nav bar ──────────────────────────────────────
-export function AppNav({ agency, view, quarter, onNavigate, onOpenPalette }) {
+export function AppNav({ agency, view, quarter, onNavigate }) {
   const [agencyOpen, setAgencyOpen] = useState(false);
   const [quarterOpen, setQuarterOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -265,20 +259,6 @@ export function AppNav({ agency, view, quarter, onNavigate, onOpenPalette }) {
         </div>
 
         <div className="app-nav-right">
-          {onOpenPalette && (
-            <button
-              className="nav-cmdk"
-              onClick={onOpenPalette}
-              aria-label={`Open command menu (${isMacLike ? "Command" : "Control"}+K)`}
-            >
-              <span className="nav-cmdk-icon" aria-hidden="true">
-                <IconSearch />
-              </span>
-              <kbd className="nav-cmdk-kbd" aria-hidden="true">
-                {isMacLike ? "⌘" : "Ctrl"} K
-              </kbd>
-            </button>
-          )}
           <span className="app-nav-range" aria-hidden="true">
             {q.rangeLabel}
           </span>

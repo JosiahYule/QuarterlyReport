@@ -11,6 +11,16 @@ export const AGENCIES = {
 
 export const VIEWS = ["social", "web", "paid", "trends"];
 
+// Display names for the views. The nav tabs, the document title and the
+// screen-reader announcement all read from here, so the four views are named
+// in exactly one place.
+export const VIEW_LABELS = {
+  social: "Social Media",
+  web: "Website",
+  paid: "Paid Media",
+  trends: "Trends",
+};
+
 export const REPORT_AUTHOR = "Josiah Yule";
 
 // All "what quarter is it right now" decisions use the agencies' home

@@ -2,9 +2,10 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useSocialReport } from "../hooks/useSocialReport.js";
 import { useSocialKpiHistory } from "../hooks/useSocialKpiHistory.js";
 import { Delta } from "../components/Delta.jsx";
-import { PageLoader } from "../components/PageLoader.jsx";
+import { reportState } from "../components/ReportState.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
-import { EmptyNote, EmptyData } from "../components/EmptyState.jsx";
+import { EmptyData } from "../components/EmptyState.jsx";
+import { InsightsSection } from "../components/InsightsSection.jsx";
 import { fmt, fmtExact, FLAT } from "../utils.js";
 import { IconSort, IconArrowUp, IconArrowDown } from "../components/Icons.jsx";
 import { CountUp } from "../components/CountUp.jsx";
@@ -513,13 +514,13 @@ function Platforms({ data }) {
               <div className="channel-name serif">{p.name}</div>
               {p.note && <div className="channel-note">{p.note}</div>}
             </div>
-            <div className="col-num">
+            <div className="col-num" data-label="Followers">
               <span className="big serif num">{fmtExact(p.followers)}</span>
               <span className="sub">
                 <Delta d={p.followersDelta} />
               </span>
             </div>
-            <div className="col-num">
+            <div className="col-num" data-label="Engagement Rate">
               <span className="big serif num">
                 {p.engagementRate != null ? p.engagementRate.toFixed(2) : "—"}%
               </span>
@@ -527,13 +528,13 @@ function Platforms({ data }) {
                 <Delta d={p.engagementRateDelta} />
               </span>
             </div>
-            <div className="col-num">
+            <div className="col-num" data-label="Page Reach">
               <span className="big serif num">{fmt(p.pageReach)}</span>
               <span className="sub">
                 <Delta d={p.pageReachDelta} />
               </span>
             </div>
-            <div className="col-num">
+            <div className="col-num" data-label="Page Clicks">
               <span className="big serif num">{fmtExact(p.pageClicks)}</span>
               <span className="sub">
                 <Delta d={p.pageClicksDelta} />
@@ -831,67 +832,69 @@ function AllPosts({ data }) {
       {view === "list" ? (
         <div className="all-posts-list-wrap">
           {posts.length === 0 && <EmptyData label="No posts match your search or filter." />}
-          <table className="table table--wide">
-            <thead>
-              <tr>
-                <th scope="col">Post</th>
-                <th scope="col" style={thStyle} onClick={() => toggleSort("Date")}>
-                  Date{sortIcon("Date")}
-                </th>
-                <th scope="col">Platforms</th>
-                <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("Impressions")}>
-                  Impressions{sortIcon("Impressions")}
-                </th>
-                <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("Engagements")}>
-                  Engagements{sortIcon("Engagements")}
-                </th>
-                <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("EngRate")}>
-                  Eng. Rate{sortIcon("EngRate")}
-                </th>
-                <th scope="col" className="health-col">
-                  Health
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {posts.map((p, i) => {
-                const d = parsePostDate(p.Date);
-                const date = d ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—";
-                const { label, color, er, hasData } = healthForPost(p);
-                return (
-                  <tr key={(p["Post Name"] || "") + (p.Date || "") + i}>
-                    <td>
-                      <div className="campaign-name serif">
-                        {p.URL ? (
-                          <a
-                            href={p.URL}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ color: "var(--accent)" }}
-                          >
-                            {p["Post Name"] || "—"}
-                          </a>
-                        ) : (
-                          p["Post Name"] || "—"
-                        )}
-                      </div>
-                      {p.Notes && <div className="campaign-chan">{p.Notes}</div>}
-                    </td>
-                    <td className="all-posts-cell-date">{date}</td>
-                    <td className="all-posts-cell-platform">{p.Platforms || "—"}</td>
-                    <td className="r num">{(p.Impressions || 0).toLocaleString()}</td>
-                    <td className="r num">{(p.Engagements || 0).toLocaleString()}</td>
-                    <td className="r num">{hasData ? er.toFixed(2) + "%" : "—"}</td>
-                    <td className="health-col">
-                      <span className="health-label" style={{ color }}>
-                        {label}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="table-wrap">
+            <table className="table table--wide">
+              <thead>
+                <tr>
+                  <th scope="col">Post</th>
+                  <th scope="col" style={thStyle} onClick={() => toggleSort("Date")}>
+                    Date{sortIcon("Date")}
+                  </th>
+                  <th scope="col">Platforms</th>
+                  <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("Impressions")}>
+                    Impressions{sortIcon("Impressions")}
+                  </th>
+                  <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("Engagements")}>
+                    Engagements{sortIcon("Engagements")}
+                  </th>
+                  <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("EngRate")}>
+                    Eng. Rate{sortIcon("EngRate")}
+                  </th>
+                  <th scope="col" className="health-col">
+                    Health
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {posts.map((p, i) => {
+                  const d = parsePostDate(p.Date);
+                  const date = d ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—";
+                  const { label, color, er, hasData } = healthForPost(p);
+                  return (
+                    <tr key={(p["Post Name"] || "") + (p.Date || "") + i}>
+                      <td>
+                        <div className="campaign-name serif">
+                          {p.URL ? (
+                            <a
+                              href={p.URL}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: "var(--accent)" }}
+                            >
+                              {p["Post Name"] || "—"}
+                            </a>
+                          ) : (
+                            p["Post Name"] || "—"
+                          )}
+                        </div>
+                        {p.Notes && <div className="campaign-chan">{p.Notes}</div>}
+                      </td>
+                      <td className="all-posts-cell-date">{date}</td>
+                      <td className="all-posts-cell-platform">{p.Platforms || "—"}</td>
+                      <td className="r num">{(p.Impressions || 0).toLocaleString()}</td>
+                      <td className="r num">{(p.Engagements || 0).toLocaleString()}</td>
+                      <td className="r num">{hasData ? er.toFixed(2) + "%" : "—"}</td>
+                      <td className="health-col">
+                        <span className="health-label" style={{ color }}>
+                          {label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="calendar-view">
@@ -988,48 +991,6 @@ function AllPosts({ data }) {
 }
 
 // ─── Notes ────────────────────────────────────────────────────────
-function NoteList({ items }) {
-  if (!items.length) return <EmptyNote />;
-  const paras = items.flatMap((n) => n.split(/\n+/).filter((s) => s.trim()));
-  return (
-    <ul>
-      {paras.map((n, i) => (
-        <li key={i}>{n}</li>
-      ))}
-    </ul>
-  );
-}
-
-function Notes({ data }) {
-  return (
-    <section id="insights" className="section wrap">
-      <header className="section-head">
-        <h2 className="section-title serif">
-          <em>Insights</em>
-        </h2>
-      </header>
-      <div className="notes">
-        <div className="note working">
-          {" "}
-          <h4>Working</h4> <NoteList items={data.notes.working} />
-        </div>
-        <div className="note notworking">
-          {" "}
-          <h4>Not working</h4> <NoteList items={data.notes.notWorking} />
-        </div>
-        <div className="note">
-          {" "}
-          <h4>Actions</h4> <NoteList items={data.notes.actions} />
-        </div>
-        <div className="note">
-          {" "}
-          <h4>Next quarter</h4> <NoteList items={data.notes.next} />
-        </div>
-      </div>
-    </section>
-  );
-}
-
 const SOCIAL_SECTIONS = [
   { id: "numbers", label: "The Numbers" },
   { id: "quarter-by-quarter", label: "Quarterly" },
@@ -1050,47 +1011,8 @@ export function SocialPage({ agency, quarter, onReady }) {
     if (status === "ready" || status === "error") onReady?.();
   }, [status, onReady]);
 
-  if (status === "error") {
-    return (
-      <main className="report-wrap">
-        <section className="section wrap">
-          <header className="section-head">
-            <h2 className="section-title serif">
-              Unable to load <em>report</em>
-            </h2>
-          </header>
-          <div className="error-section" role="alert">
-            <p>{error}</p>
-            <button className="error-retry-btn" onClick={() => setRetryKey((k) => k + 1)}>
-              Try again
-            </button>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
-  if (status === "ready" && !data) {
-    return (
-      <main className="report-wrap">
-        <section className="section wrap">
-          <header className="section-head">
-            <h2 className="section-title serif">
-              Nothing here <em>yet</em>
-            </h2>
-          </header>
-          <div className="error-section">
-            <p>
-              This report hasn’t been published for the selected quarter. Choose another quarter from the menu
-              above, or check back soon.
-            </p>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
-  if (!data) return <PageLoader view="social" />;
+  const gate = reportState({ status, error, data, view: "social", onRetry: () => setRetryKey((k) => k + 1) });
+  if (gate) return gate;
 
   return (
     <main className="report-wrap">
@@ -1117,7 +1039,7 @@ export function SocialPage({ agency, quarter, onReady }) {
         <AllPosts data={data} />
       </ErrorBoundary>
       <ErrorBoundary>
-        <Notes data={data} />
+        <InsightsSection insights={data.notes} />
       </ErrorBoundary>
     </main>
   );

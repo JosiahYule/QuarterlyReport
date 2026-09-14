@@ -17,7 +17,7 @@ import {
 } from "../hooks/useTrendsData.js";
 import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { fmt, fmtApprox } from "../utils.js";
-import { PageLoader } from "../components/PageLoader.jsx";
+import { reportState } from "../components/ReportState.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
 
@@ -980,25 +980,16 @@ export function TrendsPage({ agency, onReady }) {
     [calibrationHistory, projectionAudits]
   );
 
-  if (status === "error") {
-    return (
-      <main className="report-wrap">
-        <section className="section wrap">
-          <header className="section-head">
-            <h2 className="section-title serif">Unable to load trends</h2>
-          </header>
-          <div className="error-section" role="alert">
-            <p>{error}</p>
-            <button className="error-retry-btn" onClick={() => window.location.reload()}>
-              Try again
-            </button>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
-  if (!qdata) return <PageLoader view="trends" />;
+  const gate = reportState({
+    status,
+    error,
+    data: qdata,
+    view: "trends",
+    onRetry: () => window.location.reload(),
+    errorHeading: "Unable to load trends",
+    hasEmptyState: false,
+  });
+  if (gate) return gate;
 
   const q3 = TRENDS_QUARTERS[2];
   const q3comp = quarterCompletion(q3);
