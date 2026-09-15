@@ -13,6 +13,10 @@
 // which is how the numbers get checked against the GA4 UI before the schedule
 // is switched on. {"agencies": ["isl"]} limits a run to one property.
 
+// Supabase's edge-runtime types, for Deno.serve and Deno.env. Only index.ts
+// pulls these in; mapping.ts stays free of Deno so Vitest can import it.
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
 import {
   BRANDS,
   CHANNEL_DIMENSION,
