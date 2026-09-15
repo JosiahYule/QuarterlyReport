@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
-import { QUARTERS } from "../config.js";
+import { QUARTERS, resolveQuarter } from "../config.js";
 import { withRetry, friendlyError, getCached, setCached } from "../lib/fetching.js";
 
-function getPrevSuffix(suffix) {
+function getPrevQuarter(suffix) {
   const idx = QUARTERS.findIndex((q) => q.suffix === suffix);
-  return idx >= 0 && idx < QUARTERS.length - 1 ? QUARTERS[idx + 1].suffix : null;
+  return idx >= 0 && idx < QUARTERS.length - 1 ? QUARTERS[idx + 1] : null;
 }
 
-async function fetchReport(agency, quarter) {
+async function fetchReport(agency, q) {
   const { data, error } = await supabase
     .from("web_reports")
     .select(
@@ -21,7 +21,8 @@ async function fetchReport(agency, quarter) {
     `
     )
     .eq("agency", agency)
-    .eq("quarter", quarter)
+    .eq("quarter", q.suffix)
+    .eq("year", q.year)
     .maybeSingle();
   if (error) throw error;
   return data;
@@ -84,10 +85,10 @@ export function useWebReport(agency, quarter, retryKey = 0) {
 
     (async () => {
       try {
-        const prevSuffix = getPrevSuffix(quarter);
+        const prev = getPrevQuarter(quarter);
         const [report, prevReport] = await Promise.all([
-          withRetry(() => fetchReport(agency, quarter)),
-          prevSuffix ? withRetry(() => fetchReport(agency, prevSuffix)) : Promise.resolve(null),
+          withRetry(() => fetchReport(agency, resolveQuarter(quarter))),
+          prev ? withRetry(() => fetchReport(agency, prev)) : Promise.resolve(null),
         ]);
         const payload = { data: normalize(report), prevData: normalize(prevReport) };
         setCached(cacheKey, payload);
