@@ -20,10 +20,16 @@ function stubSupabase({ existing = null, loadError = null, rpcError = null } = {
         return this;
       },
       eq(col, val) {
-        filters.push([col, val]);
+        filters.push([table, col, val]);
         return this;
       },
       maybeSingle: () => Promise.resolve({ data: existing, error: loadError }),
+      // SyncStatus reads the latest ingestion_runs row through this same
+      // client; it has no bearing on saving, so it just comes back empty.
+      order() {
+        return this;
+      },
+      limit: () => Promise.resolve({ data: [], error: null }),
       insert() {
         tableOps.push(`${table}.insert`);
         return Promise.resolve({ error: null });
@@ -80,7 +86,7 @@ describe("WebForm loading", () => {
     const { filters } = stubSupabase();
     form();
     await ready();
-    const cols = filters.map(([col]) => col);
+    const cols = filters.filter(([t]) => t === "web_reports").map(([, col]) => col);
     expect(cols).toContain("agency");
     expect(cols).toContain("quarter");
     expect(cols).toContain("year");

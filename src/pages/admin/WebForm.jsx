@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../lib/supabase.js";
 import { resolveQuarter } from "../../config.js";
 import { IconClose } from "../../components/Icons.jsx";
+import { SyncStatus } from "./SyncStatus.jsx";
 
 const num = (v) =>
   v === "" || v === null || v === undefined ? null : isFinite(Number(v)) ? Number(v) : null;
@@ -180,6 +181,7 @@ export function WebForm({ agency, quarter, onDirtyChange }) {
 
   return (
     <div className="admin-form">
+      <SyncStatus agency={agency} quarter={quarter} />
       <div className="admin-section-tabs" role="tablist">
         {TABS.map((t) => (
           <button
