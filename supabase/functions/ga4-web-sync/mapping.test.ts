@@ -10,6 +10,7 @@ import {
   isoDate,
   previousQuarter,
   quartersToSync,
+  resolvePropertyId,
   labelFromPath,
   normalizePath,
   utc,
@@ -335,5 +336,40 @@ describe("quartersToSync", () => {
       suffix: "q1",
       year: "2026",
     });
+  });
+});
+
+describe("resolvePropertyId", () => {
+  const brand = { env: "GA4_PROPERTY_ISL", configKey: "ga4_property_isl", pageLabels: {} };
+
+  // An Edge Function secret is the better home for a setting than a database
+  // row, so it wins whenever it is set. The database fallback only exists
+  // because dashboard access to this project is currently lost; restoring it
+  // has to take over silently, with no code change and nothing to undo.
+  it("prefers the environment over the database", () => {
+    expect(
+      resolvePropertyId(brand, { GA4_PROPERTY_ISL: "111" }, { ga4_property_isl: "222" })
+    ).toBe("111");
+  });
+
+  it("falls back to the database when the environment is unset", () => {
+    expect(resolvePropertyId(brand, {}, { ga4_property_isl: "222" })).toBe("222");
+  });
+
+  // An empty string is how an unset secret usually arrives, and treating it as
+  // a real value would skip the brand instead of falling through.
+  it("treats a blank environment value as unset", () => {
+    expect(
+      resolvePropertyId(brand, { GA4_PROPERTY_ISL: "   " }, { ga4_property_isl: "222" })
+    ).toBe("222");
+  });
+
+  it("trims whitespace, which a pasted value usually carries", () => {
+    expect(resolvePropertyId(brand, {}, { ga4_property_isl: " 385963889\n" })).toBe("385963889");
+  });
+
+  // The caller skips the brand rather than querying GA4 with a null property.
+  it("returns null when neither source has it", () => {
+    expect(resolvePropertyId(brand, {}, {})).toBeNull();
   });
 });

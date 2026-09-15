@@ -90,9 +90,9 @@ That guarantee is enforced by the database, not by the job. `save_web_report(pay
 ### Setting it up
 
 1. **Google Cloud.** Create a project, enable the **Google Analytics Data API**, create a service account, and download a JSON key. In GA4, add the service account's email as a **Viewer** on each property (Admin → Property Access Management).
-2. **Supabase function secrets** (Edge Functions → Secrets, or `supabase secrets set`):
-   - `GA4_SERVICE_ACCOUNT_JSON` — the whole downloaded JSON file, as one value
-   - `GA4_PROPERTY_ISL`, `GA4_PROPERTY_AS` — numeric GA4 property IDs. Adding ADS later means setting `GA4_PROPERTY_ADS`; no code change.
+2. **Credentials.** The function looks in the environment first and the database second, for both the credential and the property IDs.
+   - *Preferred, needs dashboard access:* set the function secrets `GA4_SERVICE_ACCOUNT_JSON` (the whole downloaded JSON file as one value), `GA4_PROPERTY_ISL` and `GA4_PROPERTY_AS`. Adding ADS later means setting `GA4_PROPERTY_ADS`; no code change.
+   - *Fallback, needs only database access:* property IDs go in the `integration_config` table, and the service-account JSON goes into Supabase Vault through a one-time install call (`{"install_token": "...", "credential": {...}}`) gated by a single-use token minted in the database. See `20260915000004_ga4_credentials_in_vault.sql`. This exists because setting a function secret requires dashboard access to the project, which can be lost independently of the database. Setting the secret later takes precedence automatically, with no code change and nothing to undo.
 3. **Deploy:** `supabase functions deploy ga4-web-sync`
 4. **Verify before scheduling.** Invoke it with `{"dry_run": true, "agencies": ["isl"]}`. It fetches and computes but writes nothing, and returns both the raw GA4 responses and the payload it would have sent. Check the figures against the GA4 UI, and check that the page labels matched — a wrong path in the label map shows up as a warning saying how many paths matched.
 5. **Schedule.** Store the function URL and the service-role key in Vault (the commands are in `20260915000003_schedule_ga4_web_sync.sql`), then apply that migration. It adds a `pg_cron` job for Mondays at 15:00 UTC.
