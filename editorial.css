@@ -1472,6 +1472,14 @@
 .admin-section-tab           { height: 38px; padding: 0 18px; border: none; border-bottom: 2px solid transparent; background: transparent; font-family: var(--sans); font-size: 13px; color: var(--ink-3); cursor: pointer; margin-bottom: -1px; }
 .admin-section-tab.is-active { color: var(--ink); border-bottom-color: var(--ink); }
 
+/* Ingestion status — says when the GA4 job last ran and how it went, so a
+   job that silently stopped is noticed here rather than at reporting time. */
+.admin-sync-status          { font-size: 12.5px; line-height: 1.5; padding: 9px 12px; margin-bottom: 18px; border-radius: var(--radius-m); background: var(--paper-2); border: 1px solid var(--rule); color: var(--ink-2); }
+.admin-sync-status.is-ok    { color: var(--up); }
+.admin-sync-status.is-warn  { color: var(--ink); border-color: var(--rule); background: var(--paper-2); font-weight: 500; }
+.admin-sync-status.is-error { color: var(--down); border-color: var(--down); }
+.admin-sync-status.is-idle  { color: var(--ink-3); }
+
 /* Form sections */
 .admin-form-status              { padding: 40px 0; text-align: center; font-size: 14px; color: var(--ink-2); }
 .admin-form-status--error       { color: var(--down); }

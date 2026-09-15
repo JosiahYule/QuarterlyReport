@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../lib/supabase.js";
+import { resolveQuarter } from "../../config.js";
 import { IconClose } from "../../components/Icons.jsx";
+import { SyncStatus } from "./SyncStatus.jsx";
 
 const num = (v) =>
   v === "" || v === null || v === undefined ? null : isFinite(Number(v)) ? Number(v) : null;
@@ -48,12 +50,6 @@ function SaveBar({ saving, message, onSave }) {
   );
 }
 
-// Throws on Supabase error so callers don't have to destructure every response
-const dbOp = async (promise) => {
-  const { error } = await promise;
-  if (error) throw error;
-};
-
 export function WebForm({ agency, quarter, onDirtyChange }) {
   const [tab, setTab] = useState("overview");
   const [saving, setSaving] = useState(false);
@@ -84,7 +80,8 @@ export function WebForm({ agency, quarter, onDirtyChange }) {
           .from("web_reports")
           .select("id, summary_bullet, web_kpis(*), web_channels(*), web_pages(*), web_insights(*)")
           .eq("agency", agency)
-          .eq("quarter", quarter)
+          .eq("quarter", resolveQuarter(quarter).suffix)
+          .eq("year", resolveQuarter(quarter).year)
           .maybeSingle();
         if (error) throw error;
         if (data) {
@@ -133,61 +130,43 @@ export function WebForm({ agency, quarter, onDirtyChange }) {
     setTimeout(() => setSaveMsg(""), 4000);
   };
 
+  // One RPC, one transaction. This used to be an upsert followed by four
+  // delete-and-reinsert pairs issued one at a time from the browser, with
+  // nothing wrapping them, so a failure partway left the tables it had
+  // already reached empty on the server while this form still held the
+  // values. save_web_report() commits all of it or none of it.
+  //
+  // Every section is sent on every save. The function merges on key presence,
+  // so sending them all keeps the form's behaviour exactly as it was: a field
+  // the user clears still clears. Partial callers, such as the GA4 ingestion
+  // job, omit what they do not own and leave it standing.
+  const buildPayload = () => ({
+    agency,
+    quarter: resolveQuarter(quarter).suffix,
+    year: String(resolveQuarter(quarter).year),
+    summary_bullet: summaryBullet,
+    kpis: Object.fromEntries(KPI_FIELDS.map((f) => [f.key, num(kpis[f.key])])),
+    channels: channels.map((c) => ({
+      name: c.name,
+      sessions: num(c.sessions),
+      share_of_traffic: num(c.share_of_traffic),
+      engagement_rate: num(c.engagement_rate),
+    })),
+    pages: pages.map((p) => ({
+      key: p.key,
+      page_views: num(p.page_views),
+      bounce_rate: num(p.bounce_rate),
+      avg_time_on_page_sec: num(p.avg_time_on_page_sec),
+    })),
+    insights,
+  });
+
   const save = async () => {
     setSaving(true);
     setSaveMsg("");
     try {
-      const { data: rep, error: e1 } = await supabase
-        .from("web_reports")
-        .upsert({ agency, quarter, summary_bullet: summaryBullet }, { onConflict: "agency,quarter" })
-        .select("id")
-        .single();
-      if (e1) throw e1;
-      const rid = rep.id;
-
-      await dbOp(supabase.from("web_kpis").delete().eq("report_id", rid));
-      await dbOp(
-        supabase.from("web_kpis").insert({
-          report_id: rid,
-          ...Object.fromEntries(KPI_FIELDS.map((f) => [f.key, num(kpis[f.key])])),
-        })
-      );
-
-      await dbOp(supabase.from("web_channels").delete().eq("report_id", rid));
-      if (channels.length) {
-        await dbOp(
-          supabase.from("web_channels").insert(
-            channels.map((c, i) => ({
-              report_id: rid,
-              sort_order: i,
-              name: c.name,
-              sessions: num(c.sessions),
-              share_of_traffic: num(c.share_of_traffic),
-              engagement_rate: num(c.engagement_rate),
-            }))
-          )
-        );
-      }
-
-      await dbOp(supabase.from("web_pages").delete().eq("report_id", rid));
-      if (pages.length) {
-        await dbOp(
-          supabase.from("web_pages").insert(
-            pages.map((p, i) => ({
-              report_id: rid,
-              sort_order: i,
-              key: p.key,
-              page_views: num(p.page_views),
-              bounce_rate: num(p.bounce_rate),
-              avg_time_on_page_sec: num(p.avg_time_on_page_sec),
-            }))
-          )
-        );
-      }
-
-      await dbOp(supabase.from("web_insights").delete().eq("report_id", rid));
-      await dbOp(supabase.from("web_insights").insert({ report_id: rid, ...insights }));
-
+      const { error } = await supabase.rpc("save_web_report", { payload: buildPayload() });
+      if (error) throw error;
       onDirtyChange?.(false);
       flash("Saved ✓");
     } catch (err) {
@@ -202,6 +181,7 @@ export function WebForm({ agency, quarter, onDirtyChange }) {
 
   return (
     <div className="admin-form">
+      <SyncStatus agency={agency} quarter={quarter} />
       <div className="admin-section-tabs" role="tablist">
         {TABS.map((t) => (
           <button
