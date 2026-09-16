@@ -46,6 +46,10 @@ export const BRANDS: Record<string, BrandConfig> = {
       "/learn": "Learn",
     },
   },
+  ads: {
+    env: "GA4_PROPERTY_ADS",
+    pageLabels: {},
+  },
   as: {
     env: "GA4_PROPERTY_AS",
     // No web history for this brand, so nothing to stay consistent with.
@@ -126,6 +130,24 @@ export function quartersToSync(today: Date): { quarter: Quarter; endDate: Date }
   if (yesterday >= current.start) targets.push({ quarter: current, endDate: yesterday });
 
   return targets;
+}
+
+// Explicit historical runs do not depend on the 14-day automatic close-out.
+export function requestedQuarter(today: Date, suffix: unknown, year: unknown): { quarter: Quarter; endDate: Date } {
+  if (typeof suffix !== "string" || !/^q[1-4]$/.test(suffix) ||
+      (typeof year !== "string" && typeof year !== "number") ||
+      !/^[0-9]{4}$/.test(String(year)) || Number(year) < 2000 || Number(year) > 9999) {
+    throw new Error("Provide quarter (q1, q2, q3, q4) and its four-digit ending year together");
+  }
+  const y = Number(year);
+  const starts: Record<string, Date> = {
+    q1: utc(y, 8, 1), q2: utc(y - 1, 11, 1), q3: utc(y, 2, 1), q4: utc(y, 5, 1),
+  };
+  const start = starts[suffix];
+  const last = utc(start.getUTCFullYear(), start.getUTCMonth() + 3, 0);
+  const yesterday = new Date(today.getTime() - 86400000);
+  if (start > yesterday) throw new Error("Requested quarter has no complete day yet");
+  return { quarter: { suffix, year: String(year), start }, endDate: last < yesterday ? last : yesterday };
 }
 
 // ─── GA4 response shapes ──────────────────────────────────────────
@@ -293,6 +315,6 @@ export function buildPayload(
     kpis,
     channels,
   };
-  if (pages) payload.pages = pages;
+  if (pages?.length) payload.pages = pages;
   return payload;
 }

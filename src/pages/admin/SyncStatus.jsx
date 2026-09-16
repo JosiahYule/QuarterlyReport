@@ -39,32 +39,46 @@ export function describeRun(run, now = new Date()) {
 }
 
 export function SyncStatus({ agency, quarter }) {
-  const [run, setRun] = useState(undefined); // undefined = still loading
+  const [run, setRun] = useState(undefined);
+  const [loadError, setLoadError] = useState(false); // undefined = still loading
 
   useEffect(() => {
     let cancelled = false;
     const q = resolveQuarter(quarter);
+    setRun(undefined);
+    setLoadError(false);
     (async () => {
       const { data, error } = await supabase
         .from("ingestion_runs")
         .select("status, message, started_at")
         .eq("source", "ga4")
-        .eq("agency", agency)
-        .eq("quarter", q.suffix)
-        .eq("year", q.year)
+        // Credential failures can happen before a brand is selected. Include
+        // those run-level records, otherwise setup errors look like no runs.
+        .or(`and(agency.eq.${agency},quarter.eq.${q.suffix},year.eq.${q.year}),agency.is.null`)
         .order("started_at", { ascending: false })
         .limit(1);
-      // A status line that cannot load its own status must not imply the sync
-      // is fine, so it renders nothing at all rather than a reassuring tick.
-      if (!cancelled) setRun(error ? null : (data?.[0] ?? null));
-    })();
+      if (!cancelled) {
+        setLoadError(Boolean(error));
+        setRun(data?.[0] ?? null);
+      }
+    })().catch(() => {
+      if (!cancelled) {
+        setLoadError(true);
+        setRun(null);
+      }
+    });
     return () => {
       cancelled = true;
     };
   }, [agency, quarter]);
 
   if (run === undefined) return null;
-  const { tone, text } = describeRun(run);
+  const { tone, text } = loadError
+    ? {
+        tone: "error",
+        text: "Could not load GA4 sync status. Check the ingestion_runs migration and your access.",
+      }
+    : describeRun(run);
   return (
     <div className={"admin-sync-status is-" + tone} role="status">
       {text}

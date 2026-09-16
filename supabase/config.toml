@@ -1,0 +1,4 @@
+[functions.ga4-web-sync]
+# This deployment uses the legacy service_role JWT, which the handler also
+# checks explicitly. The public anon JWT is never allowed to invoke the job.
+verify_jwt = true

@@ -10,6 +10,7 @@ import {
   isoDate,
   previousQuarter,
   quartersToSync,
+  requestedQuarter,
   labelFromPath,
   normalizePath,
   utc,
@@ -279,7 +280,7 @@ describe("buildPayload", () => {
 
   it("omits pages entirely when there are none to write, leaving the stored ones alone", () => {
     expect(buildPayload("isl", quarter, kpis, channels, null)).not.toHaveProperty("pages");
-    expect(buildPayload("isl", quarter, kpis, channels, [])).toHaveProperty("pages");
+    expect(buildPayload("isl", quarter, kpis, channels, [])).not.toHaveProperty("pages");
   });
 });
 
@@ -335,5 +336,29 @@ describe("quartersToSync", () => {
       suffix: "q1",
       year: "2026",
     });
+  });
+});
+
+
+describe("requestedQuarter", () => {
+  it("backfills June-August after the automatic close-out expires", () => {
+    const period = requestedQuarter(utc(2026, 8, 16), "q4", "2026");
+    expect(isoDate(period.quarter.start)).toBe("2026-06-01");
+    expect(isoDate(period.endDate)).toBe("2026-08-31");
+  });
+  it("handles December-February and leap years", () => {
+    const period = requestedQuarter(utc(2028, 8, 16), "q2", 2028);
+    expect(isoDate(period.quarter.start)).toBe("2027-12-01");
+    expect(isoDate(period.endDate)).toBe("2028-02-29");
+  });
+  it("caps an in-progress quarter at yesterday", () => {
+    expect(isoDate(requestedQuarter(utc(2026, 8, 16), "q1", 2026).endDate)).toBe("2026-09-15");
+  });
+  it("rejects a future quarter or a quarter with no completed days", () => {
+    expect(() => requestedQuarter(utc(2026, 8, 16), "q2", 2027)).toThrow("no complete day");
+    expect(() => requestedQuarter(utc(2026, 8, 1), "q1", 2026)).toThrow("no complete day");
+  });
+  it.each([["q5", 2026], ["q4", undefined], [undefined, 2026], ["q4", [2026]]])("rejects invalid period %j %j", (quarter, year) => {
+    expect(() => requestedQuarter(utc(2026, 8, 16), quarter, year)).toThrow("Provide quarter");
   });
 });

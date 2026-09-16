@@ -89,13 +89,29 @@ That guarantee is enforced by the database, not by the job. `save_web_report(pay
 
 ### Setting it up
 
+For deployment checks, authorization, Q4 backfill, and error diagnosis, use the
+[GA4 setup and troubleshooting guide](docs/setup/ga4-sync.md). Merging this repo
+deploys the dashboard through Cloudflare; the Supabase function and migrations
+must be deployed separately.
+
 1. **Google Cloud.** Create a project, enable the **Google Analytics Data API**, create a service account, and download a JSON key. In GA4, add the service account's email as a **Viewer** on each property (Admin → Property Access Management).
 2. **Supabase function secrets** (Edge Functions → Secrets, or `supabase secrets set`):
    - `GA4_SERVICE_ACCOUNT_JSON` — the whole downloaded JSON file, as one value
    - `GA4_PROPERTY_ISL`, `GA4_PROPERTY_AS` — numeric GA4 property IDs. Adding ADS later means setting `GA4_PROPERTY_ADS`; no code change.
 3. **Deploy:** `supabase functions deploy ga4-web-sync`
-4. **Verify before scheduling.** Invoke it with `{"dry_run": true, "agencies": ["isl"]}`. It fetches and computes but writes nothing, and returns both the raw GA4 responses and the payload it would have sent. Check the figures against the GA4 UI, and check that the page labels matched — a wrong path in the label map shows up as a warning saying how many paths matched.
+4. **Verify before scheduling.** Use POST with the project's legacy service_role JWT in the Authorization header (not the anon key or a new `sb_secret_...` key). Invoke it with `{"dry_run": true, "agencies": ["isl"]}`. It fetches and computes but writes nothing, and returns both the raw GA4 responses and the payload it would have sent. Check the figures against the GA4 UI, and check that the page labels matched — a wrong path in the label map shows up as a warning saying how many paths matched.
 5. **Schedule.** Store the function URL and the service-role key in Vault (the commands are in `20260915000003_schedule_ga4_web_sync.sql`), then apply that migration. It adds a `pg_cron` job for Mondays at 15:00 UTC.
+
+To preview a completed quarter after the automatic close-out window, supply its
+quarter and ending year explicitly, for example:
+
+```json
+{"dry_run": true, "agencies": ["isl"], "quarter": "q4", "year": "2026"}
+```
+
+This reads June 1–August 31, 2026, regardless of the current quarter. After verifying
+the result, repeat with `"dry_run": false` for a one-time backfill. A dry run does
+not test the database save; perform and verify one write before scheduling.
 
 Nothing in steps 1–5 puts a credential in the repository, and nothing should.
 
@@ -134,7 +150,8 @@ Nothing in steps 1–5 puts a credential in the repository, and nothing should.
 │   ├── migrations/               # Schema, RLS, transactional save functions, pg_cron schedules
 │   └── functions/
 │       └── ga4-web-sync/         # Weekly GA4 → web_reports ingestion (Deno edge function)
-│           ├── index.ts          # Auth, GA4 calls, writes, run logging
+│           ├── index.ts          # Deno entrypoint
+│           ├── handler.ts        # Auth, GA4 calls, writes, run logging
 │           ├── mapping.ts        # Fiscal calendar + GA4-to-column translation (pure)
 │           └── mapping.test.ts   # Runs under Vitest; no credentials needed
 ├── index.html
