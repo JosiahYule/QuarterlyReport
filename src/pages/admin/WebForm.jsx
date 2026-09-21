@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../lib/supabase.js";
 import { resolveQuarter } from "../../config.js";
 import { IconClose } from "../../components/Icons.jsx";
-import { SyncStatus } from "./SyncStatus.jsx";
 
 const num = (v) =>
   v === "" || v === null || v === undefined ? null : isFinite(Number(v)) ? Number(v) : null;
@@ -137,9 +136,8 @@ export function WebForm({ agency, quarter, onDirtyChange }) {
   // values. save_web_report() commits all of it or none of it.
   //
   // Every section is sent on every save. The function merges on key presence,
-  // so sending them all keeps the form's behaviour exactly as it was: a field
-  // the user clears still clears. Partial callers, such as the GA4 ingestion
-  // job, omit what they do not own and leave it standing.
+  // so sending them all is what makes a field the user clears actually clear:
+  // an omitted key would leave the stored value standing.
   const buildPayload = () => ({
     agency,
     quarter: resolveQuarter(quarter).suffix,
@@ -181,7 +179,6 @@ export function WebForm({ agency, quarter, onDirtyChange }) {
 
   return (
     <div className="admin-form">
-      <SyncStatus agency={agency} quarter={quarter} />
       <div className="admin-section-tabs" role="tablist">
         {TABS.map((t) => (
           <button

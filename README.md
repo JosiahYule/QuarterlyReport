@@ -73,32 +73,26 @@ Data fetching is resilient by default: transient failures retry with exponential
 
 ---
 
-## Automated GA4 ingestion (Website report)
+## Website report data entry
 
-`supabase/functions/ga4-web-sync/` pulls quarter-to-date website figures from the GA4 Data API into `web_reports` once a week, so the Website tab stops being typed by hand.
+Website figures are entered by hand in the admin, read off the GA4 interface once a quarter. There is no automated ingestion; an attempt at it was removed because the setup it required (a Google Cloud service account, a credential store, a scheduled job) was far more machinery than the task justified.
 
-**What it writes, and what it deliberately does not.** The job owns `sessions`, `users`, `engagement_rate` and `avg_engagement_time_sec` on `web_kpis`, plus the whole of `web_channels` and `web_pages`. It never touches `summary_bullet`, the four `web_insights` blocks, `actions`, or `form_submissions`. Those are hand-entered and stay that way: `actions` ("campaign clicks") has no GA4 equivalent, and Squarespace exposes no analytics API for form submissions.
+**Where the numbers come from.** Open GA4 for the property, set the date range to the fiscal quarter, and read off:
 
-That guarantee is enforced by the database, not by the job. `save_web_report(payload jsonb)` merges on **key presence** — a key absent from the payload leaves the stored column untouched, a key present writes it — so any partial writer is safe by construction. The job simply omits what it does not own.
+| Field | GA4 location |
+|---|---|
+| Total Visits | Sessions |
+| Unique Users | Total users |
+| Engagement Rate | Engagement rate (enter as a percentage, e.g. `54.2`) |
+| Avg Time on Site | Average engagement time per session (enter as seconds) |
+| Traffic channels | Reports → Acquisition → Traffic acquisition, by *Session default channel group*. GA4's "Organic Social" is entered as "Social" to match the report's own naming. |
+| Top pages | Reports → Engagement → Pages and screens |
 
-**Field mapping.** GA4 API names differ from the UI labels; the reasoning for each choice is in `mapping.ts` beside the code. In summary: `sessions` → `sessions`, `users` → `totalUsers`, `engagement_rate` → `engagementRate` × 100, `avg_engagement_time_sec` → `userEngagementDuration / sessions`, channels → `sessionDefaultChannelGroup` (with GA4's "Organic Social" renamed to the report's "Social"), pages → `pagePath` mapped through a per-brand label map, `page_views` → `screenPageViews`, `bounce_rate` → `bounceRate` × 100. `share_of_traffic` is computed; GA4 has no such metric.
+`Campaign Clicks` and `Form Submissions` have no GA4 equivalent and never did. Campaign clicks are counted from the ad platforms; form submissions come from the contact-form CSV import on the Submissions tab.
 
-**Safety properties.** Re-running writes the same row rather than a duplicate. A GA4 call that fails or returns nothing logs and exits without writing, because a partial write is worse than no write. For two weeks after a fiscal quarter rolls over the job also closes out the quarter that just ended, so no quarter is left permanently short of its final week.
+**Saving is atomic.** `save_web_report(payload jsonb)` writes the report row and all four child tables in one transaction, so a failure partway through cannot leave a half-written quarter on the server. It merges on **key presence** — a key absent from the payload leaves the stored column untouched — but the admin form deliberately sends every section on every save, so a field you clear actually clears.
 
-**Failure visibility.** Every attempt writes a row to `ingestion_runs` (success, failed, or skipped, with the reason). The Website admin tab shows the latest one and warns when the last success is older than the weekly schedule allows, since a job that stops running is the failure that otherwise goes unnoticed until reporting time.
-
-### Setting it up
-
-1. **Google Cloud.** Create a project, enable the **Google Analytics Data API**, create a service account, and download a JSON key. In GA4, add the service account's email as a **Viewer** on each property (Admin → Property Access Management).
-2. **Supabase function secrets** (Edge Functions → Secrets, or `supabase secrets set`):
-   - `GA4_SERVICE_ACCOUNT_JSON` — the whole downloaded JSON file, as one value
-   - `GA4_PROPERTY_ISL`, `GA4_PROPERTY_AS` — numeric GA4 property IDs. Adding ADS later means setting `GA4_PROPERTY_ADS`; no code change.
-3. **Deploy:** `supabase functions deploy ga4-web-sync`
-4. **Verify before scheduling.** Invoke it with `{"dry_run": true, "agencies": ["isl"]}`. It fetches and computes but writes nothing, and returns both the raw GA4 responses and the payload it would have sent. Check the figures against the GA4 UI, and check that the page labels matched — a wrong path in the label map shows up as a warning saying how many paths matched.
-5. **Schedule.** Store the function URL and the service-role key in Vault (the commands are in `20260915000003_schedule_ga4_web_sync.sql`), then apply that migration. It adds a `pg_cron` job for Mondays at 15:00 UTC.
-
-Nothing in steps 1–5 puts a credential in the repository, and nothing should.
-
+**Quarters are keyed by fiscal year.** `web_reports` is unique on `(agency, quarter, year)`. Without the year, saving Q1 of a new fiscal year would land on the previous year's Q1 row and overwrite it, taking its channels and pages with it. The fiscal year starts in September and a quarter is labelled with the calendar year of its last day.
 ---
 
 ## Project structure
@@ -131,12 +125,7 @@ Nothing in steps 1–5 puts a credential in the repository, and nothing should.
 │       ├── SocialPage.jsx / WebPage.jsx / TrendsPage.jsx
 │       └── admin/                # Login, dashboard shell, Social/Web forms
 ├── supabase/
-│   ├── migrations/               # Schema, RLS, transactional save functions, pg_cron schedules
-│   └── functions/
-│       └── ga4-web-sync/         # Weekly GA4 → web_reports ingestion (Deno edge function)
-│           ├── index.ts          # Auth, GA4 calls, writes, run logging
-│           ├── mapping.ts        # Fiscal calendar + GA4-to-column translation (pure)
-│           └── mapping.test.ts   # Runs under Vitest; no credentials needed
+│   └── migrations/               # Schema, RLS, transactional save functions, pg_cron schedules
 ├── index.html
 ├── editorial.css                 # Full design system (tokens, layout, components)
 ├── eslint.config.js / .prettierrc.json
