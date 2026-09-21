@@ -15,10 +15,12 @@ export const CHANNEL_ALIASES: Record<string, string> = {
   "Organic Social": "Social",
 };
 
-export type BrandConfig = { env: string; pageLabels: Record<string, string> };
+export type BrandConfig = { env: string; configKey: string; pageLabels: Record<string, string> };
 
-// Property IDs come from the environment so adding ADS later is a secret to
-// set, not a deploy. A brand with no property ID configured is skipped.
+// A property ID is looked up in the environment first and in the
+// integration_config table second (see resolvePropertyId). Either way adding a
+// brand is a setting to write, not a deploy. A brand with no property ID
+// configured anywhere is skipped.
 //
 // pageLabels maps a GA4 pagePath onto the label the report shows. A non-empty
 // map acts as a WHITELIST: only those pages are written. That is deliberate.
@@ -30,6 +32,7 @@ export type BrandConfig = { env: string; pageLabels: Record<string, string> };
 export const BRANDS: Record<string, BrandConfig> = {
   isl: {
     env: "GA4_PROPERTY_ISL",
+    configKey: "ga4_property_isl",
     // Best reading of integratedstaffing.ca's Squarespace slugs, chosen to
     // reproduce the labels already in web_pages. VERIFY against a dry run
     // before trusting a scheduled write: a wrong path here simply will not
@@ -48,11 +51,45 @@ export const BRANDS: Record<string, BrandConfig> = {
   },
   as: {
     env: "GA4_PROPERTY_AS",
+    configKey: "ga4_property_as",
     // No web history for this brand, so nothing to stay consistent with.
     // Labels derive from the slug until a dry run shows what is actually there.
     pageLabels: {},
   },
+  ads: {
+    env: "GA4_PROPERTY_ADS",
+    configKey: "ga4_property_ads",
+    // Administrative Staffing was missing from this map entirely, so the job
+    // could never have written it no matter how the credential or the schedule
+    // were configured -- the report page simply stayed empty for the brand.
+    // Like AS it has no stored web history, so labels derive from the slug.
+    //
+    // Needs `ga4_property_ads` in integration_config (or the GA4_PROPERTY_ADS
+    // function secret) before a run will pick it up; without one it is skipped
+    // with a warning, exactly as before.
+    pageLabels: {},
+  },
 };
+
+// Environment first, database second.
+//
+// An Edge Function secret is the better home for a setting, so it always wins
+// when present. The integration_config fallback exists because setting a
+// function secret needs Supabase dashboard access to this project, and that
+// access is currently lost. When it comes back, setting the secret silently
+// takes over with no code change. The same precedence governs the credential
+// itself (see index.ts).
+export function resolvePropertyId(
+  brand: BrandConfig,
+  env: Record<string, string | undefined>,
+  config: Record<string, string>
+): string | null {
+  const fromEnv = env[brand.env];
+  if (fromEnv && fromEnv.trim()) return fromEnv.trim();
+  const fromConfig = config[brand.configKey];
+  if (fromConfig && fromConfig.trim()) return fromConfig.trim();
+  return null;
+}
 
 // ─── Fiscal calendar ──────────────────────────────────────────────
 // Mirrors Q_DEFS/buildQuarter in src/config.js and public.fiscal_quarter():

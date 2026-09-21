@@ -12,6 +12,11 @@
 // Invoke with {"dry_run": true} to fetch and compute without writing anything,
 // which is how the numbers get checked against the GA4 UI before the schedule
 // is switched on. {"agencies": ["isl"]} limits a run to one property.
+//
+// Invoke with {"install_token": "...", "credential": {...}} once to store the
+// Google service-account JSON in Vault. See
+// 20260915000004_ga4_credentials_in_vault.sql for why the credential can live
+// there, and why an Edge Function secret still wins when one is set.
 
 // Supabase's edge-runtime types, for Deno.serve and Deno.env. Only index.ts
 // pulls these in; mapping.ts stays free of Deno so Vitest can import it.
@@ -30,6 +35,7 @@ import {
   buildPayload,
   isoDate,
   quartersToSync,
+  resolvePropertyId,
   todayInReportTZ,
   type Ga4Report,
   type Quarter,
@@ -136,6 +142,55 @@ async function saveWebReport(payload: Record<string, unknown>): Promise<void> {
     body: JSON.stringify({ payload }),
   });
   if (!res.ok) throw new Error(`save_web_report failed (${res.status}): ${await res.text()}`);
+}
+
+async function rpc<T>(name: string, args: Record<string, unknown>): Promise<T> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+    method: "POST",
+    headers: dbHeaders(),
+    body: JSON.stringify(args),
+  });
+  if (!res.ok) throw new Error(`${name} failed (${res.status}): ${await res.text()}`);
+  return (await res.json()) as T;
+}
+
+// ─── Credentials and settings ─────────────────────────────────────
+// Environment first, database second, for both the credential and the
+// property IDs. A function secret is the better home for a private key, so it
+// always wins; the Vault fallback exists because setting one needs dashboard
+// access to this project, which is currently lost. Restoring that access and
+// setting GA4_SERVICE_ACCOUNT_JSON retires this path with no code change.
+type Credentials = { client_email: string; private_key: string };
+
+async function loadCredentials(): Promise<Credentials> {
+  const raw =
+    Deno.env.get("GA4_SERVICE_ACCOUNT_JSON") ??
+    (await rpc<string | null>("integration_secret_get", { p_name: "ga4_service_account" }));
+
+  if (!raw) {
+    throw new Error(
+      "no GA4 credential: set the GA4_SERVICE_ACCOUNT_JSON function secret, or install one by posting an install_token and credential"
+    );
+  }
+  let creds: Credentials;
+  try {
+    creds = JSON.parse(raw);
+  } catch {
+    throw new Error("stored GA4 credential is not valid JSON");
+  }
+  if (!creds.client_email || !creds.private_key) {
+    throw new Error("stored GA4 credential is missing client_email or private_key");
+  }
+  return creds;
+}
+
+async function loadConfig(): Promise<Record<string, string>> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/integration_config?select=key,value`, {
+    headers: dbHeaders(),
+  });
+  if (!res.ok) return {};
+  const rows = (await res.json()) as { key: string; value: string }[];
+  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
 }
 
 async function logRun(row: Record<string, unknown>): Promise<void> {
@@ -272,18 +327,35 @@ Deno.serve(async (req) => {
   let only: string[] | null = null;
 
   try {
+    let body: Record<string, unknown> = {};
     if (req.method === "POST") {
-      const body = await req.json().catch(() => ({}));
+      body = await req.json().catch(() => ({}));
       dryRun = body?.dry_run === true;
-      if (Array.isArray(body?.agencies) && body.agencies.length) only = body.agencies;
+      if (Array.isArray(body?.agencies) && (body.agencies as string[]).length) {
+        only = body.agencies as string[];
+      }
     }
 
-    const rawCreds = Deno.env.get("GA4_SERVICE_ACCOUNT_JSON");
-    if (!rawCreds) throw new Error("GA4_SERVICE_ACCOUNT_JSON is not set");
-    const creds = JSON.parse(rawCreds);
-    if (!creds.client_email || !creds.private_key) {
-      throw new Error("GA4_SERVICE_ACCOUNT_JSON is missing client_email or private_key");
+    // One-time credential install. The token is checked and spent inside the
+    // database, in the same transaction as the write, so this handler cannot
+    // be talked into accepting a spent one. Nothing about the key is logged or
+    // returned except the client_email, which is what lets the installer see
+    // that the right file landed.
+    if (body.install_token) {
+      const credential =
+        typeof body.credential === "string" ? body.credential : JSON.stringify(body.credential ?? null);
+      const email = await rpc<string>("ga4_install_credential", {
+        p_token: body.install_token,
+        p_credential: credential,
+      });
+      return Response.json(
+        { ok: true, installed: true, client_email: email, next: "re-run with dry_run set to true" },
+        { status: 200 }
+      );
     }
+
+    const creds = await loadCredentials();
+    const config = await loadConfig();
 
     const today = todayInReportTZ();
     // Normally just the current quarter, up to yesterday. For two weeks after a
@@ -306,9 +378,17 @@ Deno.serve(async (req) => {
 
     const targets = Object.entries(BRANDS)
       .filter(([agency]) => !only || only.includes(agency))
-      .map(([agency, cfg]) => ({ agency, cfg, propertyId: Deno.env.get(cfg.env) }))
+      .map(([agency, cfg]) => ({
+        agency,
+        cfg,
+        propertyId: resolvePropertyId(cfg, Deno.env.toObject(), config),
+      }))
       .filter((t) => {
-        if (!t.propertyId) console.warn(`${t.agency}: ${t.cfg.env} not set, skipping`);
+        if (!t.propertyId) {
+          console.warn(
+            `${t.agency}: no property id in ${t.cfg.env} or integration_config.${t.cfg.configKey}, skipping`
+          );
+        }
         return Boolean(t.propertyId);
       });
 

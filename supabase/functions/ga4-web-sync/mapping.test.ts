@@ -10,6 +10,7 @@ import {
   isoDate,
   previousQuarter,
   quartersToSync,
+  resolvePropertyId,
   labelFromPath,
   normalizePath,
   utc,
@@ -335,5 +336,59 @@ describe("quartersToSync", () => {
       suffix: "q1",
       year: "2026",
     });
+  });
+});
+
+describe("BRANDS", () => {
+  // Administrative Staffing was absent from this map, so the job silently had
+  // nothing to sync for it and the Website page stayed empty for the brand no
+  // matter how the credential or schedule were configured. The three brands
+  // the portal reports on must each have an entry.
+  it("covers all three agencies the portal reports on", () => {
+    expect(Object.keys(BRANDS).sort()).toEqual(["ads", "as", "isl"]);
+  });
+
+  it("gives every brand both an env var and a config key", () => {
+    for (const [agency, cfg] of Object.entries(BRANDS)) {
+      expect(cfg.env, agency).toMatch(/^GA4_PROPERTY_[A-Z]+$/);
+      expect(cfg.configKey, agency).toBe(`ga4_property_${agency}`);
+    }
+  });
+
+  it("keeps env var and config key pointing at the same brand", () => {
+    for (const [agency, cfg] of Object.entries(BRANDS)) {
+      expect(cfg.env.toLowerCase(), agency).toBe(`ga4_property_${agency}`);
+    }
+  });
+});
+
+describe("resolvePropertyId", () => {
+  const brand = { env: "GA4_PROPERTY_ISL", configKey: "ga4_property_isl", pageLabels: {} };
+
+  it("prefers the function secret when one is set", () => {
+    expect(resolvePropertyId(brand, { GA4_PROPERTY_ISL: "111" }, { ga4_property_isl: "222" })).toBe("111");
+  });
+
+  it("falls back to integration_config when no secret is set", () => {
+    expect(resolvePropertyId(brand, {}, { ga4_property_isl: "222" })).toBe("222");
+  });
+
+  // An unset Supabase secret can arrive as an empty string rather than absent,
+  // which would otherwise win over a perfectly good stored value.
+  it("treats a blank or whitespace secret as unset", () => {
+    expect(resolvePropertyId(brand, { GA4_PROPERTY_ISL: "" }, { ga4_property_isl: "222" })).toBe("222");
+    expect(resolvePropertyId(brand, { GA4_PROPERTY_ISL: "   " }, { ga4_property_isl: "222" })).toBe("222");
+  });
+
+  it("trims surrounding whitespace from either source", () => {
+    expect(resolvePropertyId(brand, { GA4_PROPERTY_ISL: " 111 " }, {})).toBe("111");
+    expect(resolvePropertyId(brand, {}, { ga4_property_isl: " 222 " })).toBe("222");
+  });
+
+  // Returning null is what makes the caller skip the brand with a warning
+  // rather than calling GA4 with "undefined" as a property id.
+  it("returns null when neither source has a value", () => {
+    expect(resolvePropertyId(brand, {}, {})).toBeNull();
+    expect(resolvePropertyId(brand, { GA4_PROPERTY_ISL: "  " }, { ga4_property_isl: "" })).toBeNull();
   });
 });

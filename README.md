@@ -92,12 +92,30 @@ That guarantee is enforced by the database, not by the job. `save_web_report(pay
 1. **Google Cloud.** Create a project, enable the **Google Analytics Data API**, create a service account, and download a JSON key. In GA4, add the service account's email as a **Viewer** on each property (Admin → Property Access Management).
 2. **Supabase function secrets** (Edge Functions → Secrets, or `supabase secrets set`):
    - `GA4_SERVICE_ACCOUNT_JSON` — the whole downloaded JSON file, as one value
-   - `GA4_PROPERTY_ISL`, `GA4_PROPERTY_AS` — numeric GA4 property IDs. Adding ADS later means setting `GA4_PROPERTY_ADS`; no code change.
+   - `GA4_PROPERTY_ISL`, `GA4_PROPERTY_AS`, `GA4_PROPERTY_ADS` — numeric GA4 property IDs. All three brands have an entry in `BRANDS` (`mapping.ts`); a brand with no property ID configured is skipped with a warning rather than failing the run.
 3. **Deploy:** `supabase functions deploy ga4-web-sync`
 4. **Verify before scheduling.** Invoke it with `{"dry_run": true, "agencies": ["isl"]}`. It fetches and computes but writes nothing, and returns both the raw GA4 responses and the payload it would have sent. Check the figures against the GA4 UI, and check that the page labels matched — a wrong path in the label map shows up as a warning saying how many paths matched.
 5. **Schedule.** Store the function URL and the service-role key in Vault (the commands are in `20260915000003_schedule_ga4_web_sync.sql`), then apply that migration. It adds a `pg_cron` job for Mondays at 15:00 UTC.
 
 Nothing in steps 1–5 puts a credential in the repository, and nothing should.
+
+### Without Supabase dashboard access
+
+Steps 2 and 5 both need the dashboard, which is not always available. `20260915000004_ga4_credentials_in_vault.sql` provides a database-side route for both, and the function prefers a function secret whenever one is set, so restoring dashboard access retires this path with no code change and no migration.
+
+- **Property IDs** live in `public.integration_config` as `ga4_property_isl` / `ga4_property_as` / `ga4_property_ads`. The table has RLS on and no policy at all, so only the service role reaches it. `resolvePropertyId()` checks the environment first and this table second.
+- **The credential** is installed by posting it once to the function itself, gated on a single-use token minted out of band:
+
+  ```sql
+  select vault.create_secret(encode(gen_random_bytes(32), 'hex'), 'ga4_install_token');
+  select decrypted_secret from vault.decrypted_secrets where name = 'ga4_install_token';
+  ```
+
+  Then `POST {"install_token": "<token>", "credential": { ...the whole JSON file... }}`. The function returns only the `client_email` it stored, which is how you confirm the right file landed. Send the **entire** service-account JSON, not just the private key: the most common failure is a partial paste, which is rejected with `credential is missing client_email or private_key`.
+
+  The token is validated and spent inside one database transaction, so it cannot be replayed. The credential's shape is checked *before* the token is spent, so a malformed paste costs nothing and can be retried with the same token.
+
+Check `ingestion_runs` after any attempt; every run records its outcome and reason there.
 
 ---
 
