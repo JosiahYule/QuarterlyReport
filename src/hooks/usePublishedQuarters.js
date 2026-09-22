@@ -14,25 +14,37 @@ const SOURCES = {
 
 const hasContent = (view, row) => (view === "paid" ? (row.paid_media_campaigns?.length ?? 0) > 0 : true);
 
-// The quarters in the navigable window that actually have something published
-// for this view and agency, most recent first.
+// The quarters in the navigable window that have something published for this
+// view and agency, most recent first.
 //
-// Only the empty state asks for this, so it costs a query exactly when the
-// page already has nothing to draw. It fails quiet: an error leaves the list
-// empty and the caller falls back to the generic "check back soon" wording,
-// which is no worse than what it replaced.
+// Returns null until the answer is known, and an array once it is — including
+// an empty array. Callers need that difference: "not asked yet" is a reason to
+// wait before choosing a quarter, "asked, none" is not, and conflating them
+// would leave the app waiting forever on a view with no data.
+//
+// It fails settled rather than silent: an error resolves to [], so a failed
+// lookup degrades to the old behaviour instead of blocking the page.
 export function usePublishedQuarters(view, agency) {
-  const [published, setPublished] = useState([]);
+  const [published, setPublished] = useState(null);
 
   useEffect(() => {
     const source = SOURCES[view];
-    if (!source) return;
+    // Trends spans quarters and has no per-quarter data to find.
+    if (!source) {
+      setPublished([]);
+      return;
+    }
+
     let cancelled = false;
+    setPublished(null);
 
     (async () => {
       const { data, error } = await supabase.from(source.table).select(source.select).eq("agency", agency);
-      if (cancelled || error || !data) return;
-
+      if (cancelled) return;
+      if (error || !data) {
+        setPublished([]);
+        return;
+      }
       // Matched on suffix AND year: a suffix repeats every fiscal year, and the
       // nav window can straddle two of them.
       const have = new Set(
@@ -47,4 +59,23 @@ export function usePublishedQuarters(view, agency) {
   }, [view, agency]);
 
   return published;
+}
+
+// Which quarter a page should actually open on, or null to stay put.
+//
+// Split out from the component because it is the whole of the decision and
+// every branch of it is a rule worth pinning down:
+//
+//   explicit quarter  -> null. Chosen from the menu or shared in a link; an
+//                        answer, not a guess, and not ours to overrule.
+//   still loading     -> null. Nothing is known yet; asking again once it is.
+//   nothing published -> null. No better quarter exists, so the empty state
+//                        does the explaining.
+//   current has data  -> null. Already the right place.
+//   otherwise         -> the newest quarter that has a report.
+export function resolveLandingQuarter({ quarter, quarterExplicit, published }) {
+  if (quarterExplicit) return null;
+  if (published === null || published.length === 0) return null;
+  if (published.some((q) => q.suffix === quarter)) return null;
+  return published[0].suffix;
 }
