@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
-import { AdminApp } from "./pages/admin/AdminApp.jsx";
 import ReactDOM from "react-dom/client";
 import { useUrlState } from "./hooks/useUrlState.js";
 import { usePublishedQuarters, resolveLandingQuarter } from "./hooks/usePublishedQuarters.js";
@@ -16,6 +15,9 @@ const SocialPage = lazy(() => import("./pages/SocialPage.jsx").then((m) => ({ de
 const WebPage = lazy(() => import("./pages/WebPage.jsx").then((m) => ({ default: m.WebPage })));
 const PaidPage = lazy(() => import("./pages/PaidPage.jsx").then((m) => ({ default: m.PaidPage })));
 const TrendsPage = lazy(() => import("./pages/TrendsPage.jsx").then((m) => ({ default: m.TrendsPage })));
+// Only the report's editor ever opens /admin, so its forms, importers and
+// planner load on demand instead of riding along in every reader's download.
+const AdminApp = lazy(() => import("./pages/admin/AdminApp.jsx").then((m) => ({ default: m.AdminApp })));
 
 function App() {
   const [urlState, navigate] = useUrlState();
@@ -139,4 +141,12 @@ function App() {
 }
 
 const isAdmin = window.location.pathname.startsWith("/admin");
-ReactDOM.createRoot(document.getElementById("root")).render(isAdmin ? <AdminApp /> : <App />);
+ReactDOM.createRoot(document.getElementById("root")).render(
+  isAdmin ? (
+    <Suspense fallback={<LoadingScreen visible />}>
+      <AdminApp />
+    </Suspense>
+  ) : (
+    <App />
+  )
+);

@@ -6,7 +6,17 @@ import { PlanTab } from "./PlanTab.jsx";
 import { SubmissionsTab } from "./SubmissionsTab.jsx";
 import { setFavicon } from "../../lib/favicon.js";
 
+// Focus starts on the safe choice, so a reflexive Enter keeps the edits
+// rather than throwing them away, and Escape backs out like any dialog.
 function ConfirmModal({ onConfirm, onCancel }) {
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onCancel();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
   return (
     <div className="admin-confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
       <div className="admin-confirm-box">
@@ -14,10 +24,10 @@ function ConfirmModal({ onConfirm, onCancel }) {
           You have unsaved changes. Discard them and continue?
         </p>
         <div className="admin-confirm-actions">
-          <button className="admin-btn-primary" onClick={onConfirm} autoFocus>
+          <button className="admin-btn-primary" onClick={onConfirm}>
             Discard &amp; continue
           </button>
-          <button className="admin-btn-ghost" onClick={onCancel}>
+          <button className="admin-btn-ghost" onClick={onCancel} autoFocus>
             Keep editing
           </button>
         </div>
@@ -79,6 +89,7 @@ export function AdminDashboard({ onSignOut }) {
             <div className="admin-header-selects">
               <select
                 className="admin-select"
+                aria-label="Agency"
                 value={agency}
                 onChange={(e) => guard(() => setAgency(e.target.value))}
               >
@@ -90,6 +101,7 @@ export function AdminDashboard({ onSignOut }) {
               </select>
               <select
                 className="admin-select"
+                aria-label="Quarter"
                 value={quarter}
                 onChange={(e) => guard(() => setQuarter(e.target.value))}
               >
@@ -120,7 +132,10 @@ export function AdminDashboard({ onSignOut }) {
                 </button>
               ))}
             </div>
-            <button className="admin-btn-ghost" onClick={onSignOut}>
+            {/* Signing out unmounts the form without leaving the page, so the
+                beforeunload warning never fires; it needs the same guard as
+                switching agency or quarter, or the edits simply vanish. */}
+            <button className="admin-btn-ghost" onClick={() => guard(onSignOut)}>
               Sign out
             </button>
           </div>

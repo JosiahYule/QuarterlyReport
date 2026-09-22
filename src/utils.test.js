@@ -16,6 +16,9 @@ describe("fmt", () => {
     expect(fmt(2_450_000)).toBe("2.45M");
     expect(fmt(12_300)).toBe("12K");
     expect(fmt(1_500)).toBe("1.5K");
+    // Rounding up to the next unit moves the number to that unit.
+    expect(fmt(999_600)).toBe("1.00M");
+    expect(fmt(999_400)).toBe("999K");
   });
   it("renders small integers with locale grouping", () => {
     expect(fmt(999)).toBe("999");

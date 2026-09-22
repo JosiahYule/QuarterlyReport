@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCsv } from "./SocialForm.jsx";
+import { parseCsv, mergeImportedPosts } from "./SocialForm.jsx";
 
 const csv = (...lines) => lines.join("\n");
 
@@ -120,14 +120,112 @@ describe("parseCsv line endings", () => {
   });
 });
 
-describe("parseCsv known limitation", () => {
-  // The parser splits on commas without honouring quoting, so a quoted field
-  // containing a comma shifts every later column. Recorded here deliberately:
-  // this is current behaviour, and worth knowing before trusting an import
-  // with free-text notes in it.
-  it("mis-splits a quoted field containing a comma", () => {
+describe("parseCsv quoting", () => {
+  // This used to split on every comma, so a quoted title with a comma in it
+  // shifted every later column and the post landed with zero impressions.
+  it("keeps a quoted field containing a comma in one piece", () => {
     const rows = parseCsv(csv("Post Name,Impressions", '"Halifax, NS office",500'));
-    expect(rows[0].post_name).toBe("Halifax");
-    expect(rows[0].impressions).toBe(0);
+    expect(rows[0].post_name).toBe("Halifax, NS office");
+    expect(rows[0].impressions).toBe(500);
+  });
+
+  it("reads quoted thousands separators as numbers", () => {
+    const rows = parseCsv(csv("Post Name,Impressions,Engagements", 'A post,"12,345","1,002"'));
+    expect(rows[0].impressions).toBe(12345);
+    expect(rows[0].engagements).toBe(1002);
+  });
+
+  it("unescapes doubled quotes inside a quoted field", () => {
+    const rows = parseCsv(csv("Post Name,Impressions", '"The ""big"" hire",10'));
+    expect(rows[0].post_name).toBe('The "big" hire');
+  });
+
+  it("ignores a byte-order mark in front of the header row", () => {
+    const rows = parseCsv("\uFEFFPost Name,Impressions\nA post,10");
+    expect(rows[0].post_name).toBe("A post");
+  });
+});
+
+describe("parseCsv dates and times", () => {
+  const dateOf = (value) => parseCsv(csv("Post Name,Date", `A post,"${value}"`))[0].post_date;
+
+  it("keeps an ISO date as it is", () => {
+    expect(dateOf("2026-06-01")).toBe("2026-06-01");
+  });
+
+  it("reads slashed dates as month/day/year", () => {
+    expect(dateOf("6/1/2026")).toBe("2026-06-01");
+    expect(dateOf("06/01/26")).toBe("2026-06-01");
+  });
+
+  it("reads a slashed date as day/month when the first number can only be a day", () => {
+    expect(dateOf("25/06/2026")).toBe("2026-06-25");
+  });
+
+  it("reads a written-out date", () => {
+    expect(dateOf("Jun 1, 2026")).toBe("2026-06-01");
+  });
+
+  it("leaves an unreadable or impossible date empty rather than failing the save", () => {
+    expect(dateOf("sometime in June")).toBe("");
+    expect(dateOf("2026-02-30")).toBe("");
+  });
+
+  it("does not read a bare number as a date", () => {
+    // The browser would take "2026" as 1 January, and a spreadsheet serial
+    // day number as a date tens of thousands of years out.
+    expect(dateOf("2026")).toBe("");
+    expect(dateOf("45123")).toBe("");
+  });
+
+  it("takes the time from a combined date-and-time cell when there is no time column", () => {
+    const rows = parseCsv(csv("Post Name,Date", "A post,06/01/2026 2:05 PM"));
+    expect(rows[0].post_date).toBe("2026-06-01");
+    expect(rows[0].post_time).toBe("14:05");
+  });
+
+  it("normalizes a 12-hour time column to 24-hour", () => {
+    const timeOf = (value) => parseCsv(csv("Post Name,Time", `A post,${value}`))[0].post_time;
+    expect(timeOf("9:30 AM")).toBe("09:30");
+    expect(timeOf("12:15 am")).toBe("00:15");
+    expect(timeOf("12:15 PM")).toBe("12:15");
+    expect(timeOf("17:45")).toBe("17:45");
+    expect(timeOf("noon")).toBe("");
+  });
+});
+
+describe("mergeImportedPosts", () => {
+  const post = (name, date = "2026-06-01", platforms = "LinkedIn") => ({
+    post_name: name,
+    post_date: date,
+    platforms,
+  });
+
+  it("appends posts that are new to the log", () => {
+    const { posts, added, skipped } = mergeImportedPosts([post("A")], [post("B")]);
+    expect(posts.map((p) => p.post_name)).toEqual(["A", "B"]);
+    expect(added).toBe(1);
+    expect(skipped).toBe(0);
+  });
+
+  it("skips a post already in the log, so importing a file twice doesn't double it", () => {
+    const { posts, added, skipped } = mergeImportedPosts([post("A")], [post(" a "), post("B")]);
+    expect(posts).toHaveLength(2);
+    expect(added).toBe(1);
+    expect(skipped).toBe(1);
+  });
+
+  it("keeps same-titled posts that went out on different days or platforms", () => {
+    const { added } = mergeImportedPosts(
+      [post("Weekly jobs")],
+      [post("Weekly jobs", "2026-06-08"), post("Weekly jobs", "2026-06-01", "Facebook")]
+    );
+    expect(added).toBe(2);
+  });
+
+  it("drops duplicates within the imported file itself", () => {
+    const { added, skipped } = mergeImportedPosts([], [post("A"), post("A")]);
+    expect(added).toBe(1);
+    expect(skipped).toBe(1);
   });
 });

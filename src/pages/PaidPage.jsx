@@ -48,7 +48,8 @@ function healthForAd(ad) {
   }
   const ctr = (clicks / impressions) * 100;
   const label = ctr >= 2 ? "Very Strong" : ctr >= 1 ? "Strong" : ctr >= 0.5 ? "Moderate" : "Low";
-  const color = ctr >= 2 ? "var(--accent)" : ctr >= 1 ? "var(--up)" : ctr >= 0.5 ? "#b87000" : "var(--down)";
+  const color =
+    ctr >= 2 ? "var(--accent)" : ctr >= 1 ? "var(--up)" : ctr >= 0.5 ? "var(--warn)" : "var(--down)";
   return { label, color, ctr, hasData: true };
 }
 

@@ -109,11 +109,27 @@ describe("ContactFormsSection KPIs", () => {
     expect(screen.getByText((263 / WEEKS_IN_Q).toFixed(1))).toBeTruthy();
   });
 
-  it("shows a flat delta when there is no prior quarter to compare against", () => {
+  it("shows no delta when there is no prior quarter to compare against", () => {
+    // A flat 0.0% here used to say "unchanged" when the truth was "unknown".
     const { container } = section({ stats: stats(), prevStats: null });
-    const deltas = container.querySelectorAll(".delta");
-    expect(deltas).toHaveLength(4);
-    expect([...deltas].every((d) => d.className.includes("flat"))).toBe(true);
+    expect(container.querySelectorAll(".delta")).toHaveLength(0);
+  });
+
+  it("compares only the per-week rate while the quarter is still running", () => {
+    // Part of this quarter against all of the last one reads as a steep fall
+    // every week until the final one; the per-week rate is fair throughout.
+    const current = QUARTERS[0];
+    const { container } = render(
+      <ContactFormsSection
+        quarter={current.suffix}
+        stats={stats()}
+        prevStats={{ totals: { total: 400, work: 300, staff: 100 } }}
+      />
+    );
+    const kpis = [...container.querySelectorAll(".kpi")];
+    const hasDelta = kpis.map((k) => !!k.querySelector(".delta"));
+    expect(hasDelta).toEqual([false, false, false, true]);
+    expect(screen.getByText("so far this quarter")).toBeTruthy();
   });
 
   it("compares against the prior quarter when one is supplied", () => {

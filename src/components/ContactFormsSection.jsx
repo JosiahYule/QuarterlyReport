@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { QUARTERS } from "../config.js";
-import { fmtInt, calcAutoDelta, FLAT } from "../utils.js";
+import { fmtInt, calcAutoDelta } from "../utils.js";
 import { buildSourceTrend, findSourceSpike } from "../lib/sourceTrends.js";
 import { CountUp } from "./CountUp.jsx";
 import { Delta } from "./Delta.jsx";
@@ -39,6 +39,8 @@ function fillWeeks(weekly, q) {
   }
   return out;
 }
+
+const quarterRunning = (q) => Date.now() < q.end.getTime();
 
 function weeksElapsed(q) {
   const end = Math.min(Date.now(), q.end.getTime());
@@ -644,22 +646,36 @@ export function ContactFormsSection({ stats, prevStats, quarter }) {
   if (!q || !t || t.total === 0) return null;
 
   const p = prevStats?.totals;
+  const prevQ = QUARTERS[QUARTERS.indexOf(q) + 1];
   const perWeek = t.total / weeksElapsed(q);
-  const prevPerWeek = p?.total ? p.total / 13 : null;
+  const prevPerWeek = p?.total && prevQ ? p.total / weeksElapsed(prevQ) : null;
+
+  // A quarter still under way has only some of its weeks in these totals, so
+  // comparing them with all of last quarter's read as a steep fall right up
+  // to the final week. Until it closes, only the per-week rate, which is fair
+  // at any point in the quarter, gets a comparison.
+  const inProgress = quarterRunning(q);
+  const prevTotal = (v) => (inProgress ? null : v);
 
   const kpis = [
     {
       label: "Total Submissions",
       value: t.total,
-      prev: p?.total,
+      prev: prevTotal(p?.total),
       fmt: fmtInt,
-      note: "contact forms this quarter",
+      note: inProgress ? "so far this quarter" : "contact forms this quarter",
     },
-    { label: "Job Seekers", value: t.work, prev: p?.work, fmt: fmtInt, note: "people looking for work" },
+    {
+      label: "Job Seekers",
+      value: t.work,
+      prev: prevTotal(p?.work),
+      fmt: fmtInt,
+      note: "people looking for work",
+    },
     {
       label: "Employer Leads",
       value: t.staff,
-      prev: p?.staff,
+      prev: prevTotal(p?.staff),
       fmt: fmtInt,
       note: "businesses looking for staff",
     },
@@ -688,7 +704,7 @@ export function ContactFormsSection({ stats, prevStats, quarter }) {
               <CountUp value={k.value} format={k.fmt} />
             </div>
             <div className="kpi-foot">
-              <Delta d={calcAutoDelta(k.value, k.prev) || FLAT} />
+              <Delta d={calcAutoDelta(k.value, k.prev)} />
               <span className="delta-note">{k.note}</span>
             </div>
           </div>

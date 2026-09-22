@@ -12,7 +12,8 @@ const KPI_FIELDS = [
   { key: "users", label: "Unique Users" },
   { key: "engagement_rate", label: "Engagement Rate (%)", isDecimal: true },
   { key: "avg_engagement_time_sec", label: "Avg Time on Site (seconds)" },
-  { key: "actions", label: "Candidate Actions" },
+  // Named as the report names it, so the number typed here is the one read there.
+  { key: "actions", label: "Campaign Clicks" },
   { key: "form_submissions", label: "Form Submissions" },
 ];
 
@@ -27,12 +28,15 @@ const TABS = [
   { id: "insights", label: "Insights" },
 ];
 
+// The label wraps its control, which is what ties the two together. As a
+// sibling <label> with no htmlFor it named nothing, so a screen reader
+// announced every box as an unnamed field and clicking the label did nothing.
 function Field({ label, children }) {
   return (
-    <div className="admin-field">
-      <label className="admin-label">{label}</label>
+    <label className="admin-field">
+      <span className="admin-label">{label}</span>
       {children}
-    </div>
+    </label>
   );
 }
 
@@ -124,10 +128,17 @@ export function WebForm({ agency, quarter, onDirtyChange }) {
     })();
   }, [agency, quarter]);
 
+  // Confirmations clear themselves; errors stay until the next message or
+  // save, since four seconds is too short to read a database error, let
+  // alone act on it. Each message cancels the previous one's timer, which
+  // otherwise cut a fresh confirmation short.
+  const flashTimer = useRef();
   const flash = (msg) => {
+    clearTimeout(flashTimer.current);
     setSaveMsg(msg);
-    setTimeout(() => setSaveMsg(""), 4000);
+    if (!msg.startsWith("Error")) flashTimer.current = setTimeout(() => setSaveMsg(""), 4000);
   };
+  useEffect(() => () => clearTimeout(flashTimer.current), []);
 
   // One RPC, one transaction. This used to be an upsert followed by four
   // delete-and-reinsert pairs issued one at a time from the browser, with

@@ -224,7 +224,14 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
       <div className="chart-card-title serif">{metric.label}</div>
       <div className="chart-card-sub">{sub}</div>
       <div className="chart-wrap">
-        <canvas ref={canvasRef} />
+        {/* A canvas is a picture to assistive tech; this is its caption. */}
+        <canvas
+          ref={canvasRef}
+          role="img"
+          aria-label={`${metric.label}: ${labels
+            .map((l, i) => `${l} ${fmtApprox(values[i], metric.isPercent)}`)
+            .join(", ")}`}
+        />
       </div>
       <div className="chart-legend" aria-hidden="true">
         {legendItems.map((item) => (
@@ -827,16 +834,27 @@ function Drivers({ drivers, pacing }) {
           <div className="proj-card">
             <div className="proj-card-label">Pacing</div>
             <div className="driver-title">{pacingLeader.metric.label}</div>
-            <div className="proj-number-sub">Accelerating fastest vs last quarter's rate</div>
+            {/* The leader is only the best of the metrics, not necessarily a
+                gain: when everything is slowing it is the one slowing least,
+                and a hard-coded "+" and green read that as "+-5.0%". */}
+            <div className="proj-number-sub">
+              {pacingLeader.rateVsQ2 >= 0
+                ? "Accelerating fastest vs last quarter's rate"
+                : "Slowing least vs last quarter's rate"}
+            </div>
             <div className="proj-stats-grid">
               <div className="proj-stat">
                 <div className="proj-stat-label">Rate vs Last Quarter</div>
-                <div className="proj-stat-value pos">+{pacingLeader.rateVsQ2.toFixed(1)}%</div>
+                <div className={"proj-stat-value " + platDeltaCls(pacingLeader.rateVsQ2)}>
+                  {platDeltaTxt(pacingLeader.rateVsQ2)}
+                </div>
               </div>
               {pacingLaggard && pacingLaggard.metric.id !== pacingLeader.metric.id && (
                 <div className="proj-stat">
                   <div className="proj-stat-label">Slowest · {pacingLaggard.metric.label}</div>
-                  <div className="proj-stat-value neg">{pacingLaggard.rateVsQ2.toFixed(1)}%</div>
+                  <div className={"proj-stat-value " + platDeltaCls(pacingLaggard.rateVsQ2)}>
+                    {platDeltaTxt(pacingLaggard.rateVsQ2)}
+                  </div>
                 </div>
               )}
             </div>

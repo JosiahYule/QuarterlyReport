@@ -59,11 +59,6 @@ const REPORT = {
       note: "",
     },
   ],
-  topPostsByPlatform: {
-    linkedin: [{ title: "Hiring in Halifax", impressions: 9000, likes: 120, shares: 14 }],
-    facebook: [],
-    instagram: [],
-  },
   notes: { working: ["Job posts."], notWorking: [], actions: [], next: [] },
   allPosts: [
     post({
@@ -89,7 +84,6 @@ const REPORT = {
       Notes: "behind the scenes",
     }),
   ],
-  weekly: Array.from({ length: 13 }, (_, i) => ({ wk: i + 1, imp: 0, leads: 0, spend: 0 })),
 };
 
 function mockReport(state) {
@@ -385,5 +379,101 @@ describe("SocialPage insights", () => {
     // working has one item; notWorking, actions and next are empty.
     expect(screen.getAllByText("No notes yet.")).toHaveLength(3);
     expect(screen.getByText("Job posts.")).toBeTruthy();
+  });
+});
+
+describe("SocialPage comparisons", () => {
+  it("shows no delta for a KPI with no previous quarter to compare with", () => {
+    // A flat 0.0% used to stand in for "no comparison", which reads as
+    // "nothing changed".
+    mockReport({ status: "ready", data: { ...REPORT, deltas: {} } });
+    const { container } = page();
+    expect(container.querySelectorAll("#numbers .delta")).toHaveLength(0);
+  });
+
+  it("shows the delta for a KPI that has one", () => {
+    mockReport({
+      status: "ready",
+      data: { ...REPORT, deltas: { impressions: { dir: "up", pct: 12 } } },
+    });
+    const { container } = page();
+    expect(container.querySelectorAll("#numbers .delta")).toHaveLength(1);
+  });
+
+  it("shows a missing platform engagement rate as a dash, not a dash with a percent sign", () => {
+    mockReport({
+      status: "ready",
+      data: { ...REPORT, platforms: [{ ...REPORT.platforms[0], engagementRate: null }] },
+    });
+    const { container } = page();
+    expect(container.querySelector("#platforms").textContent).not.toContain("—%");
+  });
+});
+
+describe("SocialPage post sorting", () => {
+  const head = (container) => within(container.querySelector("#all-posts thead"));
+  const firstPost = (container) => container.querySelector("#all-posts tbody tr .campaign-name").textContent;
+
+  it("sorts from buttons, so the columns can be sorted from the keyboard", () => {
+    mockReport({ status: "ready", data: REPORT });
+    const { container } = page();
+    const button = head(container).getByRole("button", { name: /Impressions/ });
+    fireEvent.click(button);
+    expect(button.closest("th").getAttribute("aria-sort")).toBe("descending");
+    expect(firstPost(container)).toBe("Welder wanted");
+
+    fireEvent.click(button);
+    expect(button.closest("th").getAttribute("aria-sort")).toBe("ascending");
+    expect(firstPost(container)).toBe("Team photo");
+  });
+
+  it("marks only the active column as sorted", () => {
+    mockReport({ status: "ready", data: REPORT });
+    const { container } = page();
+    const sorts = [...container.querySelectorAll("#all-posts th[aria-sort]")].map((th) =>
+      th.getAttribute("aria-sort")
+    );
+    // Date, newest first, is the default.
+    expect(sorts).toEqual(["descending", "none", "none", "none"]);
+  });
+});
+
+describe("SocialPage quarter-by-quarter chart", () => {
+  const quarter = (label, followers, impressions = 1000) => ({
+    suffix: label.toLowerCase(),
+    label,
+    rangeLabel: `${label} 2026`,
+    kpis: { impressions, followers },
+  });
+
+  it("joins the section rail when its history arrives after the report", () => {
+    mockReport({ status: "ready", data: REPORT });
+    const { rerender } = page();
+    const rail = () => screen.getByRole("navigation", { name: "Report sections" });
+    expect(within(rail()).queryByText("Quarterly")).toBeNull();
+
+    useSocialKpiHistory.mockReturnValue([quarter("Q3", 5000), quarter("Q4", 5500)]);
+    rerender(<SocialPage agency="isl" quarter="q4" />);
+    expect(within(rail()).getByText("Quarterly")).toBeTruthy();
+  });
+
+  it("keeps a quarter that lost followers inside the plot", () => {
+    // Net new followers goes negative in a losing quarter; a scale pinned at
+    // zero drew that point below the axis, over the quarter labels.
+    useSocialKpiHistory.mockReturnValue([
+      quarter("Q1", 5000),
+      quarter("Q2", 5400),
+      quarter("Q3", 5100),
+      quarter("Q4", 5300),
+    ]);
+    mockReport({ status: "ready", data: REPORT });
+    const { container } = page();
+    fireEvent.click(screen.getByRole("button", { name: "Net New Followers" }));
+    const svg = container.querySelector("#quarter-by-quarter svg");
+    const [, , , H] = svg.getAttribute("viewBox").split(" ").map(Number);
+    const plotBottom = H - 56; // the chart's bottom padding
+    const ys = [...svg.querySelectorAll("circle")].map((c) => Number(c.getAttribute("cy")));
+    expect(ys.length).toBeGreaterThan(0);
+    expect(ys.every((y) => y <= plotBottom)).toBe(true);
   });
 });

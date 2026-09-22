@@ -7,7 +7,7 @@ import { reportState } from "../components/ReportState.jsx";
 import { usePublishedQuarters } from "../hooks/usePublishedQuarters.js";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { InsightsSection } from "../components/InsightsSection.jsx";
-import { fmtInt, fmtPct, fmtTime, calcAutoDelta, parseDelta, FLAT } from "../utils.js";
+import { fmtInt, fmtPct, fmtTime, calcAutoDelta, parseDelta } from "../utils.js";
 import { AGENCIES, QUARTERS } from "../config.js";
 import { CountUp } from "../components/CountUp.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
@@ -67,9 +67,7 @@ function Numbers({ data, prevData }) {
       <div className="kpi-grid">
         {KPI_DEFS.map((k, i) => {
           const v = o[k.key];
-          const d = data.deltas?.[k.key]
-            ? parseDelta(data.deltas[k.key])
-            : calcAutoDelta(v, prev[k.key]) || FLAT;
+          const d = data.deltas?.[k.key] ? parseDelta(data.deltas[k.key]) : calcAutoDelta(v, prev[k.key]);
           return (
             <div className="kpi" key={k.key} style={{ "--i": i }}>
               <div className="kpi-label">{k.label}</div>
@@ -103,9 +101,9 @@ function Channels({ data, prevData }) {
           Traffic <em>Channels</em>
         </h2>
       </header>
-      <div className="channels" role="grid" aria-label="Traffic channels breakdown">
+      <div className="channels" role="table" aria-label="Traffic channels breakdown">
         <div className="channel-row-web is-head" role="row">
-          <div role="columnheader" />
+          <div aria-hidden="true" />
           <div role="columnheader">Channel</div>
           <div className="col-num" role="columnheader">
             Sessions
@@ -127,10 +125,10 @@ function Channels({ data, prevData }) {
               <div className="channel-idx serif ital" aria-hidden="true">
                 {String(i + 1).padStart(2, "0")}
               </div>
-              <div>
+              <div role="rowheader">
                 <div className="channel-name serif">{c.name}</div>
               </div>
-              <div className="col-num" data-label="Sessions">
+              <div className="col-num" role="cell" data-label="Sessions">
                 <span className="big serif num">{fmtInt(c.sessions)}</span>
                 {sd && (
                   <span className="sub">
@@ -138,7 +136,7 @@ function Channels({ data, prevData }) {
                   </span>
                 )}
               </div>
-              <div className="col-num" data-label="Share">
+              <div className="col-num" role="cell" data-label="Share">
                 <span className="big serif num">{fmtPct(c.shareOfTraffic)}</span>
                 {shd && (
                   <span className="sub">
@@ -146,7 +144,7 @@ function Channels({ data, prevData }) {
                   </span>
                 )}
               </div>
-              <div className="col-num" data-label="Eng. Rate">
+              <div className="col-num" role="cell" data-label="Eng. Rate">
                 <span className="big serif num">{fmtPct(c.engagementRate)}</span>
                 {ed && (
                   <span className="sub">

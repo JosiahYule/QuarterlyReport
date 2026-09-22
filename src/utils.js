@@ -35,7 +35,9 @@ export const fmt = (n) => {
   // divides to NaN. Both used to reach the page as "InfinityM" and "NaN";
   // fmtInt and fmtPct have always treated them as absent, so this matches.
   if (!Number.isFinite(n)) return "—";
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
+  // Thresholds sit where rounding carries into the next unit, so 999,600
+  // reads "1.00M" rather than "1000K".
+  if (n >= 999_500) return (n / 1_000_000).toFixed(2) + "M";
   if (n >= 10_000) return Math.round(n / 1000) + "K";
   if (n >= 1_000) return (n / 1000).toFixed(1) + "K";
   if (Number.isInteger(n)) return n.toLocaleString();

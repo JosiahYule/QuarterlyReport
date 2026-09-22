@@ -7,7 +7,7 @@ import { usePublishedQuarters } from "../hooks/usePublishedQuarters.js";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { EmptyData } from "../components/EmptyState.jsx";
 import { InsightsSection } from "../components/InsightsSection.jsx";
-import { fmt, fmtExact, FLAT } from "../utils.js";
+import { fmt, fmtExact } from "../utils.js";
 import { IconSort, IconArrowUp, IconArrowDown } from "../components/Icons.jsx";
 import { CountUp } from "../components/CountUp.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
@@ -60,7 +60,10 @@ function Numbers({ data }) {
       <div className="kpi-grid">
         {KPI_DEFS.map((k, i) => {
           const v = data.overall[k.key];
-          const d = data.deltas?.[k.key] || FLAT;
+          // No entry means no previous quarter to compare with. Showing
+          // nothing there, rather than a flat 0.0%, keeps "we can't tell"
+          // from reading as "nothing changed".
+          const d = data.deltas?.[k.key];
           return (
             <div className="kpi" key={k.key} style={{ "--i": i }}>
               <div className="kpi-label">{k.label}</div>
@@ -93,12 +96,20 @@ function KpiHistoryChart({ history, kpiDef }) {
     return <div className="kpi-history-empty">No data recorded yet</div>;
   }
   const rawMax = Math.max(...defined);
-  const max = rawMax > 0 ? rawMax * 1.15 : 1;
+  const rawMin = Math.min(...defined);
+  // Net new followers goes negative in a quarter that lost followers. A scale
+  // pinned at zero drew that point below the axis, on top of the quarter
+  // labels, so the domain stretches down to take it and the axis line moves
+  // up to wherever zero now sits.
+  const hi = rawMax > 0 ? rawMax * 1.15 : rawMin < 0 ? 0 : 1;
+  const lo = rawMin < 0 ? rawMin * 1.15 : 0;
+  const Y = (v) => pT + (H - pT - pB) * ((hi - v) / (hi - lo));
+  const zeroY = Y(0);
   const n = history.length;
   const xStep = (W - pL - pR) / Math.max(n - 1, 1);
   const pts = history.map((q, i) => {
     const v = q.kpis ? q.kpis[kpiDef.key] : null;
-    return { x: pL + i * xStep, y: v != null ? pT + (H - pT - pB) * (1 - v / max) : null, v, q };
+    return { x: pL + i * xStep, y: v != null ? Y(v) : null, v, q };
   });
 
   let pathSegs = "",
@@ -116,18 +127,19 @@ function KpiHistoryChart({ history, kpiDef }) {
   const areaPath =
     allPresent && pts.length > 0
       ? pathSegs +
-        ` L${pts[pts.length - 1].x.toFixed(1)},${(H - pB).toFixed(1)}` +
-        ` L${pts[0].x.toFixed(1)},${(H - pB).toFixed(1)} Z`
+        ` L${pts[pts.length - 1].x.toFixed(1)},${zeroY.toFixed(1)}` +
+        ` L${pts[0].x.toFixed(1)},${zeroY.toFixed(1)} Z`
       : "";
 
   const peakIdx = vals.indexOf(rawMax);
   const avg = defined.reduce((a, b) => a + b, 0) / defined.length;
-  const avgY = pT + (H - pT - pB) * (1 - avg / max);
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ v: max * t, y: pT + (H - pT - pB) * (1 - t) }));
+  const avgY = Y(avg);
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ v: lo + (hi - lo) * t, y: Y(lo + (hi - lo) * t) }));
 
+  // Counts tick in whole numbers; fmt would otherwise print "11.50".
   const fmtAxis = (v) => {
     if (kpiDef.key === "avgengagementrate") return v.toFixed(1) + "%";
-    return fmt(v);
+    return fmt(Math.round(v));
   };
   const fmtAvg = (v) => {
     if (kpiDef.key === "avgengagementrate") return v.toFixed(2) + "%";
@@ -157,7 +169,7 @@ function KpiHistoryChart({ history, kpiDef }) {
           </text>
         </g>
       ))}
-      <line x1={pL} x2={W - pR} y1={H - pB} y2={H - pB} stroke="var(--ink)" strokeWidth="1" />
+      <line x1={pL} x2={W - pR} y1={zeroY} y2={zeroY} stroke="var(--ink)" strokeWidth="1" />
       {areaPath && <path d={areaPath} fill="var(--accent)" opacity="0.06" />}
       {pathSegs && (
         <path d={pathSegs} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
@@ -289,197 +301,6 @@ function KpiHistory({ history }) {
   );
 }
 
-// ─── Trend chart ──────────────────────────────────────────────────
-function TrendChart({ data, metric }) {
-  const W = 1100,
-    H = 320,
-    pL = 56,
-    pR = 20,
-    pT = 30,
-    pB = 40;
-
-  const lines = {
-    impressions: {
-      name: "Impressions (K)",
-      values: data.weekly.map((d) => d.imp),
-      color: "var(--accent)",
-      unit: "K",
-    },
-    engagements: {
-      name: "Engagements",
-      values: data.weekly.map((d) => d.leads),
-      color: "var(--ink)",
-      unit: "",
-    },
-    linkclicks: {
-      name: "Link Clicks",
-      values: data.weekly.map((d) => d.spend),
-      color: "var(--ink-3)",
-      unit: "",
-    },
-  };
-
-  const active = lines[metric] || lines.impressions;
-  const rawMax = Math.max(...active.values);
-  const max = rawMax > 0 ? rawMax * 1.15 : 1;
-  const range = max;
-  const xStep = (W - pL - pR) / Math.max(active.values.length - 1, 1);
-  const pts = active.values.map((v, i) => [pL + i * xStep, pT + (H - pT - pB) * (1 - v / range)]);
-  const path = pts.map((p, i) => (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
-  const area = path + ` L${pts[pts.length - 1][0]},${H - pB} L${pts[0][0]},${H - pB} Z`;
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ v: range * t, y: pT + (H - pT - pB) * (1 - t) }));
-  const avg = active.values.reduce((a, b) => a + b, 0) / active.values.length;
-  const peakIdx = active.values.indexOf(rawMax);
-  const avgY = pT + (H - pT - pB) * (1 - avg / range);
-
-  return (
-    <svg
-      className="trend-chart"
-      viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="xMidYMid meet"
-      role="img"
-      aria-label={`${active.name} — week by week`}
-    >
-      {ticks.map((t, i) => (
-        <g key={i}>
-          <line x1={pL} x2={W - pR} y1={t.y} y2={t.y} stroke="var(--rule-soft)" strokeWidth="1" />
-          <text
-            x={pL - 8}
-            y={t.y + 4}
-            textAnchor="end"
-            fontSize="11"
-            fill="var(--ink-4)"
-            fontFamily="var(--sans)"
-          >
-            {t.v < 10 ? t.v.toFixed(1) : Math.round(t.v)}
-            {active.unit}
-          </text>
-        </g>
-      ))}
-      <line x1={pL} x2={W - pR} y1={H - pB} y2={H - pB} stroke="var(--ink)" strokeWidth="1" />
-      <path d={area} fill={active.color} opacity="0.06" />
-      <path d={path} fill="none" stroke={active.color} strokeWidth="1.5" />
-      {pts.map((p, i) => (
-        <g key={i}>
-          <circle
-            cx={p[0]}
-            cy={p[1]}
-            r={i === peakIdx ? 4 : 2.5}
-            fill="var(--paper)"
-            stroke={active.color}
-            strokeWidth="1.5"
-          />
-          {i === peakIdx && (
-            <text
-              x={p[0]}
-              y={p[1] - 14}
-              textAnchor="middle"
-              fontFamily="var(--serif)"
-              fontStyle="italic"
-              fontSize="14"
-              fill="var(--accent)"
-            >
-              peak — {active.values[i] < 10 ? active.values[i].toFixed(1) : active.values[i]}
-              {active.unit}
-            </text>
-          )}
-        </g>
-      ))}
-      {data.weekly.map((_, i) => (
-        <text
-          key={i}
-          x={pL + i * xStep}
-          y={H - pB + 18}
-          textAnchor="middle"
-          fontSize="11"
-          fill="var(--ink-3)"
-          fontFamily="var(--sans)"
-        >
-          {i + 1}
-        </text>
-      ))}
-      <line
-        x1={pL}
-        x2={W - pR}
-        y1={avgY}
-        y2={avgY}
-        stroke="var(--ink-4)"
-        strokeWidth="1"
-        strokeDasharray="2 4"
-      />
-      <text
-        x={W - pR}
-        y={avgY - 6}
-        textAnchor="end"
-        fontSize="11"
-        fill="var(--ink-4)"
-        fontFamily="var(--sans)"
-      >
-        avg {avg < 10 ? avg.toFixed(1) : Math.round(avg)}
-        {active.unit}
-      </text>
-    </svg>
-  );
-}
-
-function Trend({ data }) {
-  const [metric, setMetric] = useState("impressions");
-  if (!data.weekly || data.weekly.every((w) => w.imp === 0)) return null;
-
-  const lines = {
-    impressions: {
-      vals: data.weekly.map((w) => w.imp),
-      color: "var(--accent)",
-      unit: "K",
-      label: "Impressions",
-    },
-    engagements: {
-      vals: data.weekly.map((w) => w.leads),
-      color: "var(--ink)",
-      unit: "",
-      label: "Engagements",
-    },
-    linkclicks: {
-      vals: data.weekly.map((w) => w.spend),
-      color: "var(--ink-3)",
-      unit: "",
-      label: "Link Clicks",
-    },
-  };
-
-  return (
-    <section id="week-by-week" className="section wrap">
-      <header className="section-head">
-        <h2 className="section-title serif">Week by Week</h2>
-      </header>
-      <div className="trend-body">
-        <TrendChart data={data} metric={metric} />
-        <div className="trend-legend" role="group" aria-label="Select metric">
-          {Object.entries(lines).map(([key, l]) => {
-            const total = l.vals.reduce((a, b) => a + b, 0);
-            const display = l.unit === "K" ? Math.round(total) + "K" : Math.round(total).toLocaleString();
-            return (
-              <span
-                key={key}
-                className={"legend-item" + (metric === key ? "" : " is-off")}
-                onClick={() => setMetric(key)}
-                role="button"
-                tabIndex={0}
-                aria-pressed={metric === key}
-                onKeyDown={(e) => e.key === "Enter" && setMetric(key)}
-              >
-                <span className="swatch" style={{ background: l.color }} />
-                <span>{l.label}</span>
-                <span className="v serif num">{display}</span>
-              </span>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // ─── Platforms ────────────────────────────────────────────────────
 function Platforms({ data }) {
   return (
@@ -489,9 +310,12 @@ function Platforms({ data }) {
           By <em>Platform</em>
         </h2>
       </header>
-      <div className="channels" role="grid" aria-label="Platform breakdown">
+      {/* A read-only table: "grid" promised arrow-key cell navigation that
+          was never there. The index column is decoration, hidden in every
+          row including the header, so the column counts still line up. */}
+      <div className="channels" role="table" aria-label="Platform breakdown">
         <div className="channel-row is-head" role="row">
-          <div role="columnheader" />
+          <div aria-hidden="true" />
           <div role="columnheader">Platform</div>
           <div className="col-num" role="columnheader">
             Followers
@@ -511,31 +335,31 @@ function Platforms({ data }) {
             <div className="channel-idx serif ital" aria-hidden="true">
               {String(i + 1).padStart(2, "0")}.
             </div>
-            <div>
+            <div role="rowheader">
               <div className="channel-name serif">{p.name}</div>
               {p.note && <div className="channel-note">{p.note}</div>}
             </div>
-            <div className="col-num" data-label="Followers">
+            <div className="col-num" role="cell" data-label="Followers">
               <span className="big serif num">{fmtExact(p.followers)}</span>
               <span className="sub">
                 <Delta d={p.followersDelta} />
               </span>
             </div>
-            <div className="col-num" data-label="Engagement Rate">
+            <div className="col-num" role="cell" data-label="Engagement Rate">
               <span className="big serif num">
-                {p.engagementRate != null ? p.engagementRate.toFixed(2) : "—"}%
+                {p.engagementRate != null ? p.engagementRate.toFixed(2) + "%" : "—"}
               </span>
               <span className="sub">
                 <Delta d={p.engagementRateDelta} />
               </span>
             </div>
-            <div className="col-num" data-label="Page Reach">
+            <div className="col-num" role="cell" data-label="Page Reach">
               <span className="big serif num">{fmt(p.pageReach)}</span>
               <span className="sub">
                 <Delta d={p.pageReachDelta} />
               </span>
             </div>
-            <div className="col-num" data-label="Page Clicks">
+            <div className="col-num" role="cell" data-label="Page Clicks">
               <span className="big serif num">{fmtExact(p.pageClicks)}</span>
               <span className="sub">
                 <Delta d={p.pageClicksDelta} />
@@ -660,7 +484,7 @@ function healthForPost(p) {
   }
   const er = (engagements / impressions) * 100;
   const label = er > 10 ? "Very Strong" : er >= 6 ? "Strong" : er >= 4 ? "Moderate" : "Low";
-  const color = er > 10 ? "var(--accent)" : er >= 6 ? "var(--up)" : er >= 4 ? "#b87000" : "var(--down)";
+  const color = er > 10 ? "var(--accent)" : er >= 6 ? "var(--up)" : er >= 4 ? "var(--warn)" : "var(--down)";
   return { label, color, er, hasData: true };
 }
 
@@ -726,26 +550,33 @@ function AllPosts({ data }) {
   const toggleSort = (key) =>
     setSort((prev) => ({ key, dir: prev.key === key && prev.dir === "desc" ? "asc" : "desc" }));
 
-  const sortIcon = (key) =>
-    sort.key !== key ? (
-      <span className="sort-icon is-idle" aria-hidden="true">
-        <IconSort />
-      </span>
-    ) : (
-      <span className="sort-icon" aria-label={sort.dir === "desc" ? "sorted descending" : "sorted ascending"}>
-        {sort.dir === "desc" ? <IconArrowDown /> : <IconArrowUp />}
-      </span>
+  // Sortable headers are buttons, so the sort works from the keyboard, and
+  // aria-sort on the <th> tells a screen reader which column is in charge.
+  // A click on a bare <th> reached neither.
+  const sortHeader = (key, label, className) => {
+    const active = sort.key === key;
+    return (
+      <th
+        scope="col"
+        className={className}
+        aria-sort={active ? (sort.dir === "desc" ? "descending" : "ascending") : "none"}
+      >
+        <button type="button" className="th-sort" onClick={() => toggleSort(key)}>
+          {label}
+          <span className={"sort-icon" + (active ? "" : " is-idle")} aria-hidden="true">
+            {!active ? <IconSort /> : sort.dir === "desc" ? <IconArrowDown /> : <IconArrowUp />}
+          </span>
+        </button>
+      </th>
     );
+  };
 
   const posts = useMemo(() => {
     return (data.allPosts || [])
       .filter((p) => {
         const matchPlatform = platform === "all" || (p.Platforms || "").toLowerCase().includes(platform);
         const query = search.toLowerCase().trim();
-        const searchable = [p["Post Name"], p.Notes, p["Post Type"], p.Type]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
+        const searchable = [p["Post Name"], p.Notes].filter(Boolean).join(" ").toLowerCase();
         return matchPlatform && (!query || searchable.includes(query));
       })
       .sort((a, b) => {
@@ -777,7 +608,6 @@ function AllPosts({ data }) {
     if (b === "unknown") return -1;
     return a.localeCompare(b);
   });
-  const thStyle = { cursor: "pointer", userSelect: "none" };
 
   return (
     <section id="all-posts" className="section wrap">
@@ -792,7 +622,7 @@ function AllPosts({ data }) {
           <input
             type="search"
             className="all-posts-input"
-            placeholder="Search posts, notes, or post type…"
+            placeholder="Search posts or notes…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             aria-label="Search posts"
@@ -838,19 +668,11 @@ function AllPosts({ data }) {
               <thead>
                 <tr>
                   <th scope="col">Post</th>
-                  <th scope="col" style={thStyle} onClick={() => toggleSort("Date")}>
-                    Date{sortIcon("Date")}
-                  </th>
+                  {sortHeader("Date", "Date")}
                   <th scope="col">Platforms</th>
-                  <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("Impressions")}>
-                    Impressions{sortIcon("Impressions")}
-                  </th>
-                  <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("Engagements")}>
-                    Engagements{sortIcon("Engagements")}
-                  </th>
-                  <th scope="col" className="r" style={thStyle} onClick={() => toggleSort("EngRate")}>
-                    Eng. Rate{sortIcon("EngRate")}
-                  </th>
+                  {sortHeader("Impressions", "Impressions", "r")}
+                  {sortHeader("Engagements", "Engagements", "r")}
+                  {sortHeader("EngRate", "Eng. Rate", "r")}
                   <th scope="col" className="health-col">
                     Health
                   </th>
@@ -995,7 +817,6 @@ function AllPosts({ data }) {
 const SOCIAL_SECTIONS = [
   { id: "numbers", label: "The Numbers" },
   { id: "quarter-by-quarter", label: "Quarterly" },
-  { id: "week-by-week", label: "Weekly" },
   { id: "platforms", label: "Platforms" },
   { id: "top-posts", label: "Top Posts" },
   { id: "all-posts", label: "All Posts" },
@@ -1007,6 +828,18 @@ export function SocialPage({ agency, quarter, onReady }) {
   const [retryKey, setRetryKey] = useState(0);
   const { data, status, error } = useSocialReport(agency, quarter, retryKey);
   const history = useSocialKpiHistory(agency);
+
+  // The quarter-by-quarter chart loads separately and usually lands after the
+  // report, so it isn't in the DOM when the rail first looks. A fresh array
+  // once it arrives makes the rail look again, as the Website page does for
+  // its contact-forms section.
+  const railSections = useMemo(
+    () =>
+      SOCIAL_SECTIONS.filter(
+        (s) => s.id !== "quarter-by-quarter" || (history?.some((q) => q.kpis !== null) ?? false)
+      ),
+    [history]
+  );
 
   useEffect(() => {
     if (status === "ready" || status === "error") onReady?.();
@@ -1027,7 +860,7 @@ export function SocialPage({ agency, quarter, onReady }) {
 
   return (
     <main className="report-wrap">
-      <SectionRail sections={SOCIAL_SECTIONS} />
+      <SectionRail sections={railSections} />
       <ErrorBoundary>
         <Hero data={data} />
       </ErrorBoundary>
@@ -1036,9 +869,6 @@ export function SocialPage({ agency, quarter, onReady }) {
       </ErrorBoundary>
       <ErrorBoundary>
         <KpiHistory history={history} />
-      </ErrorBoundary>
-      <ErrorBoundary>
-        <Trend data={data} />
       </ErrorBoundary>
       <ErrorBoundary>
         <Platforms data={data} />
