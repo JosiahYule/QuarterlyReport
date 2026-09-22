@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
 import { QUARTERS } from "../config.js";
+import { oneRow } from "../lib/fetching.js";
 
 function mapKpis(row) {
   if (!row) return null;
@@ -32,7 +33,7 @@ export function useSocialKpiHistory(agency) {
         if (!cancelled) {
           const byQuarter = {};
           (data || []).forEach((r) => {
-            byQuarter[`${r.quarter}-${r.year}`] = mapKpis(r.social_kpis?.[0] || null);
+            byQuarter[`${r.quarter}-${r.year}`] = mapKpis(oneRow(r.social_kpis));
           });
           // Oldest-first for the chart (QUARTERS is most-recent-first)
           const result = [...QUARTERS].reverse().map((q) => ({

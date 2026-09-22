@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
 import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { METRICS, buildProjectionAudits } from "../lib/projection.js";
-import { withRetry, friendlyError } from "../lib/fetching.js";
+import { withRetry, friendlyError, oneRow } from "../lib/fetching.js";
 
 // Re-export the pure projection math so existing consumers (TrendsPage,
 // tests) keep importing from this module. The maths now lives in
@@ -224,7 +224,7 @@ async function fetchQuarter(agency, quarter) {
     );
     if (error) throw error;
     if (!data) return null;
-    const k = data.social_kpis?.[0] || {};
+    const k = oneRow(data.social_kpis) || {};
     return {
       overall: {
         posts: k.posts,
