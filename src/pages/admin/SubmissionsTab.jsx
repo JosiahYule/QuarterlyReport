@@ -4,6 +4,7 @@ import { normalizeSubmissions } from "../../lib/formSubmissions.js";
 
 const INTENT_LABELS = { work: "Job seeker", staff: "Employer lead", unknown: "—" };
 const PAGE = 50;
+const FETCH_PAGE = 1000;
 
 // Timestamps are stored as Halifax wall-clock strings; format them without
 // constructing a timezone-aware Date so every viewer sees the form's time.
@@ -84,15 +85,27 @@ export function SubmissionsTab({ agency }) {
     setTimeout(() => setMsg(""), 6000);
   };
 
+  // Supabase answers any one request with at most 1,000 rows, so a single
+  // select would quietly stop at the newest 1,000 submissions, and the import
+  // summary, which counts rows before and after, would report nothing new.
+  // Read it in pages instead; `id` breaks timestamp ties so no row lands on
+  // two pages or on none.
   const load = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("form_submissions")
-      .select("*")
-      .eq("agency", agency)
-      .order("submitted_at", { ascending: false });
-    if (error) throw error;
-    setRows(data || []);
-    return data || [];
+    const all = [];
+    for (let from = 0; ; from += FETCH_PAGE) {
+      const { data, error } = await supabase
+        .from("form_submissions")
+        .select("*")
+        .eq("agency", agency)
+        .order("submitted_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, from + FETCH_PAGE - 1);
+      if (error) throw error;
+      all.push(...(data || []));
+      if (!data || data.length < FETCH_PAGE) break;
+    }
+    setRows(all);
+    return all;
   }, [agency]);
 
   useEffect(() => {

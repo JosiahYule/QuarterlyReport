@@ -9,6 +9,8 @@ import {
   MAX_SEGMENTS,
 } from "../../lib/linkedinDemographics.js";
 import { parseClickPaths, parseRoute, formatRoute, MAX_PATHS } from "../../lib/clickPaths.js";
+import { parseCsvRecords } from "../../lib/formSubmissions.js";
+import { toNumber } from "../../utils.js";
 
 const num = (v) =>
   v === "" || v === null || v === undefined ? null : isFinite(Number(v)) ? Number(v) : null;
@@ -26,7 +28,6 @@ const KPI_FIELDS = [
 ];
 
 const PLATFORMS_LIST = ["LinkedIn", "Facebook", "Instagram"];
-const TOP_PLATFORMS = ["linkedin", "facebook", "instagram"];
 
 const BLANK_KPI = Object.fromEntries(KPI_FIELDS.map((f) => [f.key, ""]));
 const BLANK_PLATFORM = {
@@ -37,7 +38,6 @@ const BLANK_PLATFORM = {
   page_clicks: "",
   note: "",
 };
-const BLANK_POST = { title: "", impressions: "", likes: "", shares: "" };
 const BLANK_ALL_POST = {
   post_name: "",
   post_date: "",
@@ -85,10 +85,15 @@ const PAID_PLATFORM_OPTIONS = ["LinkedIn", "Facebook", "Instagram", "Google", "T
 // ─── CSV import parser ────────────────────────────────────────────
 // Exported for tests: this reads Josiah's real post exports, where the column
 // names vary between platforms, so the header matching is worth pinning down.
+//
+// Cells go through the same RFC 4180 reader the audience and contact-form
+// imports use. Splitting on every comma, as this used to, shifted every later
+// column whenever a post title had a comma in it ("Now hiring in Halifax,
+// Dartmouth"), and exports quote thousands ("1,234") the same way.
 export function parseCsv(text) {
-  const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, "").toLowerCase());
+  const records = parseCsvRecords(String(text ?? "").replace(/^\uFEFF/, ""));
+  if (records.length < 2) return [];
+  const headers = records[0].map((h) => h.trim().toLowerCase());
   const find = (...candidates) =>
     candidates.reduce((found, c) => (found !== -1 ? found : headers.findIndex((h) => h.includes(c))), -1);
   const iName = find("post name", "name", "title", "description");
@@ -99,31 +104,111 @@ export function parseCsv(text) {
   const iEng = find("engagement");
   const iUrl = find("url", "link", "permalink");
   const iNotes = find("notes", "note");
-  return lines
+  const cell = (cols, i) => (i !== -1 ? (cols[i] ?? "").trim() : "");
+  return records
     .slice(1)
-    .map((line) => {
-      const cols = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+    .map((cols) => {
+      const date = parsePostDate(cell(cols, iDate));
       return {
-        post_name: iName !== -1 ? (cols[iName] ?? "") : "",
-        post_date: iDate !== -1 ? (cols[iDate] ?? "") : "",
-        post_time: iTime !== -1 ? (cols[iTime] ?? "") : "",
-        platforms: iPlat !== -1 ? (cols[iPlat] ?? "") : "",
-        impressions: iImp !== -1 ? (num(cols[iImp]) ?? 0) : 0,
-        engagements: iEng !== -1 ? (num(cols[iEng]) ?? 0) : 0,
-        url: iUrl !== -1 ? (cols[iUrl] ?? "") : "",
-        notes: iNotes !== -1 ? (cols[iNotes] ?? "") : "",
+        post_name: cell(cols, iName),
+        post_date: date.date,
+        post_time: toTime24(cell(cols, iTime)) || date.time,
+        platforms: cell(cols, iPlat),
+        impressions: toNumber(cell(cols, iImp)) ?? 0,
+        engagements: toNumber(cell(cols, iEng)) ?? 0,
+        url: cell(cols, iUrl),
+        notes: cell(cols, iNotes),
       };
     })
     .filter((r) => r.post_name);
 }
 
+const pad2 = (n) => String(n).padStart(2, "0");
+
+// "10:30", "10:30 AM" or "2:05pm" as the 24-hour "HH:MM" a time input holds.
+// Anything else comes back empty rather than as text the input can't show.
+function toTime24(value) {
+  const m = /^(\d{1,2}):(\d{2})(?::\d{2})?\s*([ap]\.?m\.?)?$/i.exec(String(value ?? "").trim());
+  if (!m) return "";
+  let h = Number(m[1]);
+  const ampm = m[3]?.[0].toLowerCase();
+  if (ampm === "p" && h < 12) h += 12;
+  if (ampm === "a" && h === 12) h = 0;
+  return h < 24 ? `${pad2(h)}:${m[2]}` : "";
+}
+
+// A post date as "YYYY-MM-DD", the only shape a date input displays and the
+// save casts cleanly. Exports write dates several ways; slashed dates read as
+// month/day/year (the platforms' North American default, and what Postgres
+// assumed when these went through unconverted) unless the first number can
+// only be a day. A time riding along in the same cell is kept, since some
+// exports have no separate time column. An unreadable date comes back empty,
+// so one odd row shows as undated instead of failing the whole save.
+function parsePostDate(value) {
+  const s = String(value ?? "").trim();
+  const empty = { date: "", time: "" };
+  if (!s) return empty;
+  const valid = (y, mo, d) => {
+    const dt = new Date(y, mo - 1, d);
+    return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
+  };
+  const out = (y, mo, d, rest) =>
+    valid(y, mo, d) ? { date: `${y}-${pad2(mo)}-${pad2(d)}`, time: toTime24(rest) } : empty;
+
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s]+(.*))?$/.exec(s);
+  if (m) return out(+m[1], +m[2], +m[3], (m[4] || "").replace(/(Z|[+-]\d{2}:?\d{2})$/, ""));
+
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})(?:[,\s]+(.*))?$/.exec(s);
+  if (m) {
+    const y = m[3].length === 2 ? 2000 + +m[3] : +m[3];
+    const [mo, d] = +m[1] > 12 ? [+m[2], +m[1]] : [+m[1], +m[2]];
+    return out(y, mo, d, m[4] || "");
+  }
+
+  // "Jun 1, 2026" and the like, only once the formats above have had a go,
+  // since the browser's own reading of slashed dates varies. It needs a month
+  // name: the browser will otherwise take a bare "2026", or a spreadsheet's
+  // serial day number, as a date.
+  if (!/[a-z]{3}/i.test(s)) return empty;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? empty : out(d.getFullYear(), d.getMonth() + 1, d.getDate(), "");
+}
+
+// Appends imported posts to the log, skipping any already in it. Importing is
+// additive on purpose (one file per platform), which made importing the same
+// file twice silently double every post, and with it every figure the report
+// derives from the log.
+const postKey = (p) =>
+  [p.post_name, p.post_date, p.platforms]
+    .map((v) =>
+      String(v ?? "")
+        .trim()
+        .toLowerCase()
+    )
+    .join("|");
+
+export function mergeImportedPosts(existing, incoming) {
+  const seen = new Set(existing.map(postKey));
+  const added = [];
+  for (const p of incoming) {
+    const key = postKey(p);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    added.push(p);
+  }
+  return { posts: [...existing, ...added], added: added.length, skipped: incoming.length - added.length };
+}
+
 // ─── Shared sub-components ───────────────────────────────────────
+// The label wraps its control, which is what ties the two together. As a
+// sibling <label> with no htmlFor it named nothing, so a screen reader
+// announced every box as an unnamed field and clicking the label did nothing.
 function Field({ label, children }) {
   return (
-    <div className="admin-field">
-      <label className="admin-label">{label}</label>
+    <label className="admin-field">
+      <span className="admin-label">{label}</span>
       {children}
-    </div>
+    </label>
   );
 }
 
@@ -478,7 +563,6 @@ function SaveBar({ saving, message, onSave }) {
 const TABS = [
   { id: "overview", label: "Overview" },
   { id: "platforms", label: "Platforms" },
-  { id: "topposts", label: "Top Posts" },
   { id: "allposts", label: "All Posts" },
   { id: "paidmedia", label: "Paid Media" },
   { id: "insights", label: "Insights" },
@@ -495,13 +579,16 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
   const [editorsNote, setEditorsNote] = useState("");
   const [kpis, setKpis] = useState(BLANK_KPI);
   const [platforms, setPlatforms] = useState([]);
+  // Hand-picked top posts per platform. The report stopped showing these when
+  // Top Posts started ranking the full post log itself, so there is no tab to
+  // edit them any more; they are still loaded and written back unchanged, so
+  // a save leaves whatever was entered before exactly as it was.
   const [topPosts, setTopPosts] = useState({ linkedin: [], facebook: [], instagram: [] });
   const [allPosts, setAllPosts] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [demographics, setDemographics] = useState([]);
   const [clickPaths, setClickPaths] = useState([]);
   const [insights, setInsights] = useState(BLANK_INSIGHTS);
-  const [topTab, setTopTab] = useState("linkedin");
   const [postsAsc, setPostsAsc] = useState(false);
 
   // Reorder the All Posts rows by date. Manual, not live, so rows don't jump
@@ -653,10 +740,17 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
     })();
   }, [agency, quarter]);
 
+  // Confirmations clear themselves; errors stay until the next message or
+  // save, since four seconds is too short to read a database error, let
+  // alone act on it. Each message cancels the previous one's timer, which
+  // otherwise cut a fresh confirmation short.
+  const flashTimer = useRef();
   const flash = (msg) => {
+    clearTimeout(flashTimer.current);
     setSaveMsg(msg);
-    setTimeout(() => setSaveMsg(""), 4000);
+    if (!msg.startsWith("Error")) flashTimer.current = setTimeout(() => setSaveMsg(""), 4000);
   };
+  useEffect(() => () => clearTimeout(flashTimer.current), []);
 
   // Import a LinkedIn audience export into one campaign (or account-wide when
   // campaignId is null). The dimension is auto-detected from the file's
@@ -1034,111 +1128,6 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
         </div>
       )}
 
-      {/* Top Posts */}
-      {tab === "topposts" && (
-        <div className="admin-form-section">
-          <div className="admin-section-tabs admin-section-tabs--sub" role="tablist">
-            {TOP_PLATFORMS.map((p) => (
-              <button
-                key={p}
-                role="tab"
-                aria-selected={topTab === p}
-                className={"admin-section-tab" + (topTab === p ? " is-active" : "")}
-                onClick={() => setTopTab(p)}
-              >
-                {p.charAt(0).toUpperCase() + p.slice(1)}
-              </button>
-            ))}
-          </div>
-          <div className="admin-list-hint">
-            Top-performing posts for {topTab.charAt(0).toUpperCase() + topTab.slice(1)} this quarter.
-          </div>
-          {topPosts[topTab].map((p, i) => (
-            <div key={i} className="admin-list-row">
-              <div className="admin-list-row-grid admin-toppost-grid">
-                <Field label="Post title / headline">
-                  <input
-                    type="text"
-                    className="admin-input"
-                    value={p.title}
-                    onChange={(e) => {
-                      setTopPosts((tp) => ({
-                        ...tp,
-                        [topTab]: tp[topTab].map((x, j) => (j === i ? { ...x, title: e.target.value } : x)),
-                      }));
-                      dirty();
-                    }}
-                  />
-                </Field>
-                <Field label="Impressions">
-                  <input
-                    type="number"
-                    className="admin-input"
-                    value={p.impressions}
-                    onChange={(e) => {
-                      setTopPosts((tp) => ({
-                        ...tp,
-                        [topTab]: tp[topTab].map((x, j) =>
-                          j === i ? { ...x, impressions: e.target.value } : x
-                        ),
-                      }));
-                      dirty();
-                    }}
-                  />
-                </Field>
-                <Field label="Likes / Reactions">
-                  <input
-                    type="number"
-                    className="admin-input"
-                    value={p.likes}
-                    onChange={(e) => {
-                      setTopPosts((tp) => ({
-                        ...tp,
-                        [topTab]: tp[topTab].map((x, j) => (j === i ? { ...x, likes: e.target.value } : x)),
-                      }));
-                      dirty();
-                    }}
-                  />
-                </Field>
-                <Field label="Shares">
-                  <input
-                    type="number"
-                    className="admin-input"
-                    value={p.shares}
-                    onChange={(e) => {
-                      setTopPosts((tp) => ({
-                        ...tp,
-                        [topTab]: tp[topTab].map((x, j) => (j === i ? { ...x, shares: e.target.value } : x)),
-                      }));
-                      dirty();
-                    }}
-                  />
-                </Field>
-              </div>
-              <button
-                className="admin-btn-remove"
-                onClick={() => {
-                  setTopPosts((tp) => ({ ...tp, [topTab]: tp[topTab].filter((_, j) => j !== i) }));
-                  dirty();
-                }}
-                aria-label="Remove post"
-              >
-                <IconClose />
-              </button>
-            </div>
-          ))}
-          <button
-            className="admin-btn-add"
-            onClick={() => {
-              setTopPosts((tp) => ({ ...tp, [topTab]: [...tp[topTab], { ...BLANK_POST }] }));
-              dirty();
-            }}
-          >
-            + Add post
-          </button>
-        </div>
-      )}
-
       {/* All Posts */}
       {tab === "allposts" && (
         <div className="admin-form-section">
@@ -1158,8 +1147,21 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
                   const reader = new FileReader();
                   reader.onload = (ev) => {
                     const rows = parseCsv(ev.target.result);
-                    setAllPosts((p) => [...p, ...rows]);
+                    if (!rows.length) {
+                      flash("Error: No posts found in that file. It needs a Post Name (or Title) column.");
+                      return;
+                    }
+                    const { posts, added, skipped } = mergeImportedPosts(allPosts, rows);
+                    if (!added) {
+                      flash(`Nothing new: all ${skipped} posts in that file are already in the log.`);
+                      return;
+                    }
+                    setAllPosts(posts);
                     dirty();
+                    flash(
+                      `Imported ${added} post${added === 1 ? "" : "s"} ✓` +
+                        (skipped ? ` · ${skipped} already in the log, skipped` : "")
+                    );
                   };
                   reader.onerror = () => flash("Error: Could not read the CSV file.");
                   reader.readAsText(file);

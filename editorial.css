@@ -53,6 +53,10 @@
     --up:         #155c34;   /* darkened from #1a6a3c for 11px sub-text safety */
     --down:       #8a1f18;   /* darkened from #9a2820 for 11px sub-text safety */
     --flat:       #6a655d;
+    /* Middle band of the post/ad health scale. The #b87000 it replaces was
+       3.9:1 on paper, under the 4.5:1 small text needs; this is 5.5:1, and
+       leans orange so it stays apart from the AS accent's dark gold. */
+    --warn:       #a35400;
 
     --serif: "Inter Tight", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
     --sans:  "Inter Tight", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
@@ -819,6 +823,15 @@
   .section[id] { scroll-margin-top: 72px; }
 
   /* Sort indicator (clickable table headers) */
+  /* A header's sort control reads as the header itself: the UA button
+     styles would otherwise reset its tracking, case and alignment. */
+  .th-sort {
+    display: inline-flex; align-items: center;
+    font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit;
+    text-align: inherit; user-select: none;
+  }
+  .th-sort:hover { color: var(--ink); }
+  .th-sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
   .sort-icon { display: inline-flex; vertical-align: -2px; margin-left: 4px; font-size: 12px; }
   .sort-icon.is-idle { opacity: 0.3; }
 
@@ -1191,6 +1204,9 @@
   transition: color .12s, border-color .12s;
 }
 .kpi-history-nav-item:hover   { color: var(--ink); }
+/* `all: unset` above strips the browser's focus ring along with everything
+   else, which left keyboard users no way to see which metric they were on. */
+.kpi-history-nav-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .kpi-history-nav-item.is-active {
   color: var(--accent);
   border-left-color: var(--accent);

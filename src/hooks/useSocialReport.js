@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
 import { AGENCIES, QUARTERS, resolveQuarter } from "../config.js";
-import { calcAutoDelta, FLAT } from "../utils.js";
+import { calcAutoDelta } from "../utils.js";
 import { withRetry, friendlyError, getCached, setCached } from "../lib/fetching.js";
 
 function getQuarterMeta(suffix) {
@@ -13,20 +13,17 @@ function getPrevSuffix(suffix) {
   return idx >= 0 && idx < QUARTERS.length - 1 ? QUARTERS[idx + 1].suffix : null;
 }
 
-async function fetchReport(agency, quarter) {
+// The previous quarter is only read for its deltas, so it skips the post log
+// and insights, which are most of a report's weight.
+const REPORT_SELECT =
+  "id, editors_note, social_kpis(*), social_platforms(*), social_posts(*), social_insights(*)";
+const PREV_SELECT = "id, social_kpis(*), social_platforms(*)";
+
+async function fetchReport(agency, quarter, select = REPORT_SELECT) {
   const q = resolveQuarter(quarter);
   const { data, error } = await supabase
     .from("social_reports")
-    .select(
-      `
-      id, editors_note,
-      social_kpis(*),
-      social_platforms(*),
-      social_top_posts(*),
-      social_posts(*),
-      social_insights(*)
-    `
-    )
+    .select(select)
     .eq("agency", agency)
     .eq("quarter", q.suffix)
     .eq("year", q.year)
@@ -84,26 +81,16 @@ function normalize(report, agency, quarter, prev) {
         key: p.name.toLowerCase(),
         name: p.name,
         followers: p.followers,
-        followersDelta: calcAutoDelta(p.followers, pp?.followers) || FLAT,
+        followersDelta: calcAutoDelta(p.followers, pp?.followers),
         engagementRate: p.engagement_rate,
-        engagementRateDelta: calcAutoDelta(p.engagement_rate, pp?.engagement_rate) || FLAT,
+        engagementRateDelta: calcAutoDelta(p.engagement_rate, pp?.engagement_rate),
         pageReach: p.page_reach,
-        pageReachDelta: calcAutoDelta(p.page_reach, pp?.page_reach) || FLAT,
+        pageReachDelta: calcAutoDelta(p.page_reach, pp?.page_reach),
         pageClicks: p.page_clicks,
-        pageClicksDelta: calcAutoDelta(p.page_clicks, pp?.page_clicks) || FLAT,
+        pageClicksDelta: calcAutoDelta(p.page_clicks, pp?.page_clicks),
         note: p.note || "",
       };
     });
-
-  const topPostsByPlatform = { linkedin: [], facebook: [], instagram: [] };
-  for (const p of report.social_top_posts || []) {
-    topPostsByPlatform[p.platform]?.push({
-      title: p.title,
-      impressions: p.impressions,
-      likes: p.likes,
-      shares: p.shares,
-    });
-  }
 
   const ins = report.social_insights?.[0] || {};
   const notes = {
@@ -134,10 +121,8 @@ function normalize(report, agency, quarter, prev) {
     overall,
     deltas,
     platforms,
-    topPostsByPlatform,
     notes,
     allPosts,
-    weekly: Array.from({ length: 13 }, (_, i) => ({ wk: i + 1, imp: 0, leads: 0, spend: 0 })),
   };
 }
 
@@ -161,7 +146,7 @@ export function useSocialReport(agency, quarter, retryKey = 0) {
         const prevSuffix = getPrevSuffix(quarter);
         const [report, prev] = await Promise.all([
           withRetry(() => fetchReport(agency, quarter)),
-          prevSuffix ? withRetry(() => fetchReport(agency, prevSuffix)) : Promise.resolve(null),
+          prevSuffix ? withRetry(() => fetchReport(agency, prevSuffix, PREV_SELECT)) : Promise.resolve(null),
         ]);
         const data = normalize(report, agency, quarter, prev);
         setCached(cacheKey, data);
