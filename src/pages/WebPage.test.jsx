@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { WebPage } from "./WebPage.jsx";
 import { useWebReport } from "../hooks/useWebReport.js";
 import { useFormStats } from "../hooks/useFormStats.js";
+import { usePublishedQuarters } from "../hooks/usePublishedQuarters.js";
 import { QUARTERS } from "../config.js";
 
 // The page's job is to turn hook state into a screen. Mock the data layer so
@@ -11,6 +12,7 @@ import { QUARTERS } from "../config.js";
 // can be driven directly.
 vi.mock("../hooks/useWebReport.js", () => ({ useWebReport: vi.fn() }));
 vi.mock("../hooks/useFormStats.js", () => ({ useFormStats: vi.fn() }));
+vi.mock("../hooks/usePublishedQuarters.js", () => ({ usePublishedQuarters: vi.fn(() => []) }));
 
 const QUARTER = QUARTERS[0].suffix;
 
@@ -39,6 +41,9 @@ function mockReport(state) {
 
 beforeEach(() => {
   useFormStats.mockReturnValue({ stats: null, prevStats: null });
+  // clearAllMocks keeps implementations, so a mockReturnValue set by one test
+  // would otherwise carry into the next. Reset the default explicitly.
+  usePublishedQuarters.mockReturnValue([]);
   // Skip the count-up animation so KPI values are final on first paint.
   vi.stubGlobal("matchMedia", (query) => ({
     matches: query.includes("reduce"),
@@ -109,14 +114,49 @@ describe("WebPage when the quarter has no published report", () => {
   it("says so plainly rather than showing an error", () => {
     mockReport({ status: "ready", data: null });
     page();
-    expect(screen.getByText(/hasn’t been published for the selected quarter/)).toBeTruthy();
+    expect(screen.getByText(/There’s no Website report for/)).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("points the reader at the quarter menu", () => {
+  // Naming the quarter is what tells the reader they are looking somewhere
+  // other than where they just entered their numbers. "The selected quarter"
+  // reads as a fault in the report; the quarter's own label does not.
+  it("names the quarter it found nothing for", () => {
     mockReport({ status: "ready", data: null });
     page();
-    expect(screen.getByText(/Choose another quarter/)).toBeTruthy();
+    const q = QUARTERS[0];
+    expect(screen.getByText(`${q.label} (${q.rangeLabel})`)).toBeTruthy();
+  });
+
+  it("links to the quarters that do have a report", () => {
+    usePublishedQuarters.mockReturnValue([QUARTERS[1], QUARTERS[2]]);
+    mockReport({ status: "ready", data: null });
+    page();
+    const link = screen.getByRole("link", {
+      name: `${QUARTERS[1].label} · ${QUARTERS[1].rangeLabel}`,
+    });
+    expect(link.getAttribute("href")).toBe(`?agency=isl&quarter=${QUARTERS[1].suffix}&view=web`);
+  });
+
+  // The quarter already on screen is the one with nothing in it, so offering
+  // it as an escape route would be a link back to the same empty page.
+  it("does not offer the quarter already being viewed", () => {
+    usePublishedQuarters.mockReturnValue([QUARTERS[0], QUARTERS[1]]);
+    mockReport({ status: "ready", data: null });
+    page();
+    expect(
+      screen.queryByRole("link", { name: `${QUARTERS[0].label} · ${QUARTERS[0].rangeLabel}` })
+    ).toBeNull();
+  });
+
+  // The list is a convenience, not a requirement: the lookup fails quiet, and
+  // the page must still explain itself when it comes back empty.
+  it("still explains itself when no other quarter has data", () => {
+    usePublishedQuarters.mockReturnValue([]);
+    mockReport({ status: "ready", data: null });
+    page();
+    expect(screen.getByText(/There’s no Website report for/)).toBeTruthy();
+    expect(screen.queryByText("Published quarters:")).toBeNull();
   });
 });
 

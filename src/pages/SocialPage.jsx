@@ -3,6 +3,7 @@ import { useSocialReport } from "../hooks/useSocialReport.js";
 import { useSocialKpiHistory } from "../hooks/useSocialKpiHistory.js";
 import { Delta } from "../components/Delta.jsx";
 import { reportState } from "../components/ReportState.jsx";
+import { usePublishedQuarters } from "../hooks/usePublishedQuarters.js";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { EmptyData } from "../components/EmptyState.jsx";
 import { InsightsSection } from "../components/InsightsSection.jsx";
@@ -1011,7 +1012,17 @@ export function SocialPage({ agency, quarter, onReady }) {
     if (status === "ready" || status === "error") onReady?.();
   }, [status, onReady]);
 
-  const gate = reportState({ status, error, data, view: "social", onRetry: () => setRetryKey((k) => k + 1) });
+  const published = usePublishedQuarters("social", agency);
+  const gate = reportState({
+    status,
+    error,
+    data,
+    view: "social",
+    onRetry: () => setRetryKey((k) => k + 1),
+    quarter,
+    agency,
+    published,
+  });
   if (gate) return gate;
 
   return (

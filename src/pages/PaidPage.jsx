@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { usePaidReport } from "../hooks/usePaidReport.js";
 import { Delta } from "../components/Delta.jsx";
 import { reportState } from "../components/ReportState.jsx";
+import { usePublishedQuarters } from "../hooks/usePublishedQuarters.js";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { EmptyData } from "../components/EmptyState.jsx";
 import { fmt, fmtExact, adSpend } from "../utils.js";
@@ -661,7 +662,17 @@ export function PaidPage({ agency, quarter, onReady }) {
     setOpenIds(null);
   }, [agency, quarter]);
 
-  const gate = reportState({ status, error, data, view: "paid", onRetry: () => setRetryKey((k) => k + 1) });
+  const published = usePublishedQuarters("paid", agency);
+  const gate = reportState({
+    status,
+    error,
+    data,
+    view: "paid",
+    onRetry: () => setRetryKey((k) => k + 1),
+    quarter,
+    agency,
+    published,
+  });
   if (gate) return gate;
 
   const campaigns = data.campaigns;
