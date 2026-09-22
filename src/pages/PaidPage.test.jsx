@@ -6,6 +6,7 @@ import { usePaidReport } from "../hooks/usePaidReport.js";
 import { sumPaidMediaAds } from "../utils.js";
 
 vi.mock("../hooks/usePaidReport.js", () => ({ usePaidReport: vi.fn() }));
+vi.mock("../hooks/usePublishedQuarters.js", () => ({ usePublishedQuarters: vi.fn(() => []) }));
 
 const ad = (over) => ({
   id: "ad-1",
@@ -108,7 +109,7 @@ describe("PaidPage states", () => {
   it("distinguishes an unpublished quarter from a failure", () => {
     mockPaid({ status: "ready", data: null });
     page();
-    expect(screen.getByText(/hasn’t been published for the selected quarter/)).toBeTruthy();
+    expect(screen.getByText(/There’s no Paid Media report for/)).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 

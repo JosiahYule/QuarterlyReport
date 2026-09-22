@@ -24,8 +24,8 @@ function stubSupabase({ existing = null, loadError = null, rpcError = null } = {
         return this;
       },
       maybeSingle: () => Promise.resolve({ data: existing, error: loadError }),
-      // SyncStatus reads the latest ingestion_runs row through this same
-      // client; it has no bearing on saving, so it just comes back empty.
+      // order()/limit() round out the query-builder surface the form's client
+      // can reach for. Nothing in the save path uses them, so they no-op.
       order() {
         return this;
       },

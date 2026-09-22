@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from 
 import { AdminApp } from "./pages/admin/AdminApp.jsx";
 import ReactDOM from "react-dom/client";
 import { useUrlState } from "./hooks/useUrlState.js";
+import { usePublishedQuarters, resolveLandingQuarter } from "./hooks/usePublishedQuarters.js";
 import { AppNav } from "./components/Nav.jsx";
 import { LoadingScreen } from "./components/LoadingScreen.jsx";
 import { PageSkeleton } from "./components/Skeleton.jsx";
@@ -18,10 +19,35 @@ const TrendsPage = lazy(() => import("./pages/TrendsPage.jsx").then((m) => ({ de
 
 function App() {
   const [urlState, navigate] = useUrlState();
-  const { agency, quarter, view } = urlState;
+  const { agency, quarter, view, quarterExplicit } = urlState;
   const [appReady, setAppReady] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const announcementTimer = useRef(null);
+
+  // Open on the most recent quarter that actually has a report.
+  //
+  // The calendar's current quarter is the wrong landing place for a quarterly
+  // report: a quarter is written up after it closes, so for the first weeks of
+  // every new one there is nothing to show. After the fiscal year turned over
+  // on 1 September this stopped being a rough edge and became the default
+  // experience — Q1 is days old, and a reader who had just entered Q4's
+  // numbers would land on an empty Q1 and conclude the save had failed.
+  //
+  // Only a DEFAULTED quarter is replaced. A quarter in the URL was either
+  // chosen from the menu or shared in a link, and either way it is an answer,
+  // not a guess. Resolution is per view, so Website can land on its newest
+  // quarter while Social lands on a later one it actually has.
+  const published = usePublishedQuarters(view, agency);
+  const landing = resolveLandingQuarter({ quarter, quarterExplicit, published });
+
+  useEffect(() => {
+    if (landing) navigate({ quarter: landing }, { replace: true });
+  }, [landing, navigate]);
+
+  // Either we do not yet know which quarter to show, or we know and are about
+  // to switch to it. Both mean "do not paint the report yet": rendering now
+  // would flash the empty state for a quarter we are one tick from leaving.
+  const settling = (!quarterExplicit && published === null) || landing !== null;
 
   const handleReady = useCallback(() => {
     setAppReady(true);
@@ -73,13 +99,16 @@ function App() {
       <AppNav agency={agency} view={view} quarter={quarter} onNavigate={navigate} />
 
       <Suspense fallback={<PageSkeleton view={skelView} />}>
-        {view === "social" && (
+        {/* Rendering mid-resolution would flash the empty state for a quarter
+            we are one tick away from replacing. */}
+        {settling && <PageSkeleton view={skelView} />}
+        {!settling && view === "social" && (
           <SocialPage key={`${agency}-${quarter}`} agency={agency} quarter={quarter} onReady={handleReady} />
         )}
-        {view === "web" && (
+        {!settling && view === "web" && (
           <WebPage key={`web-${agency}-${quarter}`} agency={agency} quarter={quarter} onReady={handleReady} />
         )}
-        {view === "paid" && (
+        {!settling && view === "paid" && (
           <PaidPage
             key={`paid-${agency}-${quarter}`}
             agency={agency}
@@ -87,7 +116,7 @@ function App() {
             onReady={handleReady}
           />
         )}
-        {view === "trends" && <TrendsPage key={agency} agency={agency} onReady={handleReady} />}
+        {!settling && view === "trends" && <TrendsPage key={agency} agency={agency} onReady={handleReady} />}
       </Suspense>
 
       <footer className="wrap colophon">

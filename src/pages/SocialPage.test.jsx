@@ -7,6 +7,7 @@ import { useSocialKpiHistory } from "../hooks/useSocialKpiHistory.js";
 
 vi.mock("../hooks/useSocialReport.js", () => ({ useSocialReport: vi.fn() }));
 vi.mock("../hooks/useSocialKpiHistory.js", () => ({ useSocialKpiHistory: vi.fn() }));
+vi.mock("../hooks/usePublishedQuarters.js", () => ({ usePublishedQuarters: vi.fn(() => []) }));
 
 const post = (over) => ({
   "Post Name": "A post",
@@ -141,7 +142,7 @@ describe("SocialPage states", () => {
   it("distinguishes an unpublished quarter from a failure", () => {
     mockReport({ status: "ready", data: null });
     page();
-    expect(screen.getByText(/hasn’t been published for the selected quarter/)).toBeTruthy();
+    expect(screen.getByText(/There’s no Social Media report for/)).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 

@@ -4,6 +4,7 @@ import { useFormStats } from "../hooks/useFormStats.js";
 import { ContactFormsSection } from "../components/ContactFormsSection.jsx";
 import { Delta } from "../components/Delta.jsx";
 import { reportState } from "../components/ReportState.jsx";
+import { usePublishedQuarters } from "../hooks/usePublishedQuarters.js";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { InsightsSection } from "../components/InsightsSection.jsx";
 import { fmtInt, fmtPct, fmtTime, calcAutoDelta, parseDelta, FLAT } from "../utils.js";
@@ -233,7 +234,17 @@ export function WebPage({ agency, quarter, onReady }) {
     if (status === "ready" || status === "error") onReady?.();
   }, [status, onReady]);
 
-  const gate = reportState({ status, error, data, view: "web", onRetry: () => setRetryKey((k) => k + 1) });
+  const published = usePublishedQuarters("web", agency);
+  const gate = reportState({
+    status,
+    error,
+    data,
+    view: "web",
+    onRetry: () => setRetryKey((k) => k + 1),
+    quarter,
+    agency,
+    published,
+  });
   if (gate) return gate;
 
   return (
