@@ -10,6 +10,7 @@ import {
 } from "../../lib/linkedinDemographics.js";
 import { parseClickPaths, parseRoute, formatRoute, MAX_PATHS } from "../../lib/clickPaths.js";
 import { parseCsvRecords } from "../../lib/formSubmissions.js";
+import { oneRow } from "../../lib/fetching.js";
 import { toNumber } from "../../utils.js";
 
 const num = (v) =>
@@ -636,7 +637,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
         if (error) throw error;
         if (data) {
           setEditorsNote(data.editors_note || "");
-          const k = data.social_kpis?.[0] || {};
+          const k = oneRow(data.social_kpis) || {};
           setKpis(Object.fromEntries(KPI_FIELDS.map((f) => [f.key, k[f.key] ?? ""])));
           setPlatforms(
             [...(data.social_platforms || [])]
@@ -697,7 +698,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
                 conversions: str(p.conversions),
               }))
           );
-          const ins = data.social_insights?.[0] || {};
+          const ins = oneRow(data.social_insights) || {};
           setInsights({
             working: ins.working || "",
             not_working: ins.not_working || "",

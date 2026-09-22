@@ -42,3 +42,13 @@ export function friendlyError(err) {
 const reportCache = new Map();
 export const getCached = (key) => reportCache.get(key);
 export const setCached = (key, value) => reportCache.set(key, value);
+
+// The row a one-per-report child table holds for its report (KPIs, insights),
+// or null. Supabase sends an embedded child table as a list, unless the
+// child's report_id is unique, in which case it sends the single row on its
+// own. Adding that unique rule is enough to flip the shape, which is how
+// every Website KPI went blank when web_kpis gained UNIQUE (report_id) for
+// the transactional save. Reading through this accepts either shape.
+export function oneRow(embed) {
+  return (Array.isArray(embed) ? embed[0] : embed) ?? null;
+}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../lib/supabase.js";
+import { oneRow } from "../../lib/fetching.js";
 import { resolveQuarter } from "../../config.js";
 import { IconClose } from "../../components/Icons.jsx";
 
@@ -89,7 +90,7 @@ export function WebForm({ agency, quarter, onDirtyChange }) {
         if (error) throw error;
         if (data) {
           setSummaryBullet(data.summary_bullet || "");
-          const k = data.web_kpis?.[0] || {};
+          const k = oneRow(data.web_kpis) || {};
           setKpis(Object.fromEntries(KPI_FIELDS.map((f) => [f.key, k[f.key] ?? ""])));
           setChannels(
             [...(data.web_channels || [])]
@@ -111,7 +112,7 @@ export function WebForm({ agency, quarter, onDirtyChange }) {
                 avg_time_on_page_sec: str(p.avg_time_on_page_sec),
               }))
           );
-          const ins = data.web_insights?.[0] || {};
+          const ins = oneRow(data.web_insights) || {};
           setInsights({
             working: ins.working || "",
             not_working: ins.not_working || "",

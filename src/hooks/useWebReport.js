@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
 import { QUARTERS, resolveQuarter } from "../config.js";
-import { withRetry, friendlyError, getCached, setCached } from "../lib/fetching.js";
+import { withRetry, friendlyError, getCached, setCached, oneRow } from "../lib/fetching.js";
 
 function getPrevQuarter(suffix) {
   const idx = QUARTERS.findIndex((q) => q.suffix === suffix);
@@ -30,8 +30,8 @@ async function fetchReport(agency, q) {
 
 function normalize(report) {
   if (!report) return null;
-  const kpis = report.web_kpis?.[0] || {};
-  const ins = report.web_insights?.[0] || {};
+  const kpis = oneRow(report.web_kpis) || {};
+  const ins = oneRow(report.web_insights) || {};
   return {
     summary: { bullet: report.summary_bullet || "" },
     overall: {

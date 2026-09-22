@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
 import { AGENCIES, QUARTERS, resolveQuarter } from "../config.js";
 import { calcAutoDelta } from "../utils.js";
-import { withRetry, friendlyError, getCached, setCached } from "../lib/fetching.js";
+import { withRetry, friendlyError, getCached, setCached, oneRow } from "../lib/fetching.js";
 
 function getQuarterMeta(suffix) {
   return QUARTERS.find((q) => q.suffix === suffix) || QUARTERS[0];
@@ -36,8 +36,8 @@ function normalize(report, agency, quarter, prev) {
   if (!report) return null;
 
   const qMeta = getQuarterMeta(quarter);
-  const kpis = report.social_kpis?.[0] || {};
-  const prevKpi = prev?.social_kpis?.[0] || null;
+  const kpis = oneRow(report.social_kpis) || {};
+  const prevKpi = oneRow(prev?.social_kpis);
 
   const overall = {
     posts: kpis.posts,
@@ -92,7 +92,7 @@ function normalize(report, agency, quarter, prev) {
       };
     });
 
-  const ins = report.social_insights?.[0] || {};
+  const ins = oneRow(report.social_insights) || {};
   const notes = {
     working: ins.working ? [ins.working] : [],
     notWorking: ins.not_working ? [ins.not_working] : [],

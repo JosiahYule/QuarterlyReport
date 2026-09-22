@@ -93,6 +93,52 @@ describe("WebForm loading", () => {
   });
 });
 
+// Since web_kpis and web_insights became unique on report_id, Supabase sends
+// each as a single object instead of a one-item list. Reading them as a list
+// opened the form with every KPI blank, and because a save sends every field,
+// the next save would have wiped the stored figures.
+describe("WebForm loading one-per-report sections", () => {
+  const stored = (shape) => {
+    const kpis = {
+      sessions: 27945,
+      users: 17875,
+      engagement_rate: 50.53,
+      avg_engagement_time_sec: 87,
+      actions: 99,
+      form_submissions: 511,
+    };
+    const insights = { working: "Search led.", not_working: "", actions: "", next_quarter: "" };
+    return {
+      id: "r4",
+      summary_bullet: "",
+      web_kpis: shape === "object" ? kpis : [kpis],
+      web_insights: shape === "object" ? insights : [insights],
+      web_channels: [],
+      web_pages: [],
+    };
+  };
+
+  for (const shape of ["object", "list"]) {
+    it(`fills the stored KPIs when they arrive as a${shape === "object" ? "n object" : " list"}`, async () => {
+      stubSupabase({ existing: stored(shape) });
+      form();
+      await ready();
+      expect(screen.getByLabelText("Total Visits (Sessions)").value).toBe("27945");
+      expect(screen.getByLabelText("Form Submissions").value).toBe("511");
+    });
+  }
+
+  it("sends the stored KPIs back on save, so saving another section cannot blank them", async () => {
+    stubSupabase({ existing: stored("object") });
+    form();
+    await ready();
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(supabase.rpc).toHaveBeenCalledTimes(1));
+    expect(payload().kpis).toMatchObject({ sessions: 27945, users: 17875, form_submissions: 511 });
+    expect(payload().insights.working).toBe("Search led.");
+  });
+});
+
 describe("WebForm save", () => {
   // The point of the change: the save used to be an upsert plus four
   // delete-and-reinsert pairs issued one at a time from the browser, with
