@@ -1,5 +1,3 @@
-export const FLAT = { dir: "flat", pct: 0 };
-
 export function arrow(dir) {
   return dir === "up" ? "↑" : dir === "down" ? "↓" : "—";
 }

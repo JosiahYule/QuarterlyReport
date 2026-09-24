@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import Chart from "chart.js/auto";
+import { useTrendsData } from "../hooks/useTrendsData.js";
 import {
-  useTrendsData,
   METRICS,
   extractMetric,
   computePace,
@@ -14,7 +14,7 @@ import {
   getProjectionTimeline,
   annotateTimelineSpikes,
   projectionBand,
-} from "../hooks/useTrendsData.js";
+} from "../lib/projection.js";
 import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { fmt, fmtApprox } from "../utils.js";
 import { reportState } from "../components/ReportState.jsx";

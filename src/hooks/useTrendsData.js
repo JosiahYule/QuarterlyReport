@@ -4,31 +4,6 @@ import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { METRICS, buildProjectionAudits } from "../lib/projection.js";
 import { withRetry, friendlyError, oneRow } from "../lib/fetching.js";
 
-// Re-export the pure projection math so existing consumers (TrendsPage,
-// tests) keep importing from this module. The maths now lives in
-// ../lib/projection.js, free of the Supabase client, so it can be
-// unit-tested and back-tested in isolation.
-export {
-  METRICS,
-  extractMetric,
-  computeAdvancedPace,
-  computeSporadicPace,
-  computePace,
-  getMetricHistory,
-  getWeekAgoProjection,
-  getProjectionTimeline,
-  annotateTimelineSpikes,
-  projectionBand,
-  detectTrendsAnomalies,
-  buildTrendsNarrative,
-  clampCalibrationFactor,
-  buildProjectionAudit,
-  buildProjectionAudits,
-  blendCalibrationHistory,
-  quarterCompletion,
-  quarterComplete,
-} from "../lib/projection.js";
-
 // ─── History: Supabase persistence ───────────────────────────────
 // Writing snapshots is the capture-projection-snapshots cron job's business
 // now, not the browser's. Page-load capture made snapshot density depend on
