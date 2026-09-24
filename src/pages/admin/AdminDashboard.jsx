@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import { AGENCIES, QUARTERS } from "../../config.js";
 import { SocialForm } from "./SocialForm.jsx";
 import { WebForm } from "./WebForm.jsx";
-import { PlanTab } from "./PlanTab.jsx";
 import { SubmissionsTab } from "./SubmissionsTab.jsx";
 import { setFavicon } from "../../lib/favicon.js";
 
@@ -118,7 +117,6 @@ export function AdminDashboard({ onSignOut }) {
               {[
                 { id: "social", label: "Social" },
                 { id: "web", label: "Website" },
-                { id: "plan", label: "Plan" },
                 { id: "subs", label: "Submissions" },
               ].map((t) => (
                 <button
@@ -149,7 +147,6 @@ export function AdminDashboard({ onSignOut }) {
         {type === "web" && (
           <WebForm key={agency + quarter} agency={agency} quarter={quarter} onDirtyChange={setIsDirty} />
         )}
-        {type === "plan" && <PlanTab key={agency + quarter} agency={agency} quarter={quarter} />}
         {type === "subs" && <SubmissionsTab key={agency} agency={agency} />}
       </main>
     </div>

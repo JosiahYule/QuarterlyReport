@@ -9,7 +9,6 @@ vi.mock("./SocialForm.jsx", () => ({
   SocialForm: ({ onDirtyChange }) => <button onClick={() => onDirtyChange(true)}>Make an edit</button>,
 }));
 vi.mock("./WebForm.jsx", () => ({ WebForm: () => null }));
-vi.mock("./PlanTab.jsx", () => ({ PlanTab: () => null }));
 vi.mock("./SubmissionsTab.jsx", () => ({ SubmissionsTab: () => null }));
 vi.mock("../../lib/favicon.js", () => ({ setFavicon: () => {} }));
 
