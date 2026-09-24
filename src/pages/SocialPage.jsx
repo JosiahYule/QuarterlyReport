@@ -827,7 +827,7 @@ const SOCIAL_SECTIONS = [
 export function SocialPage({ agency, quarter, onReady }) {
   const [retryKey, setRetryKey] = useState(0);
   const { data, status, error } = useSocialReport(agency, quarter, retryKey);
-  const history = useSocialKpiHistory(agency);
+  const history = useSocialKpiHistory(agency, quarter);
 
   // The quarter-by-quarter chart loads separately and usually lands after the
   // report, so it isn't in the DOM when the rail first looks. A fresh array

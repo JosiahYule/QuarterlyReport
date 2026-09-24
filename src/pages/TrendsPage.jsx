@@ -91,7 +91,6 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
   const [tq1, tq2, tq3] = TRENDS_QUARTERS;
   const q3 = tq3;
   const done = quarterComplete(q3);
-  const rangeShort = (q) => q.rangeLabel.split(" ")[0];
 
   const q1v = extractMetric(d1, metric);
   const q2v = extractMetric(d2, metric);
@@ -126,9 +125,9 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
 
   const isProjected = projected !== null;
   const labels = [
-    `${tq1.label} · ${rangeShort(tq1)}`,
-    `${tq2.label} · ${rangeShort(tq2)}`,
-    isProjected ? `${tq3.label} · Projected` : `${tq3.label} · ${rangeShort(tq3)}`,
+    `${tq1.label} · ${tq1.months}`,
+    `${tq2.label} · ${tq2.months}`,
+    isProjected ? `${tq3.label} · Projected` : `${tq3.label} · ${tq3.months}`,
   ];
   const colors = [C.q1, C.q2, isProjected ? C.proj : C.q3];
   const values = [q1v ?? 0, q2v ?? 0, chartQ3val];
@@ -932,7 +931,10 @@ function Hero({ agency, q3comp, q3done }) {
           <div className="hero-b-meta">
             <div className="hero-b-meta-name">{cfg.name}</div>
             <div className="hero-b-meta-range">
-              {TRENDS_QUARTERS.map((q) => q.label).join(" · ")} · {TRENDS_QUARTERS[2].year}
+              {/* "Q3 · Q4 2025–26 · Q1 2026–27": each fiscal year named once */}
+              {TRENDS_QUARTERS.map((q, i) =>
+                TRENDS_QUARTERS[i + 1]?.fiscalYear === q.fiscalYear ? q.label : q.title
+              ).join(" · ")}
             </div>
           </div>
         </div>

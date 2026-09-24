@@ -281,6 +281,8 @@
     -webkit-backdrop-filter: var(--glass-blur);
     border-radius: var(--radius-l); box-shadow: var(--shadow-glass);
     min-width: 220px; padding: 6px; z-index: 100;
+    /* The quarter list gains a quarter every season */
+    max-height: min(70vh, 480px); overflow-y: auto;
   }
   .menu.is-open { display: block; }
   .menu .group { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-4); padding: 10px 10px 4px; }

@@ -14,7 +14,7 @@ vi.mock("../hooks/useWebReport.js", () => ({ useWebReport: vi.fn() }));
 vi.mock("../hooks/useFormStats.js", () => ({ useFormStats: vi.fn() }));
 vi.mock("../hooks/usePublishedQuarters.js", () => ({ usePublishedQuarters: vi.fn(() => []) }));
 
-const QUARTER = QUARTERS[0].suffix;
+const QUARTER = QUARTERS[0].id;
 
 const REPORT = {
   summary: { bullet: "Traffic grew on the back of the careers page." },
@@ -26,7 +26,6 @@ const REPORT = {
     actions: 340,
     formSubmissions: 86,
   },
-  deltas: {},
   channels: [
     { name: "Organic", sessions: 7000, shareOfTraffic: 56.5, engagementRate: 64.2 },
     { name: "Direct", sessions: 3200, shareOfTraffic: 25.8, engagementRate: 58.1 },
@@ -125,7 +124,7 @@ describe("WebPage when the quarter has no published report", () => {
     mockReport({ status: "ready", data: null });
     page();
     const q = QUARTERS[0];
-    expect(screen.getByText(`${q.label} (${q.rangeLabel})`)).toBeTruthy();
+    expect(screen.getByText(`${q.title} (${q.rangeLabel})`)).toBeTruthy();
   });
 
   it("links to the quarters that do have a report", () => {
@@ -133,9 +132,9 @@ describe("WebPage when the quarter has no published report", () => {
     mockReport({ status: "ready", data: null });
     page();
     const link = screen.getByRole("link", {
-      name: `${QUARTERS[1].label} · ${QUARTERS[1].rangeLabel}`,
+      name: `${QUARTERS[1].title} · ${QUARTERS[1].rangeLabel}`,
     });
-    expect(link.getAttribute("href")).toBe(`?agency=isl&quarter=${QUARTERS[1].suffix}&view=web`);
+    expect(link.getAttribute("href")).toBe(`?agency=isl&quarter=${QUARTERS[1].id}&view=web`);
   });
 
   // The quarter already on screen is the one with nothing in it, so offering
@@ -145,7 +144,7 @@ describe("WebPage when the quarter has no published report", () => {
     mockReport({ status: "ready", data: null });
     page();
     expect(
-      screen.queryByRole("link", { name: `${QUARTERS[0].label} · ${QUARTERS[0].rangeLabel}` })
+      screen.queryByRole("link", { name: `${QUARTERS[0].title} · ${QUARTERS[0].rangeLabel}` })
     ).toBeNull();
   });
 

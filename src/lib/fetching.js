@@ -1,3 +1,5 @@
+import { useState, useEffect } from "react";
+
 // Shared fetch resilience: retry with backoff for transient failures,
 // human-readable error messages, and a session-lived report cache so
 // switching agency/quarter/view serves the last good data instantly while
@@ -40,8 +42,44 @@ export function friendlyError(err) {
 }
 
 const reportCache = new Map();
-export const getCached = (key) => reportCache.get(key);
-export const setCached = (key, value) => reportCache.set(key, value);
+
+// Stale-while-revalidate over the session cache: serve the last good copy of
+// `key` at once, refetch in the background, and surface an error only when
+// there was nothing to show. A failed background refresh keeps the stale copy.
+//
+// `key` must name everything `load` depends on (e.g. "social:isl:q4-2025-26"),
+// because a new key is what triggers a refetch; `load` itself is not watched.
+export function useCachedResource(key, load, retryKey = 0) {
+  const [state, setState] = useState({ data: null, status: "loading", error: null });
+
+  useEffect(() => {
+    let cancelled = false;
+    const cached = reportCache.get(key);
+    setState(
+      cached !== undefined
+        ? { data: cached, status: "ready", error: null }
+        : { data: null, status: "loading", error: null }
+    );
+
+    load().then(
+      (data) => {
+        reportCache.set(key, data);
+        if (!cancelled) setState({ data, status: "ready", error: null });
+      },
+      (err) => {
+        if (!cancelled && cached === undefined)
+          setState({ data: null, status: "error", error: friendlyError(err) });
+      }
+    );
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see the `key` contract above
+  }, [key, retryKey]);
+
+  return state;
+}
 
 // The row a one-per-report child table holds for its report (KPIs, insights),
 // or null. Supabase sends an embedded child table as a list, unless the

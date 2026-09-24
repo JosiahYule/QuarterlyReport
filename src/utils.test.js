@@ -6,7 +6,6 @@ import {
   fmtTime,
   toNumber,
   calcAutoDelta,
-  parseDelta,
   adSpend,
   sumPaidMediaAds,
 } from "./utils.js";
@@ -137,18 +136,5 @@ describe("sumPaidMediaAds", () => {
     expect(t.conversions).toBeNull();
     expect(t.conversionRate).toBeNull();
     expect(t.cpa).toBeNull();
-  });
-});
-
-describe("parseDelta", () => {
-  it("passes through structured deltas", () => {
-    expect(parseDelta({ dir: "up", pct: 5 })).toEqual({ dir: "up", pct: 5 });
-  });
-  it("parses arrow strings", () => {
-    expect(parseDelta("▲ 12.5%")).toEqual({ dir: "up", pct: 12.5 });
-    expect(parseDelta("▼ 3%")).toEqual({ dir: "down", pct: 3 });
-  });
-  it("defaults to flat", () => {
-    expect(parseDelta(null)).toEqual({ dir: "flat", pct: 0 });
   });
 });

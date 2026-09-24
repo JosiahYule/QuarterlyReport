@@ -63,7 +63,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const section = (props) => render(<ContactFormsSection quarter={Q.suffix} {...props} />);
+const section = (props) => render(<ContactFormsSection quarter={Q.id} {...props} />);
 
 describe("ContactFormsSection staying off the page", () => {
   // The section is optional: useFormStats swallows its own errors, so
@@ -121,7 +121,7 @@ describe("ContactFormsSection KPIs", () => {
     const current = QUARTERS[0];
     const { container } = render(
       <ContactFormsSection
-        quarter={current.suffix}
+        quarter={current.id}
         stats={stats()}
         prevStats={{ totals: { total: 400, work: 300, staff: 100 } }}
       />
@@ -164,7 +164,7 @@ describe("ContactFormsSection weekly chart", () => {
     const current = QUARTERS[0];
     const { container } = render(
       <ContactFormsSection
-        quarter={current.suffix}
+        quarter={current.id}
         stats={{ ...stats(), weekly: [{ week: iso(current.start), total: 4, work: 3, staff: 1 }] }}
       />
     );

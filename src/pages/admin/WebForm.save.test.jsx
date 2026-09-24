@@ -3,8 +3,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { WebForm } from "./WebForm.jsx";
 import { supabase } from "../../lib/supabase.js";
+import { QUARTERS } from "../../config.js";
 
 vi.mock("../../lib/supabase.js", () => ({ supabase: { from: vi.fn(), rpc: vi.fn() } }));
+
+// A closed quarter, identified the way the admin identifies it.
+const Q = QUARTERS[1];
 
 /**
  * Records every table the form touches, so a test can assert that saving no
@@ -55,7 +59,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const form = (props) => render(<WebForm agency="isl" quarter="q4" {...props} />);
+const form = (props) => render(<WebForm agency="isl" quarter={Q.id} {...props} />);
 const saveButton = () => screen.getByRole("button", { name: /^Save/ });
 const ready = () => waitFor(() => expect(screen.queryByText("Loading report data…")).toBeNull());
 const payload = () => supabase.rpc.mock.calls.at(-1)[1].payload;
@@ -172,11 +176,10 @@ describe("WebForm save", () => {
     await waitFor(() => expect(supabase.rpc).toHaveBeenCalled());
     const p = payload();
     expect(p.agency).toBe("isl");
-    expect(p.quarter).toBeTruthy();
-    // Year is a text column, and without it the upsert would overwrite the
-    // same-suffix quarter from the previous fiscal year.
-    expect(typeof p.year).toBe("string");
-    expect(p.year).toMatch(/^\d{4}$/);
+    // The database key, not the reader-facing id. Without the year the upsert
+    // would overwrite the same-suffix quarter from the previous fiscal year.
+    expect(p.quarter).toBe(Q.suffix);
+    expect(p.year).toBe(Q.year);
   });
 
   // save_web_report merges on key presence, so an omitted section is left

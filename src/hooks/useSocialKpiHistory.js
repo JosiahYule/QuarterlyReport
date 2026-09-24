@@ -1,48 +1,42 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
-import { QUARTERS } from "../config.js";
+import { QUARTERS, resolveQuarter } from "../config.js";
 import { oneRow } from "../lib/fetching.js";
+import { socialKpis } from "./useSocialReport.js";
 
-function mapKpis(row) {
-  if (!row) return null;
-  return {
-    posts: row.posts,
-    impressions: row.impressions,
-    shares: row.shares,
-    reactions: row.reactions,
-    followers: row.followers,
-    linkclicks: row.link_clicks,
-    comments: row.comments,
-    avgengagementrate: row.avg_engagement_rate,
-  };
-}
-
-export function useSocialKpiHistory(agency) {
+// KPI totals for the selected quarter and up to three before it, oldest first,
+// for the quarter-by-quarter chart. Anchored on the selected quarter rather
+// than today's, so an older report charts its own history and never the
+// quarters that came after it.
+export function useSocialKpiHistory(agency, quarter) {
   const [history, setHistory] = useState(null);
+  const q = resolveQuarter(quarter);
 
   useEffect(() => {
     let cancelled = false;
+    const at = QUARTERS.indexOf(q);
+    const span = QUARTERS.slice(at, at + 4).reverse();
     (async () => {
       try {
         const { data, error } = await supabase
           .from("social_reports")
           .select("quarter, year, social_kpis(*)")
           .eq("agency", agency)
-          .or(QUARTERS.map((q) => `and(quarter.eq.${q.suffix},year.eq.${q.year})`).join(","));
+          .or(span.map((w) => `and(quarter.eq.${w.suffix},year.eq.${w.year})`).join(","));
         if (error) throw error;
         if (!cancelled) {
           const byQuarter = {};
           (data || []).forEach((r) => {
-            byQuarter[`${r.quarter}-${r.year}`] = mapKpis(oneRow(r.social_kpis));
+            byQuarter[`${r.quarter}-${r.year}`] = socialKpis(oneRow(r.social_kpis));
           });
-          // Oldest-first for the chart (QUARTERS is most-recent-first)
-          const result = [...QUARTERS].reverse().map((q) => ({
-            suffix: q.suffix,
-            label: q.label,
-            rangeLabel: q.rangeLabel,
-            kpis: byQuarter[`${q.suffix}-${q.year}`] || null,
-          }));
-          setHistory(result);
+          setHistory(
+            span.map((w) => ({
+              id: w.id,
+              label: w.label,
+              rangeLabel: w.rangeLabel,
+              kpis: byQuarter[`${w.suffix}-${w.year}`] || null,
+            }))
+          );
         }
       } catch {
         if (!cancelled) setHistory([]);
@@ -51,7 +45,7 @@ export function useSocialKpiHistory(agency) {
     return () => {
       cancelled = true;
     };
-  }, [agency]);
+  }, [agency, q]);
 
   return history;
 }

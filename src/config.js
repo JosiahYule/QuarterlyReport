@@ -50,19 +50,61 @@ function nowInReportTZ() {
 // startM / endM are 0-indexed months; endM is the exclusive boundary
 // (first month of the following quarter, same convention as Date math).
 const Q_DEFS = [
-  { suffix: "q1", label: "Q1", startM: 8, endM: 11, range: "Sep–Nov" },
-  { suffix: "q2", label: "Q2", startM: 11, endM: 2, range: "Dec–Feb" },
-  { suffix: "q3", label: "Q3", startM: 2, endM: 5, range: "Mar–May" },
-  { suffix: "q4", label: "Q4", startM: 5, endM: 8, range: "Jun–Aug" },
+  { suffix: "q1", label: "Q1", startM: 8, endM: 11 },
+  { suffix: "q2", label: "Q2", startM: 11, endM: 2 },
+  { suffix: "q3", label: "Q3", startM: 2, endM: 5 },
+  { suffix: "q4", label: "Q4", startM: 5, endM: 8 },
 ];
+const FISCAL_START_MONTH = 8; // September
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// A quarter has two names, for two audiences.
+//
+//   suffix + year  The database key: "q2" + "2027". The year is the calendar
+//                  year of the quarter's last day, which every table and the
+//                  snapshot cron already use, so it stays.
+//   id / title     What readers see and share: "q2-2026-27" / "Q2 2026–27",
+//                  named by the fiscal year. Labelling by the database year
+//                  read out of order, because Q1 ends in the calendar year its
+//                  fiscal year starts and the other three end in the next:
+//                  "Q1 2026" was newer than "Q4 2026".
+//
+// Quarters are built once and cached, so the same quarter is always the same
+// object and can be compared with ===.
+const built = new Map();
 
 function buildQuarter(def, startYear) {
+  const key = `${def.suffix}:${startYear}`;
+  if (built.has(key)) return built.get(key);
+
   const endYear = def.endM <= def.startM ? startYear + 1 : startYear;
   const start = new Date(startYear, def.startM, 1);
   const end = new Date(endYear, def.endM, 1);
-  // year label = calendar year of the last day of the quarter
-  const year = String(new Date(end.getTime() - 86400000).getFullYear());
-  return { suffix: def.suffix, label: def.label, rangeLabel: `${def.range} ${year}`, year, start, end };
+  const last = new Date(endYear, def.endM, 0); // day 0 = last day of the month before
+  const fiscalStart = def.startM >= FISCAL_START_MONTH ? startYear : startYear - 1;
+  const fiscalYear = `${fiscalStart}–${String(fiscalStart + 1).slice(-2)}`;
+  const from = MONTHS[def.startM];
+  const to = MONTHS[last.getMonth()];
+
+  const q = Object.freeze({
+    id: `${def.suffix}-${fiscalStart}-${String(fiscalStart + 1).slice(-2)}`,
+    suffix: def.suffix,
+    year: String(last.getFullYear()),
+    label: def.label,
+    fiscalYear,
+    title: `${def.label} ${fiscalYear}`,
+    months: `${from}–${to}`,
+    // "Dec 2026–Feb 2027" rather than "Dec–Feb 2027", which read as if the
+    // quarter started in the December of the year it ends in.
+    rangeLabel:
+      startYear === last.getFullYear()
+        ? `${from}–${to} ${startYear}`
+        : `${from} ${startYear}–${to} ${last.getFullYear()}`,
+    start,
+    end,
+  });
+  built.set(key, q);
+  return q;
 }
 
 export function quarterForMonthYear(m, y) {
@@ -77,41 +119,64 @@ export function quarterForMonthYear(m, y) {
   }
 }
 
-function quarterForDate(date) {
-  return quarterForMonthYear(date.getMonth(), date.getFullYear());
+// The quarter before, found by date, so it exists for any quarter rather than
+// only for those with a neighbour in a menu.
+export function previousQuarter(q) {
+  const monthBefore = new Date(q.start.getFullYear(), q.start.getMonth() - 1, 1);
+  return quarterForMonthYear(monthBefore.getMonth(), monthBefore.getFullYear());
 }
 
-function recentQuarters(n) {
-  const list = [];
-  const { y, m } = nowInReportTZ();
-  let q = quarterForMonthYear(m, y);
-  for (let i = 0; i < n; i++) {
-    list.push(q);
-    q = quarterForDate(new Date(q.start.getTime() - 86400000));
-  }
+// Auto-detected from today's date (in REPORT_TZ), so nothing changes by hand
+// when a quarter rolls over.
+const today = nowInReportTZ();
+export const CURRENT_QUARTER = quarterForMonthYear(today.m, today.y);
+
+// The first quarter the report covers. The quarter menus run from here to the
+// current quarter, so a report never ages out of reach.
+export const FIRST_QUARTER = quarterForMonthYear(8, 2025);
+
+// Every quarter a reader can open, most recent first.
+export const QUARTERS = (() => {
+  const list = [CURRENT_QUARTER];
+  while (list.at(-1).start > FIRST_QUARTER.start) list.push(previousQuarter(list.at(-1)));
   return list;
+})();
+
+// Trends analysis, oldest first: [0] two ago, [1] previous, [2] current.
+export const TRENDS_QUARTERS = [
+  previousQuarter(previousQuarter(CURRENT_QUARTER)),
+  previousQuarter(CURRENT_QUARTER),
+  CURRENT_QUARTER,
+];
+
+// The quarter a database row describes, from its (quarter, year) key.
+export function quarterFromKey(suffix, year) {
+  const def = Q_DEFS.find((d) => d.suffix === suffix);
+  const y = Number(year);
+  if (!def || !Number.isInteger(y)) return null;
+  return buildQuarter(def, def.endM <= def.startM ? y - 1 : y);
 }
 
-// Auto-detected from today's date (in REPORT_TZ) — no manual update on rollover
-export const CURRENT_QUARTER = recentQuarters(1)[0];
+// The quarter a URL names, or null if it names none a reader can open.
+//
+// Takes the full id ("q2-2026-27") and also the bare suffix links carried
+// before quarters named their fiscal year ("q2"). A bare suffix resolves within
+// the last four quarters, the window those links were written against.
+export function quarterFromId(id) {
+  if (typeof id !== "string") return null;
+  const legacy = QUARTERS.slice(0, 4).find((q) => q.suffix === id);
+  if (legacy) return legacy;
 
-// Navigation list — most-recent-first, for the quarter chooser dropdown
-export const QUARTERS = recentQuarters(4);
-
-// Trends analysis — oldest-first ([0]=two-ago, [1]=previous, [2]=current)
-export const TRENDS_QUARTERS = recentQuarters(3).reverse();
-
-// A quarter suffix on its own ("q1") does not identify a quarter — it repeats
-// every year, and the database now keys on (quarter, year). Suffixes stay
-// unambiguous *within* the navigable window, so the URL can keep carrying just
-// the suffix; every query resolves it to a full quarter here first. Falls back
-// to the current quarter for an unrecognised suffix, matching how useUrlState
-// and main.jsx already treat one.
-export function resolveQuarter(suffix) {
-  return QUARTERS.find((q) => q.suffix === suffix) || CURRENT_QUARTER;
+  const m = /^(q[1-4])-(\d{4})-(\d{2})$/.exec(id);
+  if (!m || (Number(m[2]) + 1) % 100 !== Number(m[3])) return null;
+  const def = Q_DEFS.find((d) => d.suffix === m[1]);
+  const fiscalStart = Number(m[2]);
+  const q = buildQuarter(def, def.startM >= FISCAL_START_MONTH ? fiscalStart : fiscalStart + 1);
+  return QUARTERS.includes(q) ? q : null;
 }
 
-// Year label for a quarter suffix, for queries that need nothing else.
-export function quarterYear(suffix) {
-  return resolveQuarter(suffix).year;
+// quarterFromId, falling back to the current quarter, for code that must
+// render something.
+export function resolveQuarter(id) {
+  return quarterFromId(id) ?? CURRENT_QUARTER;
 }

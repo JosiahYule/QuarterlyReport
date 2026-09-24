@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { SocialPage } from "./SocialPage.jsx";
+import { QUARTERS } from "../config.js";
 import { useSocialReport } from "../hooks/useSocialReport.js";
 import { useSocialKpiHistory } from "../hooks/useSocialKpiHistory.js";
 
@@ -112,7 +113,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const page = (extra) => render(<SocialPage agency="isl" quarter="q4" {...extra} />);
+const page = (extra) => render(<SocialPage agency="isl" quarter={QUARTERS[1].id} {...extra} />);
 const postCount = () => screen.getByText(/\d+ posts/).textContent;
 
 describe("SocialPage states", () => {
@@ -453,7 +454,7 @@ describe("SocialPage quarter-by-quarter chart", () => {
     expect(within(rail()).queryByText("Quarterly")).toBeNull();
 
     useSocialKpiHistory.mockReturnValue([quarter("Q3", 5000), quarter("Q4", 5500)]);
-    rerender(<SocialPage agency="isl" quarter="q4" />);
+    rerender(<SocialPage agency="isl" quarter={QUARTERS[1].id} />);
     expect(within(rail()).getByText("Quarterly")).toBeTruthy();
   });
 

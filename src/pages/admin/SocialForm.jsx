@@ -571,6 +571,7 @@ const TABS = [
 
 // ─── Main form ───────────────────────────────────────────────────
 export function SocialForm({ agency, quarter, onDirtyChange }) {
+  const q = resolveQuarter(quarter);
   const [tab, setTab] = useState("overview");
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
@@ -631,8 +632,8 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
             "id, editors_note, social_kpis(*), social_platforms(*), social_top_posts(*), social_posts(*), social_insights(*), paid_media_campaigns(*, paid_media_ads(*)), paid_media_demographics(*), paid_media_click_paths(*)"
           )
           .eq("agency", agency)
-          .eq("quarter", resolveQuarter(quarter).suffix)
-          .eq("year", resolveQuarter(quarter).year)
+          .eq("quarter", q.suffix)
+          .eq("year", q.year)
           .maybeSingle();
         if (error) throw error;
         if (data) {
@@ -739,7 +740,7 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
         canDirty.current = true;
       }
     })();
-  }, [agency, quarter]);
+  }, [agency, q]);
 
   // Confirmations clear themselves; errors stay until the next message or
   // save, since four seconds is too short to read a database error, let
@@ -843,8 +844,8 @@ export function SocialForm({ agency, quarter, onDirtyChange }) {
     const perScope = {};
     return {
       agency,
-      quarter: resolveQuarter(quarter).suffix,
-      year: String(resolveQuarter(quarter).year),
+      quarter: q.suffix,
+      year: q.year,
       editors_note: editorsNote,
       kpis: Object.fromEntries(KPI_FIELDS.map((f) => [f.key, num(kpis[f.key])])),
       platforms: platforms.map((p) => ({

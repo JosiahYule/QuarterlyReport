@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
-import { QUARTERS } from "../config.js";
+import { QUARTERS, quarterFromKey } from "../config.js";
 
 // Which parent table decides whether a view has anything to show.
 // Paid Media hangs off a social_reports row rather than a table of its own, so
@@ -14,8 +14,8 @@ const SOURCES = {
 
 const hasContent = (view, row) => (view === "paid" ? (row.paid_media_campaigns?.length ?? 0) > 0 : true);
 
-// The quarters in the navigable window that have something published for this
-// view and agency, most recent first.
+// The quarters that have something published for this view and agency, most
+// recent first.
 //
 // Returns null until the answer is known, and an array once it is — including
 // an empty array. Callers need that difference: "not asked yet" is a reason to
@@ -45,12 +45,12 @@ export function usePublishedQuarters(view, agency) {
         setPublished([]);
         return;
       }
-      // Matched on suffix AND year: a suffix repeats every fiscal year, and the
-      // nav window can straddle two of them.
+      // A row names its quarter by suffix and year; a suffix alone repeats
+      // every fiscal year.
       const have = new Set(
-        data.filter((row) => hasContent(view, row)).map((row) => `${row.quarter}:${row.year}`)
+        data.filter((row) => hasContent(view, row)).map((row) => quarterFromKey(row.quarter, row.year))
       );
-      setPublished(QUARTERS.filter((q) => have.has(`${q.suffix}:${q.year}`)));
+      setPublished(QUARTERS.filter((q) => have.has(q)));
     })();
 
     return () => {
@@ -76,6 +76,6 @@ export function usePublishedQuarters(view, agency) {
 export function resolveLandingQuarter({ quarter, quarterExplicit, published }) {
   if (quarterExplicit) return null;
   if (published === null || published.length === 0) return null;
-  if (published.some((q) => q.suffix === quarter)) return null;
-  return published[0].suffix;
+  if (published.some((q) => q.id === quarter)) return null;
+  return published[0].id;
 }

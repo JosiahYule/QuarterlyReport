@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { QUARTERS } from "../config.js";
+import { quarterFromId, previousQuarter } from "../config.js";
 import { fmtInt, calcAutoDelta } from "../utils.js";
 import { buildSourceTrend, findSourceSpike } from "../lib/sourceTrends.js";
 import { CountUp } from "./CountUp.jsx";
@@ -638,7 +638,7 @@ function Heatmap({ heatmap }) {
 
 // ─── Section ──────────────────────────────────────────────────────
 export function ContactFormsSection({ stats, prevStats, quarter }) {
-  const q = QUARTERS.find((q) => q.suffix === quarter);
+  const q = quarterFromId(quarter);
   const t = stats?.totals;
 
   const weeks = useMemo(() => (t?.total > 0 && q ? fillWeeks(stats.weekly, q) : []), [stats, q, t]);
@@ -646,9 +646,8 @@ export function ContactFormsSection({ stats, prevStats, quarter }) {
   if (!q || !t || t.total === 0) return null;
 
   const p = prevStats?.totals;
-  const prevQ = QUARTERS[QUARTERS.indexOf(q) + 1];
   const perWeek = t.total / weeksElapsed(q);
-  const prevPerWeek = p?.total && prevQ ? p.total / weeksElapsed(prevQ) : null;
+  const prevPerWeek = p?.total ? p.total / weeksElapsed(previousQuarter(q)) : null;
 
   // A quarter still under way has only some of its weeks in these totals, so
   // comparing them with all of last quarter's read as a steep fall right up
