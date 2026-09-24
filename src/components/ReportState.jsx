@@ -50,13 +50,13 @@ export function reportState({
   // "not published yet" state — missing data there just means keep waiting.
   if (hasEmptyState && status === "ready" && !data) {
     // Naming the quarter is the whole point. "The selected quarter" reads as a
-    // fault in the report; "Q1 (Sep–Nov 2026)" makes it obvious at a glance
+    // fault in the report; "Q1 2026–27 (Sep–Nov 2026)" makes it obvious at a glance
     // when you are looking at a different quarter from the one you just typed
     // into the admin — which is easy to do right after a fiscal year turns
     // over, when the current quarter is days old and empty by definition.
     const q = resolveQuarter(quarter);
     const label = VIEW_LABELS[view] || "report";
-    const elsewhere = (published || []).filter((p) => p.suffix !== q.suffix);
+    const elsewhere = (published || []).filter((p) => p !== q);
 
     return (
       <main className="report-wrap">
@@ -70,7 +70,7 @@ export function reportState({
             <p>
               There’s no {label} report for{" "}
               <strong>
-                {q.label} ({q.rangeLabel})
+                {q.title} ({q.rangeLabel})
               </strong>{" "}
               yet.
             </p>
@@ -80,11 +80,11 @@ export function reportState({
                 <div className="empty-jump">
                   {elsewhere.map((p) => (
                     <a
-                      key={p.suffix}
+                      key={p.id}
                       className="empty-jump-link"
-                      href={`?agency=${agency}&quarter=${p.suffix}&view=${view}`}
+                      href={`?agency=${agency}&quarter=${p.id}&view=${view}`}
                     >
-                      {p.label} · {p.rangeLabel}
+                      {p.title} · {p.rangeLabel}
                     </a>
                   ))}
                 </div>

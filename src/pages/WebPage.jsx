@@ -7,15 +7,15 @@ import { reportState } from "../components/ReportState.jsx";
 import { usePublishedQuarters } from "../hooks/usePublishedQuarters.js";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { InsightsSection } from "../components/InsightsSection.jsx";
-import { fmtInt, fmtPct, fmtTime, calcAutoDelta, parseDelta } from "../utils.js";
-import { AGENCIES, QUARTERS } from "../config.js";
+import { fmtInt, fmtPct, fmtTime, calcAutoDelta } from "../utils.js";
+import { AGENCIES, resolveQuarter } from "../config.js";
 import { CountUp } from "../components/CountUp.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
 
 // ─── Hero ─────────────────────────────────────────────────────────
 function Hero({ agency, quarter, data }) {
   const cfg = AGENCIES[agency] || AGENCIES.isl;
-  const q = QUARTERS.find((q) => q.suffix === quarter) || QUARTERS[0];
+  const q = resolveQuarter(quarter);
   const note =
     typeof data.summary?.bullet === "string" && data.summary.bullet.trim()
       ? data.summary.bullet.trim()
@@ -67,7 +67,7 @@ function Numbers({ data, prevData }) {
       <div className="kpi-grid">
         {KPI_DEFS.map((k, i) => {
           const v = o[k.key];
-          const d = data.deltas?.[k.key] ? parseDelta(data.deltas[k.key]) : calcAutoDelta(v, prev[k.key]);
+          const d = calcAutoDelta(v, prev[k.key]);
           return (
             <div className="kpi" key={k.key} style={{ "--i": i }}>
               <div className="kpi-label">{k.label}</div>

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
-import { AGENCIES, QUARTERS, VIEWS, CURRENT_QUARTER } from "../config.js";
+import { AGENCIES, VIEWS, CURRENT_QUARTER, quarterFromId } from "../config.js";
 
-const DEFAULTS = { agency: "isl", quarter: CURRENT_QUARTER.suffix, view: "social" };
+const DEFAULTS = { agency: "isl", quarter: CURRENT_QUARTER.id, view: "social" };
 
 // The three params that belong in the URL. State carries one more field than
 // this (quarterExplicit), and writing that to the query string would put an
@@ -12,7 +12,7 @@ function readUrl() {
   const p = new URLSearchParams(window.location.search);
   const agency = AGENCIES[p.get("agency")] ? p.get("agency") : DEFAULTS.agency;
   const view = VIEWS.includes(p.get("view")) ? p.get("view") : DEFAULTS.view;
-  const urlQuarter = QUARTERS.find((q) => q.suffix === p.get("quarter")) ? p.get("quarter") : null;
+  const urlQuarter = quarterFromId(p.get("quarter"))?.id ?? null;
 
   // Whether the quarter was ASKED FOR or merely defaulted to. A defaulted
   // quarter is only a guess, and the app is free to replace it with the most
@@ -44,6 +44,18 @@ export function useUrlState() {
       return next;
     });
   }, []);
+
+  // A link from before quarters carried their fiscal year says "?quarter=q2".
+  // It still opens, resolved against the last four quarters, and the address
+  // bar is rewritten to the full id so that copying it now gives a link that
+  // keeps pointing at this quarter.
+  useEffect(() => {
+    if (!state.quarterExplicit) return;
+    const u = new URL(window.location.href);
+    if (u.searchParams.get("quarter") === state.quarter) return;
+    u.searchParams.set("quarter", state.quarter);
+    window.history.replaceState(null, "", u.toString());
+  }, [state.quarter, state.quarterExplicit]);
 
   useEffect(() => {
     const handler = () => setState(readUrl());

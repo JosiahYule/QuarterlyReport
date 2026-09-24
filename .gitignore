@@ -1,10 +1,7 @@
 node_modules/
 dist/
+
+# Local environment files can hold keys; only .env.example is committed.
 .env
 .env.local
-
-# Google service-account keys. The GA4 job reads its credential from a Supabase
-# function secret; a key file should never be in the working tree, but if one
-# gets downloaded here by accident it must not be committable.
-*service-account*.json
-*-gcp-key.json
+.env.*.local

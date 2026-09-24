@@ -5,7 +5,7 @@ import { usePublishedQuarters, resolveLandingQuarter } from "./hooks/usePublishe
 import { AppNav } from "./components/Nav.jsx";
 import { LoadingScreen } from "./components/LoadingScreen.jsx";
 import { PageSkeleton } from "./components/Skeleton.jsx";
-import { AGENCIES, QUARTERS, CURRENT_QUARTER, REPORT_AUTHOR, VIEW_LABELS } from "./config.js";
+import { AGENCIES, REPORT_AUTHOR, VIEW_LABELS, resolveQuarter } from "./config.js";
 import { installGlobalErrorReporting } from "./lib/monitor.js";
 import { setFavicon } from "./lib/favicon.js";
 
@@ -22,6 +22,9 @@ const AdminApp = lazy(() => import("./pages/admin/AdminApp.jsx").then((m) => ({ 
 function App() {
   const [urlState, navigate] = useUrlState();
   const { agency, quarter, view, quarterExplicit } = urlState;
+  const q = resolveQuarter(quarter);
+  const agencyName = (AGENCIES[agency] || AGENCIES.isl).name;
+  const viewLabel = VIEW_LABELS[view] || VIEW_LABELS.social;
   const [appReady, setAppReady] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const announcementTimer = useRef(null);
@@ -53,28 +56,16 @@ function App() {
 
   const handleReady = useCallback(() => {
     setAppReady(true);
-    const cfg = AGENCIES[agency] || AGENCIES.isl;
-    const q = QUARTERS.find((q) => q.suffix === quarter) || QUARTERS[0];
-    const viewLabel = VIEW_LABELS[view] || VIEW_LABELS.social;
-    const msg = `${cfg.name} ${q.label} ${viewLabel} report loaded`;
     clearTimeout(announcementTimer.current);
-    setAnnouncement(msg);
+    setAnnouncement(`${agencyName} ${q.title} ${viewLabel} report loaded`);
     announcementTimer.current = setTimeout(() => setAnnouncement(""), 3000);
-  }, [agency, quarter, view]);
+  }, [agencyName, q, viewLabel]);
 
+  // Tab title and favicon mirror the report on screen.
   useEffect(() => {
-    const cfg = AGENCIES[agency] || AGENCIES.isl;
-    const q = QUARTERS.find((q) => q.suffix === quarter) || QUARTERS[0];
-    const viewLabel = VIEW_LABELS[view] || VIEW_LABELS.social;
-    document.title = `${cfg.name} ${q.label} ${q.year} — ${viewLabel}`;
-  }, [agency, quarter, view]);
-
-  // Tab favicon mirrors the quarter on screen (defaults to today's quarter
-  // on first load, since that's the default view)
-  useEffect(() => {
-    const q = QUARTERS.find((q) => q.suffix === quarter) || QUARTERS[0];
+    document.title = `${agencyName} · ${q.title} · ${viewLabel}`;
     setFavicon(q.label);
-  }, [quarter]);
+  }, [agencyName, q, viewLabel]);
 
   // Agency-keyed accent colour (see editorial.css body[data-agency] rules)
   useEffect(() => {
@@ -82,9 +73,6 @@ function App() {
   }, [agency]);
 
   useEffect(() => () => clearTimeout(announcementTimer.current), []);
-
-  const skelView =
-    view === "web" ? "web" : view === "paid" ? "paid" : view === "trends" ? "trends" : "social";
 
   return (
     <>
@@ -100,10 +88,10 @@ function App() {
 
       <AppNav agency={agency} view={view} quarter={quarter} onNavigate={navigate} />
 
-      <Suspense fallback={<PageSkeleton view={skelView} />}>
+      <Suspense fallback={<PageSkeleton view={view} />}>
         {/* Rendering mid-resolution would flash the empty state for a quarter
             we are one tick away from replacing. */}
-        {settling && <PageSkeleton view={skelView} />}
+        {settling && <PageSkeleton view={view} />}
         {!settling && view === "social" && (
           <SocialPage key={`${agency}-${quarter}`} agency={agency} quarter={quarter} onReady={handleReady} />
         )}
@@ -129,12 +117,12 @@ function App() {
           {" "}
           ·{" "}
         </span>
-        <span className="colophon-year">{CURRENT_QUARTER.year}</span>
+        <span className="colophon-year">{q.fiscalYear}</span>
         <span className="colophon-sep" aria-hidden="true">
           {" "}
           ·{" "}
         </span>
-        <span className="colophon-agency">{(AGENCIES[agency] || AGENCIES.isl).name}</span>
+        <span className="colophon-agency">{agencyName}</span>
       </footer>
     </>
   );

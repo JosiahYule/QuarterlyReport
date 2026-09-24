@@ -4,31 +4,6 @@ import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
 import { METRICS, buildProjectionAudits } from "../lib/projection.js";
 import { withRetry, friendlyError, oneRow } from "../lib/fetching.js";
 
-// Re-export the pure projection math so existing consumers (TrendsPage,
-// tests) keep importing from this module. The maths now lives in
-// ../lib/projection.js, free of the Supabase client, so it can be
-// unit-tested and back-tested in isolation.
-export {
-  METRICS,
-  extractMetric,
-  computeAdvancedPace,
-  computeSporadicPace,
-  computePace,
-  getMetricHistory,
-  getWeekAgoProjection,
-  getProjectionTimeline,
-  annotateTimelineSpikes,
-  projectionBand,
-  detectTrendsAnomalies,
-  buildTrendsNarrative,
-  clampCalibrationFactor,
-  buildProjectionAudit,
-  buildProjectionAudits,
-  blendCalibrationHistory,
-  quarterCompletion,
-  quarterComplete,
-} from "../lib/projection.js";
-
 // ─── History: Supabase persistence ───────────────────────────────
 // Writing snapshots is the capture-projection-snapshots cron job's business
 // now, not the browser's. Page-load capture made snapshot density depend on
@@ -93,7 +68,17 @@ async function storeAudits(agency, qdata, snapsByQuarter) {
 // capture this stays on the client, because the audit is stage-matched — it
 // recalibrates against how the model behaved at the point in the quarter you
 // are reading it at, so recomputing on load is the point, not a side effect.
+//
+// Audits set the calibration every reader's projections are scaled by, so only
+// an admin may write them (RLS enforces it). A reader without a session skips
+// the attempt rather than sending writes that are bound to be refused.
 async function auditAllAgencies() {
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (!data?.session) return;
+  } catch (_) {
+    return;
+  }
   await Promise.all(
     Object.keys(AGENCIES).map(async (a) => {
       const qdata = await Promise.all(TRENDS_QUARTERS.map((q) => fetchQuarter(a, q)));

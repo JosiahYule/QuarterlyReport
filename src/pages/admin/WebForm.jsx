@@ -55,6 +55,7 @@ function SaveBar({ saving, message, onSave }) {
 }
 
 export function WebForm({ agency, quarter, onDirtyChange }) {
+  const q = resolveQuarter(quarter);
   const [tab, setTab] = useState("overview");
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
@@ -84,8 +85,8 @@ export function WebForm({ agency, quarter, onDirtyChange }) {
           .from("web_reports")
           .select("id, summary_bullet, web_kpis(*), web_channels(*), web_pages(*), web_insights(*)")
           .eq("agency", agency)
-          .eq("quarter", resolveQuarter(quarter).suffix)
-          .eq("year", resolveQuarter(quarter).year)
+          .eq("quarter", q.suffix)
+          .eq("year", q.year)
           .maybeSingle();
         if (error) throw error;
         if (data) {
@@ -127,7 +128,7 @@ export function WebForm({ agency, quarter, onDirtyChange }) {
         canDirty.current = true;
       }
     })();
-  }, [agency, quarter]);
+  }, [agency, q]);
 
   // Confirmations clear themselves; errors stay until the next message or
   // save, since four seconds is too short to read a database error, let
@@ -152,8 +153,8 @@ export function WebForm({ agency, quarter, onDirtyChange }) {
   // an omitted key would leave the stored value standing.
   const buildPayload = () => ({
     agency,
-    quarter: resolveQuarter(quarter).suffix,
-    year: String(resolveQuarter(quarter).year),
+    quarter: q.suffix,
+    year: q.year,
     summary_bullet: summaryBullet,
     kpis: Object.fromEntries(KPI_FIELDS.map((f) => [f.key, num(kpis[f.key])])),
     channels: channels.map((c) => ({

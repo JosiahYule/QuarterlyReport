@@ -5,7 +5,7 @@ import {
   getMetricHistory,
   extractMetric,
   METRICS,
-} from "./useTrendsData.js";
+} from "./projection.js";
 
 const DAY = 86400000;
 const qStart = new Date(2026, 2, 1); // Mar 1

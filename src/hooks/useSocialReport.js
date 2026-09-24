@@ -1,17 +1,7 @@
-import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
-import { AGENCIES, QUARTERS, resolveQuarter } from "../config.js";
+import { AGENCIES, resolveQuarter, previousQuarter } from "../config.js";
 import { calcAutoDelta } from "../utils.js";
-import { withRetry, friendlyError, getCached, setCached, oneRow } from "../lib/fetching.js";
-
-function getQuarterMeta(suffix) {
-  return QUARTERS.find((q) => q.suffix === suffix) || QUARTERS[0];
-}
-
-function getPrevSuffix(suffix) {
-  const idx = QUARTERS.findIndex((q) => q.suffix === suffix);
-  return idx >= 0 && idx < QUARTERS.length - 1 ? QUARTERS[idx + 1].suffix : null;
-}
+import { withRetry, useCachedResource, oneRow } from "../lib/fetching.js";
 
 // The previous quarter is only read for its deltas, so it skips the post log
 // and insights, which are most of a report's weight.
@@ -19,8 +9,7 @@ const REPORT_SELECT =
   "id, editors_note, social_kpis(*), social_platforms(*), social_posts(*), social_insights(*)";
 const PREV_SELECT = "id, social_kpis(*), social_platforms(*)";
 
-async function fetchReport(agency, quarter, select = REPORT_SELECT) {
-  const q = resolveQuarter(quarter);
+async function fetchReport(agency, q, select = REPORT_SELECT) {
   const { data, error } = await supabase
     .from("social_reports")
     .select(select)
@@ -32,36 +21,29 @@ async function fetchReport(agency, quarter, select = REPORT_SELECT) {
   return data;
 }
 
-function normalize(report, agency, quarter, prev) {
+// A social_kpis row in the shape the report pages use, or null.
+export function socialKpis(row) {
+  if (!row) return null;
+  return {
+    posts: row.posts,
+    impressions: row.impressions,
+    shares: row.shares,
+    reactions: row.reactions,
+    followers: row.followers,
+    linkclicks: row.link_clicks,
+    comments: row.comments,
+    avgengagementrate: row.avg_engagement_rate,
+  };
+}
+
+function normalize(report, agency, q, prev) {
   if (!report) return null;
 
-  const qMeta = getQuarterMeta(quarter);
-  const kpis = oneRow(report.social_kpis) || {};
-  const prevKpi = oneRow(prev?.social_kpis);
-
-  const overall = {
-    posts: kpis.posts,
-    impressions: kpis.impressions,
-    shares: kpis.shares,
-    reactions: kpis.reactions,
-    followers: kpis.followers,
-    linkclicks: kpis.link_clicks,
-    comments: kpis.comments,
-    avgengagementrate: kpis.avg_engagement_rate,
-  };
+  const overall = socialKpis(oneRow(report.social_kpis)) || {};
+  const prevOverall = socialKpis(oneRow(prev?.social_kpis));
 
   const deltas = {};
-  if (prevKpi) {
-    const prevOverall = {
-      posts: prevKpi.posts,
-      impressions: prevKpi.impressions,
-      shares: prevKpi.shares,
-      reactions: prevKpi.reactions,
-      followers: prevKpi.followers,
-      linkclicks: prevKpi.link_clicks,
-      comments: prevKpi.comments,
-      avgengagementrate: prevKpi.avg_engagement_rate,
-    };
+  if (prevOverall) {
     for (const key of Object.keys(overall)) {
       const d = calcAutoDelta(overall[key], prevOverall[key]);
       if (d) deltas[key] = d;
@@ -112,9 +94,8 @@ function normalize(report, agency, quarter, prev) {
 
   return {
     meta: {
-      quarter: qMeta.label,
-      rangeLabel: qMeta.rangeLabel,
-      year: qMeta.year,
+      quarter: q.label,
+      rangeLabel: q.rangeLabel,
       agencyName: AGENCIES[agency]?.name || "Integrated Staffing",
     },
     editorsNote: report.editors_note || "",
@@ -127,42 +108,16 @@ function normalize(report, agency, quarter, prev) {
 }
 
 export function useSocialReport(agency, quarter, retryKey = 0) {
-  const [state, setState] = useState({ data: null, status: "loading", error: null });
-
-  useEffect(() => {
-    let cancelled = false;
-    const cacheKey = `social:${agency}:${quarter}`;
-    const cached = getCached(cacheKey);
-
-    // Serve the last good copy instantly, revalidate in the background
-    setState(
-      cached !== undefined
-        ? { data: cached, status: "ready", error: null }
-        : { data: null, status: "loading", error: null }
-    );
-
-    (async () => {
-      try {
-        const prevSuffix = getPrevSuffix(quarter);
-        const [report, prev] = await Promise.all([
-          withRetry(() => fetchReport(agency, quarter)),
-          prevSuffix ? withRetry(() => fetchReport(agency, prevSuffix, PREV_SELECT)) : Promise.resolve(null),
-        ]);
-        const data = normalize(report, agency, quarter, prev);
-        setCached(cacheKey, data);
-        if (!cancelled) setState({ data, status: "ready", error: null });
-      } catch (err) {
-        // Keep showing stale data on a failed background refresh
-        if (!cancelled && cached === undefined) {
-          setState({ data: null, status: "error", error: friendlyError(err) });
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [agency, quarter, retryKey]);
-
-  return state;
+  const q = resolveQuarter(quarter);
+  return useCachedResource(
+    `social:${agency}:${q.id}`,
+    async () => {
+      const [report, prev] = await Promise.all([
+        withRetry(() => fetchReport(agency, q)),
+        withRetry(() => fetchReport(agency, previousQuarter(q), PREV_SELECT)),
+      ]);
+      return normalize(report, agency, q, prev);
+    },
+    retryKey
+  );
 }

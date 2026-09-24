@@ -281,6 +281,8 @@
     -webkit-backdrop-filter: var(--glass-blur);
     border-radius: var(--radius-l); box-shadow: var(--shadow-glass);
     min-width: 220px; padding: 6px; z-index: 100;
+    /* The quarter list gains a quarter every season */
+    max-height: min(70vh, 480px); overflow-y: auto;
   }
   .menu.is-open { display: block; }
   .menu .group { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-4); padding: 10px 10px 4px; }
@@ -1558,66 +1560,6 @@
 .admin-posts-table th.r    { text-align: right; }
 .admin-posts-table td      { padding: 4px 6px; border-bottom: 1px solid var(--rule-soft); vertical-align: middle; }
 .admin-posts-table tr:last-child td { border-bottom: none; }
-
-/* Plan tab */
-.admin-plan-empty       { font-size: 14px; color: var(--ink-3); line-height: 1.6; padding: 20px; border: 1px dashed var(--rule); border-radius: var(--radius-m); }
-
-/* Week guidance — at most a "get something out" nudge plus the strongest
-   content type, each one line, only rendered when there's something worth
-   saying. The full per-day intelligence lives in the calendar below. */
-.admin-plan-signals    { display: flex; flex-direction: column; gap: 8px; }
-.admin-plan-signal     { font-size: 13px; color: var(--ink-2); line-height: 1.5; padding: 10px 14px; border: 1px solid var(--rule-soft); background: var(--paper-2); border-radius: var(--radius-s); }
-.admin-plan-signal.is-down { color: var(--down); border-color: var(--down); background: rgba(180, 40, 40, 0.05); font-weight: 500; }
-
-/* Shared day/post tags (calendar day cells) */
-.admin-plan-today-tag { display: inline-block; margin-left: 8px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 99px; padding: 1px 7px; vertical-align: middle; }
-.admin-plan-nodata { color: var(--ink-4); font-style: italic; font-size: 13px; }
-.admin-plan-postedtag { display: inline-block; margin-right: 6px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--up); background: var(--paper-2); border: 1px solid var(--up); border-radius: 99px; padding: 1px 8px; }
-
-/* Weekly calendar */
-.admin-cal-nav      { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.admin-cal-range    { font-size: 13px; font-weight: 500; color: var(--ink); min-width: 140px; text-align: center; }
-.admin-cal-today    { font-size: 12px; }
-.admin-cal-grid     { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: stretch; }
-.admin-cal-day      { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--rule-soft); background: var(--paper-2); min-height: 120px; border-radius: var(--radius-m); }
-.admin-cal-day.is-today  { border-color: var(--accent); box-shadow: inset 2px 0 0 var(--accent); }
-.admin-cal-day.is-missed { opacity: .6; }
-.admin-cal-day-head { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
-.admin-cal-day-name { font-size: 13px; font-weight: 500; color: var(--ink); }
-.admin-cal-day-date { font-size: 11px; color: var(--ink-3); }
-.admin-cal-posted   { font-size: 12px; color: var(--ink-2); line-height: 1.5; }
-.admin-cal-item     { display: flex; flex-direction: column; gap: 4px; }
-.admin-cal-item.is-posted .admin-cal-item-idea { text-decoration: line-through; color: var(--ink-4); }
-.admin-cal-item-idea{ height: 30px; font-size: 12px; }
-.admin-cal-item-row { display: flex; gap: 4px; align-items: center; }
-.admin-cal-item-row .admin-input  { height: 28px; font-size: 11px; padding: 0 6px; }
-.admin-cal-item-row .admin-btn-remove { width: 22px; height: 22px; margin-top: 0; }
-.admin-cal-suggestion { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.admin-cal-ghost    { font-size: 12px; color: var(--ink-3); font-style: italic; }
-.admin-cal-add      { height: 26px; padding: 0 10px; font-size: 11px; }
-.admin-cal-addbox   { height: 30px; font-size: 12px; }
-
-/* Backlog + planner rows (shared with the calendar's undated-idea list) */
-.admin-cal-backlog     { margin-top: 4px; }
-.admin-planner-add     { display: grid; grid-template-columns: 1fr 180px auto; gap: 8px; margin-bottom: 10px; }
-.admin-planner-quickadd{ margin-bottom: 12px; }
-.admin-planner-list    { list-style: none; margin: 8px 0 0; padding: 0; }
-.admin-planner-row     { display: grid; grid-template-columns: 120px 1fr 180px 160px auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--rule-soft); }
-.admin-planner-row:last-child { border-bottom: none; }
-.admin-planner-row.is-posted .admin-planner-idea { text-decoration: line-through; color: var(--ink-4); }
-.admin-planner-status  { font-size: 12px; }
-.admin-planner-row.is-planned .admin-planner-status { color: var(--accent); }
-.admin-planner-row.is-posted  .admin-planner-status { color: var(--up); }
-
-@media (max-width: 900px) {
-  .admin-cal-grid { grid-template-columns: 1fr; }
-  .admin-cal-day  { min-height: 0; }
-}
-@media (max-width: 720px) {
-  .admin-planner-add    { grid-template-columns: 1fr 1fr; }
-  .admin-planner-row    { grid-template-columns: 100px 1fr auto; }
-  .admin-planner-type, .admin-planner-date { display: none; }
-}
 
 /* Save bar */
 .admin-save-bar  {

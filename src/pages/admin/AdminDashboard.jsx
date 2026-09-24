@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { AGENCIES, QUARTERS } from "../../config.js";
+import { AGENCIES, QUARTERS, resolveQuarter } from "../../config.js";
 import { SocialForm } from "./SocialForm.jsx";
 import { WebForm } from "./WebForm.jsx";
-import { PlanTab } from "./PlanTab.jsx";
 import { SubmissionsTab } from "./SubmissionsTab.jsx";
 import { setFavicon } from "../../lib/favicon.js";
 
@@ -38,7 +37,7 @@ function ConfirmModal({ onConfirm, onCancel }) {
 
 export function AdminDashboard({ onSignOut }) {
   const [agency, setAgency] = useState("isl");
-  const [quarter, setQuarter] = useState(QUARTERS[0].suffix);
+  const [quarter, setQuarter] = useState(QUARTERS[0].id);
   const [type, setType] = useState("social");
   const [isDirty, setIsDirty] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
@@ -63,8 +62,7 @@ export function AdminDashboard({ onSignOut }) {
   const cancelDiscard = useCallback(() => setPendingAction(null), []);
 
   useEffect(() => {
-    const q = QUARTERS.find((q) => q.suffix === quarter) || QUARTERS[0];
-    setFavicon(q.label);
+    setFavicon(resolveQuarter(quarter).label);
   }, [quarter]);
 
   // Warn before the tab closes with unsaved changes
@@ -105,10 +103,14 @@ export function AdminDashboard({ onSignOut }) {
                 value={quarter}
                 onChange={(e) => guard(() => setQuarter(e.target.value))}
               >
-                {QUARTERS.map((q) => (
-                  <option key={q.suffix} value={q.suffix}>
-                    {q.label} — {q.rangeLabel}
-                  </option>
+                {[...new Set(QUARTERS.map((q) => q.fiscalYear))].map((fy) => (
+                  <optgroup key={fy} label={fy}>
+                    {QUARTERS.filter((q) => q.fiscalYear === fy).map((q) => (
+                      <option key={q.id} value={q.id}>
+                        {q.label} · {q.rangeLabel}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>
@@ -118,7 +120,6 @@ export function AdminDashboard({ onSignOut }) {
               {[
                 { id: "social", label: "Social" },
                 { id: "web", label: "Website" },
-                { id: "plan", label: "Plan" },
                 { id: "subs", label: "Submissions" },
               ].map((t) => (
                 <button
@@ -149,7 +150,6 @@ export function AdminDashboard({ onSignOut }) {
         {type === "web" && (
           <WebForm key={agency + quarter} agency={agency} quarter={quarter} onDirtyChange={setIsDirty} />
         )}
-        {type === "plan" && <PlanTab key={agency + quarter} agency={agency} quarter={quarter} />}
         {type === "subs" && <SubmissionsTab key={agency} agency={agency} />}
       </main>
     </div>

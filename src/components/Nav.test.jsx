@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { AppNav } from "./Nav.jsx";
 import { AGENCIES, QUARTERS } from "../config.js";
 
-const BASE = { agency: "isl", view: "social", quarter: QUARTERS[0].suffix };
+const BASE = { agency: "isl", view: "social", quarter: QUARTERS[0].id };
 
 let onNavigate;
 
@@ -126,9 +126,9 @@ describe("AppNav agency switcher", () => {
 });
 
 describe("AppNav quarter chooser", () => {
-  it("falls back to the first quarter when handed an unknown suffix", () => {
+  it("falls back to the current quarter when handed an unknown one", () => {
     nav({ quarter: "not-a-quarter" });
-    expect(quarterButton().getAttribute("aria-label")).toContain(QUARTERS[0].label);
+    expect(quarterButton().getAttribute("aria-label")).toContain(QUARTERS[0].title);
   });
 
   it("opens and offers every quarter", () => {
@@ -138,20 +138,21 @@ describe("AppNav quarter chooser", () => {
     expect(items).toHaveLength(QUARTERS.length);
   });
 
-  it("groups the quarters by year", () => {
+  it("groups the quarters by fiscal year", () => {
     nav();
     fireEvent.click(quarterButton());
-    for (const year of new Set(QUARTERS.map((q) => q.year))) {
-      expect(screen.getByText(String(year))).toBeTruthy();
+    for (const fy of new Set(QUARTERS.map((q) => q.fiscalYear))) {
+      expect(screen.getByText(fy)).toBeTruthy();
     }
   });
 
-  it("navigates by suffix and closes", () => {
+  // By full id: the menu can hold two Q1s from different fiscal years.
+  it("navigates by id and closes", () => {
     nav();
     fireEvent.click(quarterButton());
     const target = QUARTERS[1];
-    fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(target.label) }));
-    expect(onNavigate).toHaveBeenCalledWith({ quarter: target.suffix });
+    fireEvent.click(screen.getByRole("menuitem", { name: `${target.label} · ${target.rangeLabel}` }));
+    expect(onNavigate).toHaveBeenCalledWith({ quarter: target.id });
     expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
   });
 

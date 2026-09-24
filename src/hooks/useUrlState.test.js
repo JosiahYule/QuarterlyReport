@@ -12,7 +12,7 @@ afterEach(() => go(""));
 describe("reading the URL", () => {
   it("falls back to today's quarter when none is in the URL", () => {
     const { result } = renderHook(() => useUrlState());
-    expect(result.current[0].quarter).toBe(CURRENT_QUARTER.suffix);
+    expect(result.current[0].quarter).toBe(CURRENT_QUARTER.id);
   });
 
   // The distinction the whole default-quarter behaviour rests on: a quarter
@@ -23,18 +23,28 @@ describe("reading the URL", () => {
   });
 
   it("marks a quarter taken from the URL as explicit", () => {
-    go("?quarter=" + QUARTERS[1].suffix);
+    go("?quarter=" + QUARTERS[1].id);
     const { result } = renderHook(() => useUrlState());
-    expect(result.current[0].quarter).toBe(QUARTERS[1].suffix);
+    expect(result.current[0].quarter).toBe(QUARTERS[1].id);
     expect(result.current[0].quarterExplicit).toBe(true);
   });
 
-  // An unrecognised suffix is not an answer, so it must not lock out the
+  // A link from before quarters named their fiscal year still opens, and the
+  // address bar is upgraded so a copy of it now keeps meaning this quarter.
+  it("opens an old bare-suffix link and upgrades it to the full id", () => {
+    go("?quarter=" + QUARTERS[1].suffix);
+    const { result } = renderHook(() => useUrlState());
+    expect(result.current[0].quarter).toBe(QUARTERS[1].id);
+    expect(result.current[0].quarterExplicit).toBe(true);
+    expect(new URLSearchParams(window.location.search).get("quarter")).toBe(QUARTERS[1].id);
+  });
+
+  // An unrecognised quarter is not an answer, so it must not lock out the
   // default the way a real one does.
   it("treats an unknown quarter as no quarter at all", () => {
     go("?quarter=q9");
     const { result } = renderHook(() => useUrlState());
-    expect(result.current[0].quarter).toBe(CURRENT_QUARTER.suffix);
+    expect(result.current[0].quarter).toBe(CURRENT_QUARTER.id);
     expect(result.current[0].quarterExplicit).toBe(false);
   });
 });
@@ -43,10 +53,10 @@ describe("navigating", () => {
   it("treats a quarter the reader picks as explicit, and adds history", () => {
     const { result } = renderHook(() => useUrlState());
     const before = window.history.length;
-    act(() => result.current[1]({ quarter: QUARTERS[2].suffix }));
+    act(() => result.current[1]({ quarter: QUARTERS[2].id }));
     expect(result.current[0].quarterExplicit).toBe(true);
     expect(window.history.length).toBeGreaterThan(before);
-    expect(new URLSearchParams(window.location.search).get("quarter")).toBe(QUARTERS[2].suffix);
+    expect(new URLSearchParams(window.location.search).get("quarter")).toBe(QUARTERS[2].id);
   });
 
   // The app correcting its own default is not the reader choosing, and must
@@ -54,8 +64,8 @@ describe("navigating", () => {
   it("keeps a replaced quarter implicit and does not add history", () => {
     const { result } = renderHook(() => useUrlState());
     const before = window.history.length;
-    act(() => result.current[1]({ quarter: QUARTERS[1].suffix }, { replace: true }));
-    expect(result.current[0].quarter).toBe(QUARTERS[1].suffix);
+    act(() => result.current[1]({ quarter: QUARTERS[1].id }, { replace: true }));
+    expect(result.current[0].quarter).toBe(QUARTERS[1].id);
     expect(result.current[0].quarterExplicit).toBe(false);
     expect(window.history.length).toBe(before);
   });
@@ -65,7 +75,7 @@ describe("navigating", () => {
     act(() => result.current[1]({ view: "web" }));
     expect(result.current[0].quarterExplicit).toBe(false);
 
-    act(() => result.current[1]({ quarter: QUARTERS[1].suffix }));
+    act(() => result.current[1]({ quarter: QUARTERS[1].id }));
     act(() => result.current[1]({ view: "social" }));
     expect(result.current[0].quarterExplicit).toBe(true);
   });

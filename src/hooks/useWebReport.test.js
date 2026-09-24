@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, renderHook, waitFor } from "@testing-library/react";
 import { useWebReport } from "./useWebReport.js";
 import { supabase } from "../lib/supabase.js";
+import { QUARTERS } from "../config.js";
 
 vi.mock("../lib/supabase.js", () => ({ supabase: { from: vi.fn() } }));
 
@@ -52,7 +53,7 @@ describe("useWebReport reading one-per-report sections", () => {
   ]) {
     it(`reads the KPIs and insights when they arrive as a${shape === "object" ? "n object" : " list"}`, async () => {
       stubReport(shape);
-      const { result } = renderHook(() => useWebReport(agency, "q4"));
+      const { result } = renderHook(() => useWebReport(agency, QUARTERS[1].id));
       await waitFor(() => expect(result.current.status).toBe("ready"));
       expect(result.current.data.overall).toMatchObject({
         sessions: 27945,

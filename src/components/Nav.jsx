@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
-import { AGENCIES, QUARTERS, VIEWS, VIEW_LABELS } from "../config.js";
+import { AGENCIES, QUARTERS, VIEWS, VIEW_LABELS, resolveQuarter } from "../config.js";
 import { IconCaret, IconCheck } from "./Icons.jsx";
 
 const TABS = VIEWS.map((id) => ({ id, label: VIEW_LABELS[id] }));
@@ -94,14 +94,14 @@ function AgencyMenu({ current, onSelect, onClose }) {
 
 // ─── Quarter chooser dropdown ─────────────────────────────────────
 function QuarterMenu({ current, onSelect, onClose }) {
-  const years = [...new Set(QUARTERS.map((q) => q.year))];
+  const fiscalYears = [...new Set(QUARTERS.map((q) => q.fiscalYear))];
   const allItems = QUARTERS; // flat ordered list for keyboard nav
   const itemRefs = useRef([]);
 
   useEffect(() => {
     const activeIdx = Math.max(
       0,
-      allItems.findIndex((q) => q.suffix === current)
+      allItems.findIndex((q) => q.id === current)
     );
     itemRefs.current[activeIdx]?.focus();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -134,29 +134,29 @@ function QuarterMenu({ current, onSelect, onClose }) {
   let flatIdx = 0;
   return (
     <div className="menu is-open" role="menu">
-      {years.map((year) => (
-        <React.Fragment key={year}>
+      {fiscalYears.map((fy) => (
+        <React.Fragment key={fy}>
           <div className="group" role="presentation">
-            {year}
+            {fy}
           </div>
-          {QUARTERS.filter((q) => q.year === year).map((q) => {
+          {QUARTERS.filter((q) => q.fiscalYear === fy).map((q) => {
             const idx = flatIdx++;
             return (
               <button
-                key={q.suffix}
+                key={q.id}
                 ref={(el) => {
                   itemRefs.current[idx] = el;
                 }}
                 role="menuitem"
-                aria-current={q.suffix === current ? "true" : undefined}
-                className={"menu-item" + (q.suffix === current ? " active" : "")}
+                aria-current={q.id === current ? "true" : undefined}
+                className={"menu-item" + (q.id === current ? " active" : "")}
                 onClick={() => {
-                  onSelect(q.suffix);
+                  onSelect(q.id);
                   onClose();
                 }}
                 onKeyDown={(e) => handleKeyDown(e, idx)}
               >
-                {q.label} — {q.rangeLabel}
+                {q.label} · {q.rangeLabel}
               </button>
             );
           })}
@@ -207,7 +207,7 @@ export function AppNav({ agency, view, quarter, onNavigate }) {
   }, [measureIndicator]);
 
   const cfg = AGENCIES[agency] || AGENCIES.isl;
-  const q = QUARTERS.find((q) => q.suffix === quarter) || QUARTERS[0];
+  const q = resolveQuarter(quarter);
 
   return (
     <header className={"app-nav" + (scrolled ? " is-scrolled" : "")}>
@@ -267,7 +267,7 @@ export function AppNav({ agency, view, quarter, onNavigate }) {
               className="qchooser"
               aria-haspopup="menu"
               aria-expanded={quarterOpen}
-              aria-label={`Current quarter: ${q.label} ${q.rangeLabel}. Activate to change.`}
+              aria-label={`Current quarter: ${q.title}, ${q.rangeLabel}. Activate to change.`}
               onClick={() => setQuarterOpen((o) => !o)}
             >
               <span>{q.label}</span>
@@ -278,7 +278,7 @@ export function AppNav({ agency, view, quarter, onNavigate }) {
             {quarterOpen && (
               <QuarterMenu
                 current={quarter}
-                onSelect={(suffix) => onNavigate({ quarter: suffix })}
+                onSelect={(id) => onNavigate({ quarter: id })}
                 onClose={() => setQuarterOpen(false)}
               />
             )}

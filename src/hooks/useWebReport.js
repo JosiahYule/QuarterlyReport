@@ -1,12 +1,6 @@
-import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
-import { QUARTERS, resolveQuarter } from "../config.js";
-import { withRetry, friendlyError, getCached, setCached, oneRow } from "../lib/fetching.js";
-
-function getPrevQuarter(suffix) {
-  const idx = QUARTERS.findIndex((q) => q.suffix === suffix);
-  return idx >= 0 && idx < QUARTERS.length - 1 ? QUARTERS[idx + 1] : null;
-}
+import { resolveQuarter, previousQuarter } from "../config.js";
+import { withRetry, useCachedResource, oneRow } from "../lib/fetching.js";
 
 async function fetchReport(agency, q) {
   const { data, error } = await supabase
@@ -42,7 +36,6 @@ function normalize(report) {
       actions: kpis.actions,
       formSubmissions: kpis.form_submissions,
     },
-    deltas: {},
     channels: [...(report.web_channels || [])]
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((c) => ({
@@ -68,43 +61,24 @@ function normalize(report) {
   };
 }
 
+// The selected quarter and the one before it, whose figures the page shows
+// deltas against.
 export function useWebReport(agency, quarter, retryKey = 0) {
-  const [state, setState] = useState({ data: null, prevData: null, status: "loading", error: null });
-
-  useEffect(() => {
-    let cancelled = false;
-    const cacheKey = `web:${agency}:${quarter}`;
-    const cached = getCached(cacheKey);
-
-    // Serve the last good copy instantly, revalidate in the background
-    setState(
-      cached !== undefined
-        ? { ...cached, status: "ready", error: null }
-        : { data: null, prevData: null, status: "loading", error: null }
-    );
-
-    (async () => {
-      try {
-        const prev = getPrevQuarter(quarter);
-        const [report, prevReport] = await Promise.all([
-          withRetry(() => fetchReport(agency, resolveQuarter(quarter))),
-          prev ? withRetry(() => fetchReport(agency, prev)) : Promise.resolve(null),
-        ]);
-        const payload = { data: normalize(report), prevData: normalize(prevReport) };
-        setCached(cacheKey, payload);
-        if (!cancelled) setState({ ...payload, status: "ready", error: null });
-      } catch (err) {
-        // Keep showing stale data on a failed background refresh
-        if (!cancelled && cached === undefined) {
-          setState({ data: null, prevData: null, status: "error", error: friendlyError(err) });
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [agency, quarter, retryKey]);
-
-  return state;
+  const q = resolveQuarter(quarter);
+  const {
+    data: pair,
+    status,
+    error,
+  } = useCachedResource(
+    `web:${agency}:${q.id}`,
+    async () => {
+      const [report, prevReport] = await Promise.all([
+        withRetry(() => fetchReport(agency, q)),
+        withRetry(() => fetchReport(agency, previousQuarter(q))),
+      ]);
+      return { data: normalize(report), prevData: normalize(prevReport) };
+    },
+    retryKey
+  );
+  return { data: pair?.data ?? null, prevData: pair?.prevData ?? null, status, error };
 }

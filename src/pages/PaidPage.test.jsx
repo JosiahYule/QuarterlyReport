@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { PaidPage } from "./PaidPage.jsx";
 import { usePaidReport } from "../hooks/usePaidReport.js";
 import { sumPaidMediaAds } from "../utils.js";
+import { QUARTERS } from "../config.js";
 
 vi.mock("../hooks/usePaidReport.js", () => ({ usePaidReport: vi.fn() }));
 vi.mock("../hooks/usePublishedQuarters.js", () => ({ usePublishedQuarters: vi.fn(() => []) }));
@@ -84,7 +85,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const page = (extra) => render(<PaidPage agency="isl" quarter="q4" {...extra} />);
+const page = (extra) => render(<PaidPage agency="isl" quarter={QUARTERS[1].id} {...extra} />);
 /** The per-campaign disclosure buttons, in document order. */
 const toggles = () => [...document.querySelectorAll("button.campaign-toggle")];
 
@@ -184,13 +185,13 @@ describe("PaidPage campaign expand and collapse", () => {
 
   it("resets which campaigns are open when the quarter changes", () => {
     mockPaid({ status: "ready", data: report({ campaigns: two() }) });
-    const { rerender } = render(<PaidPage agency="isl" quarter="q4" />);
+    const { rerender } = render(<PaidPage agency="isl" quarter={QUARTERS[1].id} />);
     fireEvent.click(screen.getByRole("button", { name: "Expand all" }));
     expect(toggles().every((t) => t.getAttribute("aria-expanded") === "true")).toBe(true);
 
     // The campaign ids underneath are different in another quarter, so the
     // open set has to fall back to the default rather than persist.
-    rerender(<PaidPage agency="isl" quarter="q3" />);
+    rerender(<PaidPage agency="isl" quarter={QUARTERS[2].id} />);
     const [first, second] = toggles();
     expect(first.getAttribute("aria-expanded")).toBe("true");
     expect(second.getAttribute("aria-expanded")).toBe("false");

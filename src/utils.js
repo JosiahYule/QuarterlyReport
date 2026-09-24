@@ -1,23 +1,3 @@
-export const FLAT = { dir: "flat", pct: 0 };
-
-export function parseDelta(d) {
-  if (d == null) return { dir: "flat", pct: 0 };
-  if (typeof d === "object" && "dir" in d) return d;
-  if (typeof d === "object" && "direction" in d) {
-    return {
-      dir: d.direction === "up" ? "up" : d.direction === "down" ? "down" : "flat",
-      pct: d.percent || 0,
-    };
-  }
-  if (typeof d !== "string") return { dir: "flat", pct: 0 };
-  const s = d.trim();
-  let dir = "flat";
-  if (/^[▲↑]/.test(s) || /\bup\b/i.test(s)) dir = "up";
-  else if (/^[▼↓]/.test(s) || /\bdown\b/i.test(s)) dir = "down";
-  const m = s.match(/-?\d+(\.\d+)?/);
-  return { dir, pct: m ? Math.abs(parseFloat(m[0])) : 0 };
-}
-
 export function arrow(dir) {
   return dir === "up" ? "↑" : dir === "down" ? "↓" : "—";
 }

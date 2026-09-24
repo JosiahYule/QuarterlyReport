@@ -12,7 +12,11 @@
 -- no service-role key in a scheduler, no network hop. The snapshot is a pure
 -- copy of the current quarter's KPI row, which is already plain SQL.
 
-create extension if not exists pg_cron with schema cron;
+-- pg_catalog, not cron: the extension is not relocatable and always installs
+-- there, creating the cron schema for its own tables. This line originally
+-- said "with schema cron", which only worked on the live database because
+-- pg_cron was already enabled; a fresh rebuild failed on it.
+create extension if not exists pg_cron with schema pg_catalog;
 
 -- Which fiscal quarter (suffix + year label) a given date falls in. Mirrors
 -- Q_DEFS/buildQuarter in src/config.js: the fiscal year starts in September,
