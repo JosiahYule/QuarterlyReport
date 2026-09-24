@@ -52,7 +52,9 @@ export function useAuth() {
     supabase.auth
       .signInWithOtp({
         email,
-        options: { emailRedirectTo: window.location.origin + "/admin" },
+        // Sign in existing accounts only. By default a magic link creates an
+        // account for any address it is sent to; admins are invited instead.
+        options: { emailRedirectTo: window.location.origin + "/admin", shouldCreateUser: false },
       })
       .then(({ error }) => {
         if (error) throw error;

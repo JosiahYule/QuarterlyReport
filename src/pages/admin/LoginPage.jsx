@@ -13,8 +13,8 @@ export function LoginPage({ onSignIn, initialError = null }) {
     try {
       await onSignIn(email);
       setSent(true);
-    } catch (err) {
-      setError("Failed to send magic link. Please check your email address and try again.");
+    } catch {
+      setError("Couldn't send a sign-in link. Check the address, or ask for admin access.");
     } finally {
       setLoading(false);
     }

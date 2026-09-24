@@ -93,7 +93,17 @@ async function storeAudits(agency, qdata, snapsByQuarter) {
 // capture this stays on the client, because the audit is stage-matched — it
 // recalibrates against how the model behaved at the point in the quarter you
 // are reading it at, so recomputing on load is the point, not a side effect.
+//
+// Audits set the calibration every reader's projections are scaled by, so only
+// an admin may write them (RLS enforces it). A reader without a session skips
+// the attempt rather than sending writes that are bound to be refused.
 async function auditAllAgencies() {
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (!data?.session) return;
+  } catch (_) {
+    return;
+  }
   await Promise.all(
     Object.keys(AGENCIES).map(async (a) => {
       const qdata = await Promise.all(TRENDS_QUARTERS.map((q) => fetchQuarter(a, q)));
