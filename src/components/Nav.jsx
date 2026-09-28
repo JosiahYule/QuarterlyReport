@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { AGENCIES, QUARTERS, VIEWS, VIEW_LABELS, resolveQuarter } from "../config.js";
-import { IconCaret, IconCheck } from "./Icons.jsx";
+import { IconCaret, IconCheck, IconDownload } from "./Icons.jsx";
 
 const TABS = VIEWS.map((id) => ({ id, label: VIEW_LABELS[id] }));
 
@@ -174,7 +174,7 @@ function QuarterMenu({ current, published, onSelect, onClose }) {
 }
 
 // ─── Single combined nav bar ──────────────────────────────────────
-export function AppNav({ agency, view, quarter, published = null, onNavigate }) {
+export function AppNav({ agency, view, quarter, published = null, showAdmin = false, onNavigate }) {
   const [agencyOpen, setAgencyOpen] = useState(false);
   const [quarterOpen, setQuarterOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -299,9 +299,26 @@ export function AppNav({ agency, view, quarter, published = null, onNavigate }) 
             </div>
           )}
 
-          <a href="/admin" className="app-nav-admin-link">
-            Admin
-          </a>
+          {/* The browser's print dialog has "Save as PDF" as a destination on
+              every desktop browser; the print stylesheet in editorial.css
+              lays the report out for paper. */}
+          <button
+            type="button"
+            className="app-nav-pdf"
+            onClick={() => window.print()}
+            aria-label="Save this report as a PDF"
+          >
+            <IconDownload />
+            <span className="app-nav-pdf-text">Save PDF</span>
+          </button>
+
+          {/* Only the report's editor needs this, so readers don't see it.
+              /admin still works typed in directly. */}
+          {showAdmin && (
+            <a href="/admin" className="app-nav-admin-link">
+              Admin
+            </a>
+          )}
         </div>
       </div>
     </header>

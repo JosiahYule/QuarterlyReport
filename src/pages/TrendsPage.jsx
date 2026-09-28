@@ -20,6 +20,7 @@ import { fmt, fmtApprox } from "../utils.js";
 import { reportState } from "../components/ReportState.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
+import { useChartWidth, NARROW_CHART } from "../hooks/useChartWidth.js";
 
 // Chart colours — q2/q3 follow the agency accent; proj stays visually
 // distinct from q3 for every palette.
@@ -246,10 +247,11 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
 
 // ─── Projection trajectory chart (how the projected final has moved) ──
 function ProjTrajectoryChart({ timeline, metric }) {
-  const W = 880,
-    H = 260,
-    pL = 68,
-    pR = 64,
+  const [svgRef, W] = useChartWidth(880);
+  const narrow = W < NARROW_CHART;
+  const H = 260,
+    pL = narrow ? 48 : 68,
+    pR = narrow ? 18 : 64,
     pT = 28,
     pB = 48;
   const [hovered, setHovered] = useState(null);
@@ -310,7 +312,8 @@ function ProjTrajectoryChart({ timeline, metric }) {
     y: pT + (H - pT - pB) * (1 - f),
   }));
   const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  const nLabels = Math.min(4, timeline.length);
+  // A date label needs about 70px, so a phone gets three rather than four.
+  const nLabels = Math.min(narrow ? 3 : 4, timeline.length);
   const xLabels = Array.from({ length: nLabels }, (_, i) => {
     const t = minT + tRange * (i / (nLabels - 1));
     return { x: X(t), label: fmtDate(t) };
@@ -344,6 +347,7 @@ function ProjTrajectoryChart({ timeline, metric }) {
 
   return (
     <svg
+      ref={svgRef}
       className="kpi-history-svg"
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="xMidYMid meet"

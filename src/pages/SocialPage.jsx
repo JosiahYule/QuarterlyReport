@@ -11,6 +11,7 @@ import { fmt, fmtExact } from "../utils.js";
 import { IconSort, IconArrowUp, IconArrowDown } from "../components/Icons.jsx";
 import { CountUp } from "../components/CountUp.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
+import { useChartWidth, NARROW_CHART } from "../hooks/useChartWidth.js";
 
 // ─── Hero ─────────────────────────────────────────────────────────
 function Hero({ data }) {
@@ -84,12 +85,13 @@ function Numbers({ data }) {
 
 // ─── KPI history (quarter-by-quarter line chart) ──────────────────
 function KpiHistoryChart({ history, kpiDef }) {
-  const W = 880,
-    H = 260,
-    pL = 68,
-    pR = 64,
+  const [svgRef, W] = useChartWidth(880);
+  const narrow = W < NARROW_CHART;
+  const H = 260,
+    pL = narrow ? 44 : 68,
+    pR = narrow ? 18 : 64,
     pT = 28,
-    pB = 56;
+    pB = narrow ? 40 : 56;
   const vals = history.map((q) => (q.kpis ? q.kpis[kpiDef.key] : null));
   const defined = vals.filter((v) => v != null);
   if (defined.length === 0) {
@@ -134,6 +136,19 @@ function KpiHistoryChart({ history, kpiDef }) {
   const peakIdx = vals.indexOf(rawMax);
   const avg = defined.reduce((a, b) => a + b, 0) / defined.length;
   const avgY = Y(avg);
+  // The date range under each quarter label needs about 100px; below that
+  // the ranges run into each other, and the quarter name alone still reads.
+  const showRanges = xStep >= 100;
+
+  // A peak label centred on the first or last point hangs off the plot, so
+  // it anchors inward at the ends.
+  const peak = pts[peakIdx];
+  const peakAnchor = peakIdx === 0 && n > 1 ? "start" : peakIdx === n - 1 && n > 1 ? "end" : "middle";
+  // The "avg" label sits above the average line at the right edge. When the
+  // peak is close to the average and near that edge, the two labels print
+  // on top of each other; the avg label then moves below its line.
+  const avgLabelBelow =
+    peak && peak.y != null && Math.abs(peak.y - 14 - (avgY - 6)) < 18 && peak.x > W - pR - 150;
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ v: lo + (hi - lo) * t, y: Y(lo + (hi - lo) * t) }));
 
   // Counts tick in whole numbers; fmt would otherwise print "11.50".
@@ -148,6 +163,7 @@ function KpiHistoryChart({ history, kpiDef }) {
 
   return (
     <svg
+      ref={svgRef}
       className="kpi-history-svg"
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="xMidYMid meet"
@@ -189,7 +205,7 @@ function KpiHistoryChart({ history, kpiDef }) {
               <text
                 x={p.x}
                 y={p.y - 14}
-                textAnchor="middle"
+                textAnchor={peakAnchor}
                 fontFamily="var(--serif)"
                 fontStyle="italic"
                 fontSize="13"
@@ -214,16 +230,18 @@ function KpiHistoryChart({ history, kpiDef }) {
           >
             {p.q.label}
           </text>
-          <text
-            x={p.x}
-            y={H - pB + 34}
-            textAnchor="middle"
-            fontSize="10"
-            fontFamily="var(--sans)"
-            fill="var(--ink-4)"
-          >
-            {p.q.rangeLabel}
-          </text>
+          {showRanges && (
+            <text
+              x={p.x}
+              y={H - pB + 34}
+              textAnchor="middle"
+              fontSize="10"
+              fontFamily="var(--sans)"
+              fill="var(--ink-4)"
+            >
+              {p.q.rangeLabel}
+            </text>
+          )}
         </g>
       ))}
       <line
@@ -237,7 +255,7 @@ function KpiHistoryChart({ history, kpiDef }) {
       />
       <text
         x={W - pR}
-        y={avgY - 6}
+        y={avgLabelBelow ? avgY + 15 : avgY - 6}
         textAnchor="end"
         fontSize="11"
         fill="var(--ink-4)"
@@ -541,11 +559,23 @@ function CalendarPost({ p }) {
   );
 }
 
+// Phones show the posts as cards, with no column headers to click, so the
+// same sort state is offered as a menu there.
+const SORT_CHOICES = [
+  { value: "Date:desc", label: "Newest first" },
+  { value: "Date:asc", label: "Oldest first" },
+  { value: "Impressions:desc", label: "Most impressions" },
+  { value: "Engagements:desc", label: "Most engagements" },
+  { value: "EngRate:desc", label: "Highest eng. rate" },
+];
+
 function AllPosts({ data }) {
   const [search, setSearch] = useState("");
   const [platform, setPlatform] = useState("all");
   const [sort, setSort] = useState({ key: "Date", dir: "desc" });
   const [view, setView] = useState("list");
+
+  const sortValue = `${sort.key}:${sort.dir}`;
 
   const toggleSort = (key) =>
     setSort((prev) => ({ key, dir: prev.key === key && prev.dir === "desc" ? "asc" : "desc" }));
@@ -638,6 +668,22 @@ function AllPosts({ data }) {
             <option value="facebook">Facebook</option>
             <option value="instagram">Instagram</option>
           </select>
+          <select
+            className="all-posts-select all-posts-sort"
+            value={SORT_CHOICES.some((c) => c.value === sortValue) ? sortValue : ""}
+            onChange={(e) => {
+              const [key, dir] = e.target.value.split(":");
+              setSort({ key, dir });
+            }}
+            aria-label="Sort posts"
+          >
+            {!SORT_CHOICES.some((c) => c.value === sortValue) && <option value="">Custom sort</option>}
+            {SORT_CHOICES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
           <span className="all-posts-count" aria-live="polite" aria-atomic="true">
             {posts.length} posts
           </span>
@@ -664,7 +710,7 @@ function AllPosts({ data }) {
         <div className="all-posts-list-wrap">
           {posts.length === 0 && <EmptyData label="No posts match your search or filter." />}
           <div className="table-wrap">
-            <table className="table table--wide">
+            <table className="table table--wide all-posts-table">
               <thead>
                 <tr>
                   <th scope="col">Post</th>
@@ -704,9 +750,15 @@ function AllPosts({ data }) {
                       </td>
                       <td className="all-posts-cell-date">{date}</td>
                       <td className="all-posts-cell-platform">{p.Platforms || "—"}</td>
-                      <td className="r num">{(p.Impressions || 0).toLocaleString()}</td>
-                      <td className="r num">{(p.Engagements || 0).toLocaleString()}</td>
-                      <td className="r num">{hasData ? er.toFixed(2) + "%" : "—"}</td>
+                      <td className="r num" data-label="Impressions">
+                        {(p.Impressions || 0).toLocaleString()}
+                      </td>
+                      <td className="r num" data-label="Engagements">
+                        {(p.Engagements || 0).toLocaleString()}
+                      </td>
+                      <td className="r num" data-label="Eng. rate">
+                        {hasData ? er.toFixed(2) + "%" : "—"}
+                      </td>
                       <td className="health-col">
                         <span className="health-label" style={{ color }}>
                           {label}

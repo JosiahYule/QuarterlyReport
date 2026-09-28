@@ -8,6 +8,7 @@ import { PageSkeleton } from "./components/Skeleton.jsx";
 import { AGENCIES, REPORT_AUTHOR, VIEW_LABELS, resolveQuarter } from "./config.js";
 import { installGlobalErrorReporting } from "./lib/monitor.js";
 import { setFavicon } from "./lib/favicon.js";
+import { supabase } from "./lib/supabase.js";
 
 installGlobalErrorReporting();
 
@@ -28,6 +29,16 @@ function App() {
   const [appReady, setAppReady] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const announcementTimer = useRef(null);
+  const [signedIn, setSignedIn] = useState(false);
+
+  // Show the Admin link only to someone already signed in. getSession reads
+  // the saved sign-in from this browser, so it costs readers nothing.
+  useEffect(() => {
+    supabase.auth
+      .getSession()
+      .then(({ data }) => setSignedIn(!!data?.session))
+      .catch(() => {});
+  }, []);
 
   // Open on the most recent quarter that actually has a report.
   //
@@ -86,7 +97,14 @@ function App() {
       {/* Scroll-driven reading progress (CSS-only; hidden where unsupported) */}
       <div className="scroll-progress" aria-hidden="true" />
 
-      <AppNav agency={agency} view={view} quarter={quarter} published={published} onNavigate={navigate} />
+      <AppNav
+        agency={agency}
+        view={view}
+        quarter={quarter}
+        published={published}
+        showAdmin={signedIn}
+        onNavigate={navigate}
+      />
 
       <Suspense fallback={<PageSkeleton view={view} />}>
         {/* Rendering mid-resolution would flash the empty state for a quarter

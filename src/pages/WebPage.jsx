@@ -175,29 +175,59 @@ function TopPages({ data, prevData }) {
           Top <em>Pages</em>
         </h2>
       </header>
-      <div className="pages-grid">
-        {pages.map((p) => {
+      {/* Same ranked-table layout as Traffic Channels: pages compare down a
+          column instead of across a grid of cards, and on a phone the rows
+          stack into labelled blocks the same way. */}
+      <div className="channels pages-table" role="table" aria-label="Top pages by page views">
+        <div className="channel-row-web is-head" role="row">
+          <div aria-hidden="true" />
+          <div role="columnheader">Page</div>
+          <div className="col-num" role="columnheader">
+            Page Views
+          </div>
+          <div className="col-num" role="columnheader">
+            Bounce Rate
+          </div>
+          <div className="col-num" role="columnheader">
+            Avg Time
+          </div>
+        </div>
+        {pages.map((p, i) => {
           const prev = prevMap[(p.key || p.name || "").toLowerCase()] || null;
           const vd = calcAutoDelta(p.pageViews, prev?.pageViews);
           const bd = calcAutoDelta(p.bounceRate, prev?.bounceRate);
           const td = calcAutoDelta(p.avgTimeOnPageSec, prev?.avgTimeOnPageSec);
           return (
-            <div className="page-tile" key={p.key}>
-              <div className="page-tile-name serif">{p.key}</div>
-              <div className="page-stat">
-                <div className="page-stat-label">Page Views</div>
-                <div className="page-stat-value serif">{fmtInt(p.pageViews)}</div>
-                {vd && <Delta d={vd} className="page-delta" />}
+            <div className="channel-row-web" key={p.key} role="row">
+              <div className="channel-idx serif ital" aria-hidden="true">
+                {String(i + 1).padStart(2, "0")}
               </div>
-              <div className="page-stat">
-                <div className="page-stat-label">Bounce Rate</div>
-                <div className="page-stat-value serif">{fmtPct(p.bounceRate)}</div>
-                {bd && <Delta d={bd} invertGood className="page-delta" />}
+              <div role="rowheader">
+                <div className="channel-name serif page-path">{p.key}</div>
               </div>
-              <div className="page-stat">
-                <div className="page-stat-label">Avg Time</div>
-                <div className="page-stat-value serif">{fmtTime(p.avgTimeOnPageSec)}</div>
-                {td && <Delta d={td} className="page-delta" />}
+              <div className="col-num" role="cell" data-label="Page Views">
+                <span className="big serif num">{fmtInt(p.pageViews)}</span>
+                {vd && (
+                  <span className="sub">
+                    <Delta d={vd} />
+                  </span>
+                )}
+              </div>
+              <div className="col-num" role="cell" data-label="Bounce Rate">
+                <span className="big serif num">{fmtPct(p.bounceRate)}</span>
+                {bd && (
+                  <span className="sub">
+                    <Delta d={bd} invertGood />
+                  </span>
+                )}
+              </div>
+              <div className="col-num" role="cell" data-label="Avg Time">
+                <span className="big serif num">{fmtTime(p.avgTimeOnPageSec)}</span>
+                {td && (
+                  <span className="sub">
+                    <Delta d={td} />
+                  </span>
+                )}
               </div>
             </div>
           );

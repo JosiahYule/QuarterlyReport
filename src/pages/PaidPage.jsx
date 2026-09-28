@@ -9,6 +9,7 @@ import { fmt, fmtExact, adSpend } from "../utils.js";
 import { CountUp } from "../components/CountUp.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
 import { ClickPathBlock } from "../components/ClickPathFlow.jsx";
+import { usePrinting } from "../hooks/usePrinting.js";
 
 // ─── Formatters ───────────────────────────────────────────────────
 const money0 = (v) => (v != null ? "$" + fmt(v) : "—");
@@ -431,8 +432,10 @@ function AudienceRoster({ panel, expanded, setExpanded }) {
 
 function AudiencePanel({ panel }) {
   const [expanded, setExpanded] = useState(false);
+  // A printout can't click "show more", so print every segment.
+  const printing = usePrinting();
   const Layout = panel.layout === "list" ? AudienceRoster : AudienceBars;
-  return <Layout panel={panel} expanded={expanded} setExpanded={setExpanded} />;
+  return <Layout panel={panel} expanded={expanded || printing} setExpanded={setExpanded} />;
 }
 
 function AudienceBlock({ panels, title }) {
@@ -652,6 +655,8 @@ export function PaidPage({ agency, quarter, onReady }) {
   // The first campaign opens by default so the page never lands as a wall of
   // closed rows; the rest are opened on demand.
   const [openIds, setOpenIds] = useState(null);
+  // Every campaign prints open, whatever is folded on screen.
+  const printing = usePrinting();
 
   useEffect(() => {
     if (status === "ready" || status === "error") onReady?.();
@@ -686,7 +691,7 @@ export function PaidPage({ agency, quarter, onReady }) {
   const showAccountPaths = data.clickPaths.length > 0;
 
   const defaultOpen = hasCampaigns ? [campaigns[0].id] : [];
-  const open = openIds ?? defaultOpen;
+  const open = printing ? campaigns.map((c) => c.id) : (openIds ?? defaultOpen);
   const isOpen = (id) => open.includes(id);
   const toggle = (id) =>
     setOpenIds((ids) => {
