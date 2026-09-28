@@ -148,6 +148,15 @@ describe("PaidPage campaign expand and collapse", () => {
     expect(second.getAttribute("aria-expanded")).toBe("false");
   });
 
+  it("prints every campaign open, then restores the screen state", () => {
+    mockPaid({ status: "ready", data: report({ campaigns: two() }) });
+    page();
+    fireEvent(window, new window.Event("beforeprint"));
+    expect(toggles().every((t) => t.getAttribute("aria-expanded") === "true")).toBe(true);
+    fireEvent(window, new window.Event("afterprint"));
+    expect(toggles()[1].getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("opens a closed campaign when its header is clicked", () => {
     mockPaid({ status: "ready", data: report({ campaigns: two() }) });
     page();

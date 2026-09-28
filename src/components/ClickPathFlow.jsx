@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { fmtInt } from "../utils.js";
 import { buildFlow, summarizePaths, topJourneys, stepLabel, EXIT_LABEL } from "../lib/clickPaths.js";
 import { CountUp } from "./CountUp.jsx";
+import { useChartWidth } from "../hooks/useChartWidth.js";
 
 // What people did on the site after clicking an ad.
 //
@@ -13,10 +14,12 @@ import { CountUp } from "./CountUp.jsx";
 // route they were on.
 
 // ─── Diagram geometry ─────────────────────────────────────────────
-// Drawn in a fixed viewBox and scaled by the browser, like the other
-// hand-built charts here. Room on the right is for the last column's labels,
-// which have no ribbons to sit above.
-const W = 1120;
+// Drawn at the width it is given (see useChartWidth), so labels keep their
+// size and the columns move closer together on a narrower screen. Room on
+// the right is for the last column's labels, which have no ribbons to sit
+// above. Below 720px the stylesheet hides the diagram and the journeys table
+// carries the section.
+const DEFAULT_W = 1120;
 const PAD_R = 196;
 const BAND = 400; // vertical room the columns are scaled into
 const TOP = 34; // step captions sit above this
@@ -26,7 +29,7 @@ const MIN_NODE_H = 3; // a one-session node still has to be visible
 const LABEL_GAP = 32; // two lines of label, so they never stack on top of each other
 const LABEL_MAX = 34;
 
-const truncate = (s) => (s.length > LABEL_MAX ? s.slice(0, LABEL_MAX - 1).trimEnd() + "…" : s);
+const truncate = (s, max = LABEL_MAX) => (s.length > max ? s.slice(0, max - 1).trimEnd() + "…" : s);
 // A page carrying a handful of sessions out of a thousand is not 0% of them.
 // Rounding says it is, and a column of "0%" labels reads as a broken chart
 // rather than as a long tail.
@@ -37,7 +40,7 @@ const columnCaption = (d) => (d === 0 ? "Landed on" : `Then step ${d + 1}`);
 // Lays the flow out in pixels: one x per column, one y per node, and the
 // ribbon endpoints that follow from them. Kept apart from the drawing so the
 // arithmetic reads in one piece.
-function layout(flow) {
+function layout(flow, W) {
   const step = (W - PAD_R - NODE_W) / Math.max(flow.depth - 1, 1);
   // One scale for every column, so a column that carries fewer sessions
   // genuinely draws shorter — that shortfall is the drop-off.
@@ -87,7 +90,12 @@ function layout(flow) {
     };
   });
 
+  // A 13px label averages about 7px a character; a narrower drawing leaves
+  // less room before the next column's bars, so labels truncate sooner.
+  const labelMax = Math.max(12, Math.min(LABEL_MAX, Math.floor((step - NODE_W - 24) / 7)));
+
   return {
+    labelMax,
     nodes: [...nodes.values()],
     links,
     columns: flow.columns.map((c) => ({ ...c, x: c.depth * step })),
@@ -105,7 +113,8 @@ function ribbon({ x0, y0, x1, y1, h }) {
 
 function FlowDiagram({ flow, label }) {
   const [hover, setHover] = useState(null);
-  const { nodes, links, columns } = useMemo(() => layout(flow), [flow]);
+  const [svgRef, W] = useChartWidth(DEFAULT_W, { min: 700 });
+  const { nodes, links, columns, labelMax } = useMemo(() => layout(flow, W), [flow, W]);
   const height = TOP + BAND + 26;
 
   // Hovering a page holds the ribbons in and out of it, and dims the rest —
@@ -116,6 +125,7 @@ function FlowDiagram({ flow, label }) {
   return (
     <div className="cpath-flow">
       <svg
+        ref={svgRef}
         className="cpath-svg"
         viewBox={`0 0 ${W} ${height}`}
         preserveAspectRatio="xMidYMid meet"
@@ -161,7 +171,7 @@ function FlowDiagram({ flow, label }) {
               className={"cpath-bar" + (n.isExit ? " is-exit" : n.isOther ? " is-other" : "")}
             />
             <text className="cpath-node-name" x={n.x + NODE_W + 9} y={n.labelY}>
-              {truncate(nodeText(n))}
+              {truncate(nodeText(n), labelMax)}
             </text>
             <text className="cpath-node-value" x={n.x + NODE_W + 9} y={n.labelY + 15}>
               {fmtInt(n.value)} · {shareText(n.share)}

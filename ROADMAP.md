@@ -25,7 +25,7 @@ The foundations the earlier roadmap asked for are in place:
 2. **Follower growth** · *S*. `social_kpis.followers_start` exists and the save function writes it, but the admin form has no field for it and the report doesn't show it. Adding both turns an end-of-quarter follower count into net growth.
 3. **AI-drafted insights** · *M*. Draft the four insight blocks from the quarter's deltas and projections with the Claude API, for you to edit and approve. The data is already structured. The cost is a server-side function holding an API key: the same kind of machinery that made GA4 ingestion not worth it, so it should earn its place by the time it saves.
 4. **Goals and targets** · *M*. A `targets` table (agency, quarter, metric, goal) and pace-to-goal on the KPI cards, reusing the projection model.
-5. **Delivery** · *M*. A PDF export or an end-of-quarter email, so the report reaches people who don't open dashboards.
+5. **Delivery** · *M*. An end-of-quarter email, so the report reaches people who don't open dashboards. A **Save PDF** button in the nav already prints any view through the browser, with a print layout that opens every folded campaign and list; a server-built PDF that could be attached automatically is the remaining step.
 
 ## Ideas, not scheduled
 

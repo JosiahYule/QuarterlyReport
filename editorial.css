@@ -31,7 +31,7 @@
        surfaces stay flat paper — glass is reserved for floating/sticky
        chrome (nav, menus, palettes, tooltips, modals, save bar). */
     --glass:        rgba(255, 255, 255, 0.58);
-    --glass-strong: rgba(255, 255, 255, 0.72);
+    --glass-strong: rgba(255, 255, 255, 0.94);  /* menus: 0.72 let the text behind read through */
     --glass-blur:   blur(26px) saturate(1.9);
     --glass-edge:   inset 0 1px 0 rgba(255, 255, 255, 0.75);
     --shadow-glass: inset 0 1px 0 rgba(255, 255, 255, 0.75),
@@ -63,7 +63,7 @@
 
     --col:   1180px;
     --gap:   28px;
-    --pad-y: 88px;
+    --pad-y: 60px;   /* 88px left ~180px of blank between every section */
   }
 
   /* Agency-keyed accent — main.jsx sets data-agency on <body>.
@@ -266,6 +266,17 @@
   .qchooser:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-color: var(--ink); }
   .qchooser .caret { display: inline-flex; font-size: 11px; opacity: .6; align-self: center; }
 
+  /* Save PDF — quiet, like the Admin link beside it, until hovered */
+  .app-nav-pdf {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--ink-3); white-space: nowrap;
+    padding: 6px 4px; border-radius: var(--radius-s);
+    transition: color .15s ease;
+  }
+  .app-nav-pdf:hover { color: var(--ink); }
+  .app-nav-pdf:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .app-nav-pdf svg { font-size: 15px; }
+
   .app-nav-admin-link {
     font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
     color: var(--ink-4); text-decoration: none; white-space: nowrap;
@@ -359,7 +370,7 @@
   .section {
     padding-top: var(--pad-y); padding-bottom: var(--pad-y);
   }
-  .section-head  { margin-bottom: 40px; }
+  .section-head  { margin-bottom: 32px; }
   .section-title {
     font-family: var(--serif); font-size: clamp(28px, 3.4vw, 42px);
     line-height: 1.05; letter-spacing: -0.02em; color: var(--ink);
@@ -451,24 +462,9 @@
   .campaign-chan  { font-size: 12px; color: var(--ink-3); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.12em; }
   .table-wrap     { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-  /* Top pages grid */
-  .pages-grid {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
-    border-top: 1px solid var(--rule); border-left: 1px solid var(--rule);
-  }
-  .page-tile {
-    padding: 28px 24px;
-    border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
-    transition: background .15s ease;
-  }
-  .page-tile:hover { background: var(--paper-2); }
-  .page-tile:nth-child(4n)       { border-right: 0; }
-  .page-tile:nth-last-child(-n+4) { border-bottom: 0; }
-  .page-tile-name  { font-family: var(--serif); font-size: 18px; margin-bottom: 20px; color: var(--ink); line-height: 1.2; }
-  .page-stat       { margin-bottom: 14px; }
-  .page-stat-label { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-4); font-weight: 500; margin-bottom: 4px; }
-  .page-stat-value { font-family: var(--serif); font-size: 22px; color: var(--ink); }
-  .page-delta      { display: block; font-size: 12px; font-weight: 400; margin-top: 3px; letter-spacing: 0.02em; }
+  /* Top pages reuse the channel table; a long path wraps rather than
+     pushing the number columns off their grid. */
+  .page-path { font-size: 19px; overflow-wrap: anywhere; }
 
   /* Platform tabs */
   .platform-tabs { display: flex; border-bottom: 1px solid var(--ink); }
@@ -515,11 +511,14 @@
     display: flex; gap: 16px; margin-bottom: 24px;
     flex-wrap: wrap; justify-content: space-between; align-items: center;
   }
-  .all-posts-controls-left { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  .all-posts-controls-left { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; flex: 1 1 auto; min-width: 0; }
+  /* One toolbar row: search, filter and count on the left, the view switch
+     on the right. A 100%-wide search box used to push the filter onto a
+     second line, leaving the switch floating between the two. */
   .all-posts-input {
     border: 1px solid var(--rule); padding: 8px 12px;
     font-family: var(--sans); font-size: 14px; border-radius: var(--radius-s);
-    background: var(--paper); color: var(--ink); width: 100%; max-width: 320px;
+    background: var(--paper); color: var(--ink); flex: 0 1 320px; min-width: 180px;
     transition: border-color .15s ease, box-shadow .15s ease;
   }
   .all-posts-input:hover, .all-posts-select:hover { border-color: var(--ink-4); }
@@ -531,7 +530,9 @@
     background: var(--paper); color: var(--ink);
     transition: border-color .15s ease, box-shadow .15s ease;
   }
-  .all-posts-count { font-size: 13px; color: var(--ink-3); }
+  .all-posts-count { font-size: 13px; color: var(--ink-3); white-space: nowrap; }
+  /* Column headers sort on wider screens; the menu only appears with the cards */
+  .all-posts-sort { display: none; }
   .all-posts-list-wrap { max-height: 560px; overflow-y: auto; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .all-posts-list-wrap thead th { position: sticky; top: 0; background: var(--paper); z-index: 2; }
   .all-posts-list-wrap tbody tr { transition: background .12s ease; }
@@ -983,10 +984,6 @@
 
   .notes { grid-template-columns: 1fr; gap: 40px; }
 
-  .pages-grid { grid-template-columns: repeat(2, 1fr); }
-  .page-tile:nth-child(2n)        { border-right: 0; }
-  .page-tile:nth-last-child(-n+4) { border-bottom: 1px solid var(--rule); }
-  .page-tile:nth-last-child(-n+2) { border-bottom: 0; }
 
   .app-nav-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   .app-nav-tabs::-webkit-scrollbar { display: none; }
@@ -1038,10 +1035,13 @@
 
   .app-nav-agency-btn { font-size: 16px; }
   .app-nav-right { gap: 12px; }
+  /* Phones: the icon alone; most phone browsers bury "Save as PDF" inside
+     Share or Print anyway, and the nav row has no room for the words. */
+  .app-nav-pdf-text { display: none; }
 
   .all-posts-controls { flex-direction: column; align-items: stretch; gap: 12px; }
-  .all-posts-controls-left { flex-wrap: nowrap; flex-direction: column; gap: 10px; }
-  .all-posts-input  { max-width: 100%; }
+  .all-posts-controls-left { flex-wrap: nowrap; flex-direction: column; align-items: stretch; gap: 10px; }
+  .all-posts-input  { flex: none; width: 100%; }
   .all-posts-select { width: 100%; }
   .all-posts-controls-left .view-toggle { align-self: flex-start; }
 
@@ -1156,16 +1156,22 @@
   .channel-row .col-num .big, .channel-row-web .col-num .big { font-size: 16px; }
 
 
-  .pages-grid { grid-template-columns: 1fr; }
-  .page-tile  { border-right: 0; }
-  .page-tile:nth-last-child(-n+2) { border-bottom: 1px solid var(--rule); }
-  .page-tile:last-child           { border-bottom: 0; }
 
   .all-posts-list-wrap { max-height: 420px; }
 
   .calendar-day-cell    { min-height: 72px; }
   .calendar-day-number  { font-size: 14px; margin-bottom: 3px; }
   .calendar-post-title  { font-size: 11px; }
+}
+
+/* Tablet widths hide the channel table's third number. Top Pages keeps all
+   three and drops the row number instead. Stops above 480px, where every
+   row stacks into labelled lines anyway. */
+@media (min-width: 481px) and (max-width: 880px) {
+  .pages-table .channel-row-web { grid-template-columns: 2fr repeat(3, 1fr); }
+  .pages-table .channel-row-web > div:nth-child(5) { display: block; }
+  .pages-table .channel-row-web > .channel-idx,
+  .pages-table .channel-row-web.is-head > div:first-child { display: none; }
 }
 
 /* ── Restore section rhythm on mobile ───────────────────────────
@@ -1970,7 +1976,11 @@ html.glass-refract .admin-save-bar {
   body { font-size: 12px; }
 
   .app-nav, .scroll-progress, .page-loader, .loading-screen,
-  .section-rail, .view-toggle, .app-nav-admin-link { display: none !important; }
+  .section-rail, .view-toggle, .app-nav-admin-link,
+  .all-posts-controls, .metric-picker, .campaign-expand-all,
+  .campaign-toggle-chevron, .aud-more { display: none !important; }
+  /* The post list scrolls inside a box on screen; on paper it runs in full */
+  .all-posts-list-wrap { max-height: none !important; overflow: visible !important; }
 
   .report-wrap, .wrap { max-width: none; padding-left: 0; padding-right: 0; }
   .report-wrap { padding-top: 0; animation: none; }
@@ -1983,4 +1993,38 @@ html.glass-refract .admin-save-bar {
 
   a { color: inherit; }
   * { animation: none !important; transition: none !important; }
+}
+
+/* All Posts on phones — each post becomes a card: the title across the top,
+   date, platform and health on one line, then the three numbers side by side
+   with their own labels. The scrolling seven-column table it replaces hid
+   every number off the right edge and wrapped titles five lines deep. */
+@media (max-width: 600px) {
+  .all-posts-sort { display: block; }
+  .all-posts-list-wrap { max-height: 70vh; }
+  .table--wide.all-posts-table { min-width: 0; }
+  .all-posts-table thead { display: none; }
+  .all-posts-table tbody tr {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    column-gap: 12px; row-gap: 8px;
+    padding: 16px 0; border-bottom: 1px solid var(--rule);
+  }
+  .all-posts-table tbody tr:first-child { border-top: 1px solid var(--ink); }
+  .all-posts-table tbody td { display: block; padding: 0; border: 0; min-width: 0; }
+  /* Rows are pinned so the health cell, last in the markup, still lands on
+     the date line rather than on a fourth row under the numbers. */
+  .all-posts-table tbody td:first-child { grid-row: 1; grid-column: 1 / -1; }
+  .all-posts-table .all-posts-cell-date     { grid-row: 2; grid-column: 1; }
+  .all-posts-table .all-posts-cell-platform { grid-row: 2; grid-column: 2; }
+  .all-posts-table tbody td.health-col      { grid-row: 2; grid-column: 3; min-width: 0; padding-left: 0; text-align: right; }
+  .all-posts-table tbody td.r {
+    grid-row: 3;
+    display: flex; flex-direction: column; gap: 2px;
+    text-align: left; font-size: 16px;
+  }
+  .all-posts-table tbody td.r::before {
+    content: attr(data-label);
+    font-family: var(--sans); font-size: 10px; font-weight: 500;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3);
+  }
 }

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { WebPage } from "./WebPage.jsx";
 import { useWebReport } from "../hooks/useWebReport.js";
 import { useFormStats } from "../hooks/useFormStats.js";
@@ -191,8 +191,17 @@ describe("WebPage with a published report", () => {
 
   it("numbers the channels for scanning", () => {
     const { container } = page();
-    const idx = [...container.querySelectorAll(".channel-idx")].map((el) => el.textContent);
+    const table = container.querySelector('[aria-label="Traffic channels breakdown"]');
+    const idx = [...table.querySelectorAll(".channel-idx")].map((el) => el.textContent);
     expect(idx).toEqual(["01", "02"]);
+  });
+
+  it("lists top pages as a ranked table with their three figures", () => {
+    page();
+    const table = screen.getByRole("table", { name: "Top pages by page views" });
+    expect(within(table).getByRole("rowheader", { name: "/jobs" })).toBeTruthy();
+    expect(within(table).getByText("4,300")).toBeTruthy();
+    expect(within(table).getByText("1:35")).toBeTruthy();
   });
 
   it("shows an empty note for each insight section left blank", () => {

@@ -60,3 +60,9 @@ export const IconSort = (props) => (
     <path d="M5 6.5 8 3.5l3 3M5 9.5l3 3 3-3" />
   </Svg>
 );
+
+export const IconDownload = (props) => (
+  <Svg {...props}>
+    <path d="M8 2.75v7.5M4.75 7 8 10.25 11.25 7M3 13.25h10" />
+  </Svg>
+);

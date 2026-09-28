@@ -185,6 +185,25 @@ describe("AppNav quarter chooser", () => {
   });
 });
 
+describe("AppNav Save PDF and Admin", () => {
+  it("opens the print dialog from the Save PDF button", () => {
+    const print = vi.spyOn(window, "print").mockImplementation(() => {});
+    nav();
+    fireEvent.click(screen.getByRole("button", { name: /Save this report as a PDF/ }));
+    expect(print).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the Admin link from readers", () => {
+    nav();
+    expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
+  });
+
+  it("shows the Admin link to a signed-in editor", () => {
+    nav({ showAdmin: true });
+    expect(screen.getByRole("link", { name: "Admin" }).getAttribute("href")).toBe("/admin");
+  });
+});
+
 describe("AppNav has no command palette", () => {
   it("offers no search control in the header", () => {
     nav();

@@ -4,6 +4,7 @@ import { fmtInt, calcAutoDelta } from "../utils.js";
 import { buildSourceTrend, findSourceSpike } from "../lib/sourceTrends.js";
 import { CountUp } from "./CountUp.jsx";
 import { Delta } from "./Delta.jsx";
+import { useChartWidth, NARROW_CHART } from "../hooks/useChartWidth.js";
 
 const WORK = "var(--chart-work)";
 const STAFF = "var(--chart-staff)";
@@ -53,12 +54,21 @@ const SERIES = [
   { key: "staff", name: "Employer leads", color: STAFF },
 ];
 
+// Room for one date label on the x axis; fewer fit on a phone.
+const X_LABEL_PX = 72;
+// A centred date label at either end of a narrow chart runs off the edge;
+// those anchor inward instead.
+const edgeAnchor = (px, width) => (px < 26 ? "start" : px > width - 26 ? "end" : "middle");
+
 function WeeklyChart({ weeks }) {
   const [hover, setHover] = useState(null);
-  const W = 1100,
-    H = 300,
+  const [svgRef, W] = useChartWidth(1100);
+  // On a phone the end-of-line names would take a third of the plot; the
+  // legend under the chart names both lines, so they drop there instead.
+  const endLabels = W >= NARROW_CHART;
+  const H = 300,
     pL = 44,
-    pR = 110,
+    pR = endLabels ? 110 : 16,
     pT = 24,
     pB = 36;
   const series = SERIES;
@@ -71,8 +81,11 @@ function WeeklyChart({ weeks }) {
   const x = (i) => pL + i * xStep;
   const y = (v) => pT + (H - pT - pB) * (1 - v / max);
   const ticks = [0, 1 / 3, 2 / 3, 1].map((t) => ({ v: Math.round(max * t), y: y(max * t) }));
-  // Thin the x-axis labels so long quarters don't collide
-  const labelEvery = weeks.length > 8 ? Math.ceil(weeks.length / 7) : 1;
+  // Thin the x-axis labels so they don't collide at any width
+  const labelEvery = Math.max(
+    1,
+    Math.ceil(weeks.length / Math.max(2, Math.floor((W - pL - pR) / X_LABEL_PX)))
+  );
 
   const onMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -85,6 +98,7 @@ function WeeklyChart({ weeks }) {
     <div className="cf-chart-wrap">
       <div className="cf-chart-area">
         <svg
+          ref={svgRef}
           className="cf-chart-svg"
           viewBox={`0 0 ${W} ${H}`}
           preserveAspectRatio="xMidYMid meet"
@@ -116,7 +130,7 @@ function WeeklyChart({ weeks }) {
                   key={i}
                   x={x(i)}
                   y={H - pB + 18}
-                  textAnchor="middle"
+                  textAnchor={edgeAnchor(x(i), W)}
                   fontSize="11"
                   fill="var(--ink-3)"
                   fontFamily="var(--sans)"
@@ -138,6 +152,12 @@ function WeeklyChart({ weeks }) {
               labelYs[0] += topFirst ? -shift : shift;
               labelYs[1] += topFirst ? shift : -shift;
             }
+            // Keep both names above the axis, clear of the last date label.
+            const floor = H - pB - 6;
+            if (Math.max(...labelYs) > floor) {
+              const lift = Math.max(...labelYs) - floor;
+              for (let i = 0; i < labelYs.length; i++) labelYs[i] -= lift;
+            }
             return series.map((s, si) => {
               const path = weeks
                 .map((w, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(w[s.key]).toFixed(1)}`)
@@ -154,15 +174,17 @@ function WeeklyChart({ weeks }) {
                     stroke={s.color}
                     strokeWidth="2"
                   />
-                  <text
-                    x={x(last) + 10}
-                    y={labelYs[si] + 4}
-                    fontSize="12"
-                    fontFamily="var(--sans)"
-                    fill="var(--ink-2)"
-                  >
-                    {s.name}
-                  </text>
+                  {endLabels && (
+                    <text
+                      x={x(last) + 10}
+                      y={labelYs[si] + 4}
+                      fontSize="12"
+                      fontFamily="var(--sans)"
+                      fill="var(--ink-2)"
+                    >
+                      {s.name}
+                    </text>
+                  )}
                   {hover != null && (
                     <circle
                       cx={x(hover)}
@@ -309,6 +331,7 @@ function axisTop(peak) {
 
 function SourceTrend({ sources, sourceWeekly, sourceSince, weeks }) {
   const [hover, setHover] = useState(null);
+  const [svgRef, W] = useChartWidth(1100);
 
   const { rows, coveredFrom } = useMemo(
     () =>
@@ -357,8 +380,7 @@ function SourceTrend({ sources, sourceWeekly, sourceSince, weeks }) {
   const shown = rows.filter((r) => hues.has(r.source));
   const full = hues.size >= MAX_LINES;
 
-  const W = 1100,
-    H = 320,
+  const H = 320,
     pL = 46,
     pR = 26,
     pT = 20,
@@ -368,7 +390,10 @@ function SourceTrend({ sources, sourceWeekly, sourceSince, weeks }) {
   const x = (i) => pL + i * xStep;
   const y = (v) => pT + (H - pT - pB) * (1 - v / max);
   const ticks = [0, 1 / 3, 2 / 3, 1].map((t) => ({ v: Math.round(max * t), y: y(max * t) }));
-  const labelEvery = weeks.length > 10 ? Math.ceil(weeks.length / 7) : 1;
+  const labelEvery = Math.max(
+    1,
+    Math.ceil(weeks.length / Math.max(2, Math.floor((W - pL - pR) / X_LABEL_PX)))
+  );
 
   const onMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -400,6 +425,7 @@ function SourceTrend({ sources, sourceWeekly, sourceSince, weeks }) {
 
       <div className="cf-chart-area">
         <svg
+          ref={svgRef}
           className="cf-chart-svg"
           viewBox={`0 0 ${W} ${H}`}
           preserveAspectRatio="xMidYMid meet"
@@ -452,7 +478,7 @@ function SourceTrend({ sources, sourceWeekly, sourceSince, weeks }) {
                   key={i}
                   x={x(i)}
                   y={H - pB + 18}
-                  textAnchor="middle"
+                  textAnchor={edgeAnchor(x(i), W)}
                   fontSize="11"
                   fill="var(--ink-3)"
                   fontFamily="var(--sans)"
@@ -563,22 +589,26 @@ const DOW_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const hourLabel = (h) => (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? " AM" : " PM");
 
 function Heatmap({ heatmap }) {
+  const [wrapRef, avail] = useChartWidth(1076, { min: 240 });
   if (!heatmap?.length) return null;
   const counts = Array.from({ length: 7 }, () => Array(24).fill(0));
   for (const c of heatmap) counts[c.dow - 1][c.hour] = c.count;
   const max = Math.max(...heatmap.map((c) => c.count));
 
-  const cw = 40,
-    ch = 24,
-    gap = 3,
-    pL = 44,
+  // Cells share out the measured width, so a phone gets narrower cells
+  // rather than smaller labels.
+  const narrow = avail < NARROW_CHART;
+  const pL = narrow ? 34 : 44,
+    gap = narrow ? 2 : 3,
+    cw = Math.min(40, Math.max(6, (avail - pL) / 24 - gap)),
+    ch = narrow ? 20 : 24,
     pT = 8,
     pB = 26;
   const W = pL + 24 * (cw + gap);
   const H = pT + 7 * (ch + gap) + pB;
 
   return (
-    <div className="cf-panel cf-panel--wide">
+    <div className="cf-panel cf-panel--wide" ref={wrapRef}>
       <h3 className="cf-panel-title serif">When submissions arrive</h3>
       <svg
         className="cf-heatmap-svg"
