@@ -63,12 +63,14 @@ function WeeklyChart({ weeks }) {
     pB = 36;
   const series = SERIES;
 
-  const rawMax = Math.max(1, ...weeks.flatMap((w) => series.map((s) => w[s.key])));
-  const max = rawMax * 1.15;
+  // Round the axis up to a whole-number step, as the source trend does. A
+  // quiet quarter peaks at one or two a week, and a raw top with rounded
+  // labels would print the same number on two gridlines.
+  const max = axisTop(Math.max(1, ...weeks.flatMap((w) => series.map((s) => w[s.key]))));
   const xStep = (W - pL - pR) / Math.max(weeks.length - 1, 1);
   const x = (i) => pL + i * xStep;
   const y = (v) => pT + (H - pT - pB) * (1 - v / max);
-  const ticks = [0, 0.5, 1].map((t) => ({ v: Math.round(max * t), y: y(max * t) }));
+  const ticks = [0, 1 / 3, 2 / 3, 1].map((t) => ({ v: Math.round(max * t), y: y(max * t) }));
   // Thin the x-axis labels so long quarters don't collide
   const labelEvery = weeks.length > 8 ? Math.ceil(weeks.length / 7) : 1;
 

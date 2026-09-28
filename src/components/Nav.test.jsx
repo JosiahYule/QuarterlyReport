@@ -126,6 +126,27 @@ describe("AppNav agency switcher", () => {
 });
 
 describe("AppNav quarter chooser", () => {
+  it("is absent on Trends, which always shows the latest quarters", () => {
+    nav({ view: "trends" });
+    expect(screen.queryByRole("button", { name: /Current quarter/ })).toBeNull();
+  });
+
+  it("marks quarters that have no report for this view, but keeps them selectable", () => {
+    nav({ published: [QUARTERS[0]] });
+    fireEvent.click(quarterButton());
+    const items = screen.getAllByRole("menuitem");
+    expect(items[0].textContent).not.toContain("No report");
+    expect(items[1].textContent).toContain("No report");
+    fireEvent.click(items[1]);
+    expect(onNavigate).toHaveBeenCalledWith({ quarter: QUARTERS[1].id });
+  });
+
+  it("marks nothing while published quarters are still loading", () => {
+    nav({ published: null });
+    fireEvent.click(quarterButton());
+    expect(screen.queryByText("No report")).toBeNull();
+  });
+
   it("falls back to the current quarter when handed an unknown one", () => {
     nav({ quarter: "not-a-quarter" });
     expect(quarterButton().getAttribute("aria-label")).toContain(QUARTERS[0].title);
