@@ -295,6 +295,11 @@
   .menu .menu-item:hover,
   .menu .menu-item:focus-visible { background: var(--paper-2); color: var(--ink); outline: none; }
   .menu .menu-item.active  { color: var(--accent); font-weight: 500; }
+  .menu .menu-item.is-empty {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+    color: var(--ink-4); white-space: nowrap;
+  }
+  .menu-item-note { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-4); white-space: nowrap; }
 
   /* Command palette (⌘K) */
 
@@ -1953,4 +1958,29 @@ html.glass-refract .admin-header,
 html.glass-refract .admin-save-bar {
   backdrop-filter: url(#glass-warp-bar);
   -webkit-backdrop-filter: url(#glass-warp-bar);
+}
+
+/* Print — "Save as PDF" is the quickest way to hand a quarter to someone
+   who won't open the dashboard. Drop the chrome that only works on screen,
+   flatten the page onto white, and keep charts, tables and KPI cards from
+   splitting across a page break. */
+@media print {
+  @page { margin: 14mm 12mm; }
+  html, body { background: #fff !important; }
+  body { font-size: 12px; }
+
+  .app-nav, .scroll-progress, .page-loader, .loading-screen,
+  .section-rail, .view-toggle, .app-nav-admin-link { display: none !important; }
+
+  .report-wrap, .wrap { max-width: none; padding-left: 0; padding-right: 0; }
+  .report-wrap { padding-top: 0; animation: none; }
+  .hero { padding-top: 0; }
+  .section { padding-top: 28px; padding-bottom: 28px; }
+  .section-head { margin-bottom: 18px; break-after: avoid; }
+
+  .kpi, .kpi-grid, svg, canvas, tr, figure,
+  .cf-panel, .proj-card { break-inside: avoid; }
+
+  a { color: inherit; }
+  * { animation: none !important; transition: none !important; }
 }

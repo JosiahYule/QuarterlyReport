@@ -86,7 +86,7 @@ function App() {
       {/* Scroll-driven reading progress (CSS-only; hidden where unsupported) */}
       <div className="scroll-progress" aria-hidden="true" />
 
-      <AppNav agency={agency} view={view} quarter={quarter} onNavigate={navigate} />
+      <AppNav agency={agency} view={view} quarter={quarter} published={published} onNavigate={navigate} />
 
       <Suspense fallback={<PageSkeleton view={view} />}>
         {/* Rendering mid-resolution would flash the empty state for a quarter

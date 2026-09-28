@@ -93,7 +93,12 @@ function AgencyMenu({ current, onSelect, onClose }) {
 }
 
 // ─── Quarter chooser dropdown ─────────────────────────────────────
-function QuarterMenu({ current, onSelect, onClose }) {
+// `published` is the list of quarters with a report for the current view, or
+// null while that is still being looked up. Quarters outside it stay
+// selectable (a link may still want one), but are marked so a reader can see
+// before clicking that the page will be empty.
+function QuarterMenu({ current, published, onSelect, onClose }) {
+  const hasReport = (q) => published == null || published.some((p) => p.id === q.id);
   const fiscalYears = [...new Set(QUARTERS.map((q) => q.fiscalYear))];
   const allItems = QUARTERS; // flat ordered list for keyboard nav
   const itemRefs = useRef([]);
@@ -141,6 +146,7 @@ function QuarterMenu({ current, onSelect, onClose }) {
           </div>
           {QUARTERS.filter((q) => q.fiscalYear === fy).map((q) => {
             const idx = flatIdx++;
+            const empty = !hasReport(q);
             return (
               <button
                 key={q.id}
@@ -149,7 +155,7 @@ function QuarterMenu({ current, onSelect, onClose }) {
                 }}
                 role="menuitem"
                 aria-current={q.id === current ? "true" : undefined}
-                className={"menu-item" + (q.id === current ? " active" : "")}
+                className={"menu-item" + (q.id === current ? " active" : "") + (empty ? " is-empty" : "")}
                 onClick={() => {
                   onSelect(q.id);
                   onClose();
@@ -157,6 +163,7 @@ function QuarterMenu({ current, onSelect, onClose }) {
                 onKeyDown={(e) => handleKeyDown(e, idx)}
               >
                 {q.label} · {q.rangeLabel}
+                {empty && <span className="menu-item-note">No report</span>}
               </button>
             );
           })}
@@ -167,7 +174,7 @@ function QuarterMenu({ current, onSelect, onClose }) {
 }
 
 // ─── Single combined nav bar ──────────────────────────────────────
-export function AppNav({ agency, view, quarter, onNavigate }) {
+export function AppNav({ agency, view, quarter, published = null, onNavigate }) {
   const [agencyOpen, setAgencyOpen] = useState(false);
   const [quarterOpen, setQuarterOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -208,6 +215,9 @@ export function AppNav({ agency, view, quarter, onNavigate }) {
 
   const cfg = AGENCIES[agency] || AGENCIES.isl;
   const q = resolveQuarter(quarter);
+  // Trends always spans the latest quarters, so a quarter picker there would
+  // change the URL and nothing on the page.
+  const showQuarter = view !== "trends";
 
   return (
     <header className={"app-nav" + (scrolled ? " is-scrolled" : "")}>
@@ -259,30 +269,35 @@ export function AppNav({ agency, view, quarter, onNavigate }) {
         </div>
 
         <div className="app-nav-right">
-          <span className="app-nav-range" aria-hidden="true">
-            {q.rangeLabel}
-          </span>
-          <div ref={quarterRef} style={{ position: "relative" }}>
-            <button
-              className="qchooser"
-              aria-haspopup="menu"
-              aria-expanded={quarterOpen}
-              aria-label={`Current quarter: ${q.title}, ${q.rangeLabel}. Activate to change.`}
-              onClick={() => setQuarterOpen((o) => !o)}
-            >
-              <span>{q.label}</span>
-              <span className="caret" aria-hidden="true">
-                <IconCaret />
-              </span>
-            </button>
-            {quarterOpen && (
-              <QuarterMenu
-                current={quarter}
-                onSelect={(id) => onNavigate({ quarter: id })}
-                onClose={() => setQuarterOpen(false)}
-              />
-            )}
-          </div>
+          {showQuarter && (
+            <span className="app-nav-range" aria-hidden="true">
+              {q.rangeLabel}
+            </span>
+          )}
+          {showQuarter && (
+            <div ref={quarterRef} style={{ position: "relative" }}>
+              <button
+                className="qchooser"
+                aria-haspopup="menu"
+                aria-expanded={quarterOpen}
+                aria-label={`Current quarter: ${q.title}, ${q.rangeLabel}. Activate to change.`}
+                onClick={() => setQuarterOpen((o) => !o)}
+              >
+                <span>{q.label}</span>
+                <span className="caret" aria-hidden="true">
+                  <IconCaret />
+                </span>
+              </button>
+              {quarterOpen && (
+                <QuarterMenu
+                  current={quarter}
+                  published={published}
+                  onSelect={(id) => onNavigate({ quarter: id })}
+                  onClose={() => setQuarterOpen(false)}
+                />
+              )}
+            </div>
+          )}
 
           <a href="/admin" className="app-nav-admin-link">
             Admin
