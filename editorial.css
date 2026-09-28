@@ -196,7 +196,10 @@
   }
   /* Let the agency name ellipsize so a long name can never push the view
      tabs off-screen; the tabs hold their width instead. */
-  .app-nav-agency-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* overflow: hidden clips at the line box, and the button's line-height: 1
+     leaves no room under the baseline, so the tails of g, p and y were cut
+     off. A taller line gives the descenders room inside the clip. */
+  .app-nav-agency-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3; }
   .app-nav-agency-btn:hover { opacity: 0.7; }
   .app-nav-agency-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
   .app-nav-caret {
