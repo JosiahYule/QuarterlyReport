@@ -478,3 +478,35 @@ describe("SocialPage quarter-by-quarter chart", () => {
     expect(ys.every((y) => y <= plotBottom)).toBe(true);
   });
 });
+
+describe("SocialPage part way through a quarter", () => {
+  const partial = { complete: false, fraction: 0.69, asOf: new Date("2026-11-03T15:00:00Z"), days: 91 };
+
+  it("says the quarter is in progress and names the pace behind a paced delta", () => {
+    mockReport({
+      status: "ready",
+      data: {
+        ...REPORT,
+        coverage: partial,
+        deltas: { impressions: { dir: "down", pct: 58 } },
+        pace: { impressions: 74539 },
+      },
+    });
+    const { container } = page();
+    expect(screen.getByText(/In progress · figures to Nov\.? 3 · 69% of the quarter/)).toBeTruthy();
+    const card = [...container.querySelectorAll("#numbers .kpi")].find((k) =>
+      k.textContent.includes("Impressions")
+    );
+    expect(card.textContent).toContain("on pace for");
+    expect(card.querySelector(".delta").getAttribute("aria-label")).toMatch(/^on pace, decreased/);
+  });
+
+  it("marks a total with no comparison yet as only part of the quarter", () => {
+    mockReport({ status: "ready", data: { ...REPORT, coverage: partial, deltas: {}, pace: {} } });
+    const { container } = page();
+    const posts = [...container.querySelectorAll("#numbers .kpi")].find((k) =>
+      k.textContent.includes("Posts")
+    );
+    expect(posts.textContent).toContain("so far this quarter");
+  });
+});

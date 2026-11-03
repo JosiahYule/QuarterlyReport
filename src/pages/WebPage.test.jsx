@@ -246,3 +246,64 @@ describe("WebPage contact forms section", () => {
     expect(screen.queryByRole("button", { name: "Contact Forms" })).toBeNull();
   });
 });
+
+describe("WebPage part way through a quarter", () => {
+  // Figures saved halfway through, against a full previous quarter.
+  const partial = { complete: false, fraction: 0.5, asOf: new Date("2026-10-16T15:00:00Z"), days: 91 };
+  const PREV = {
+    ...REPORT,
+    overall: { ...REPORT.overall, sessions: 20000, users: 16000, engagementRate: 60 },
+    channels: [{ name: "Organic", sessions: 12000, shareOfTraffic: 55, engagementRate: 60 }],
+  };
+  const kpi = (container, label) =>
+    [...container.querySelectorAll("#numbers .kpi")].find((k) => k.textContent.includes(label));
+
+  it("says the quarter is in progress, how far, and to when", () => {
+    mockReport({ status: "ready", data: { ...REPORT, coverage: partial }, prevData: PREV });
+    page();
+    expect(screen.getByText(/In progress · figures to Oct\.? 16 · 50% of the quarter/)).toBeTruthy();
+  });
+
+  it("compares a total at its pace, and says so", () => {
+    mockReport({ status: "ready", data: { ...REPORT, coverage: partial }, prevData: PREV });
+    const { container } = page();
+    // 12,400 by halfway is on pace for 24,800: up 24%, not down 38%.
+    const visits = kpi(container, "Total Visits");
+    expect(visits.textContent).toContain("on pace for 24,800");
+    expect(visits.querySelector(".delta").textContent).toBe("+24.0%");
+  });
+
+  it("gives unique users no comparison, since distinct people don't add up by the day", () => {
+    mockReport({ status: "ready", data: { ...REPORT, coverage: partial }, prevData: PREV });
+    const { container } = page();
+    const users = kpi(container, "Unique Users");
+    expect(users.querySelector(".delta")).toBeNull();
+    expect(users.textContent).toContain("so far this quarter");
+  });
+
+  it("still compares a rate as it stands", () => {
+    mockReport({ status: "ready", data: { ...REPORT, coverage: partial }, prevData: PREV });
+    const { container } = page();
+    expect(kpi(container, "Engagement Rate").querySelector(".delta")).toBeTruthy();
+  });
+
+  it("drops raw totals from the channel table but keeps its rates", () => {
+    mockReport({ status: "ready", data: { ...REPORT, coverage: partial }, prevData: PREV });
+    const { container } = page();
+    const organic = [...container.querySelectorAll("#channels [role='row']")].find((r) =>
+      r.textContent.includes("Organic")
+    );
+    expect(organic.querySelector("[data-label='Sessions'] .delta")).toBeNull();
+    expect(organic.querySelector("[data-label='Share'] .delta")).toBeTruthy();
+  });
+
+  it("shows no progress line for a finished quarter", () => {
+    mockReport({
+      status: "ready",
+      data: { ...REPORT, coverage: { complete: true, fraction: 1 } },
+      prevData: PREV,
+    });
+    page();
+    expect(screen.queryByText(/In progress/)).toBeNull();
+  });
+});

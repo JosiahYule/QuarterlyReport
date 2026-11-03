@@ -1,13 +1,14 @@
 import { supabase } from "../lib/supabase.js";
 import { resolveQuarter, previousQuarter } from "../config.js";
 import { withRetry, useCachedResource, oneRow } from "../lib/fetching.js";
+import { quarterCoverage } from "../lib/quarterProgress.js";
 
 async function fetchReport(agency, q) {
   const { data, error } = await supabase
     .from("web_reports")
     .select(
       `
-      id, summary_bullet,
+      id, summary_bullet, updated_at,
       web_kpis(*),
       web_channels(*),
       web_pages(*),
@@ -22,11 +23,14 @@ async function fetchReport(agency, q) {
   return data;
 }
 
-function normalize(report) {
+function normalize(report, q) {
   if (!report) return null;
   const kpis = oneRow(report.web_kpis) || {};
   const ins = oneRow(report.web_insights) || {};
   return {
+    // How far through its quarter the figures reach, from when they were last
+    // saved. The page uses it to compare a partial quarter fairly.
+    coverage: quarterCoverage(q, report.updated_at),
     summary: { bullet: report.summary_bullet || "" },
     overall: {
       sessions: kpis.sessions,
@@ -76,7 +80,7 @@ export function useWebReport(agency, quarter, retryKey = 0) {
         withRetry(() => fetchReport(agency, q)),
         withRetry(() => fetchReport(agency, previousQuarter(q))),
       ]);
-      return { data: normalize(report), prevData: normalize(prevReport) };
+      return { data: normalize(report, q), prevData: normalize(prevReport, previousQuarter(q)) };
     },
     retryKey
   );
