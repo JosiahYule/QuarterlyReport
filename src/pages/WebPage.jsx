@@ -7,7 +7,9 @@ import { reportState } from "../components/ReportState.jsx";
 import { usePublishedQuarters } from "../hooks/usePublishedQuarters.js";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { InsightsSection } from "../components/InsightsSection.jsx";
-import { fmtInt, fmtPct, fmtTime, calcAutoDelta } from "../utils.js";
+import { fmtInt, fmtPct, fmtTime } from "../utils.js";
+import { compareMetric, TOTAL, LEVEL, UNIQUE } from "../lib/quarterProgress.js";
+import { QuarterProgress } from "../components/QuarterProgress.jsx";
 import { AGENCIES, resolveQuarter } from "../config.js";
 import { CountUp } from "../components/CountUp.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
@@ -32,7 +34,10 @@ function Hero({ agency, quarter, data }) {
             <div className="hero-b-meta-range">{q.rangeLabel}</div>
           </div>
         </div>
-        <div className="hero-b-type">Website</div>
+        <div className="hero-b-right">
+          <div className="hero-b-type">Website</div>
+          <QuarterProgress coverage={data.coverage} />
+        </div>
       </div>
       {note && <p className="hero-b-note">{note}</p>}
     </section>
@@ -40,19 +45,43 @@ function Hero({ agency, quarter, data }) {
 }
 
 // ─── KPI grid ─────────────────────────────────────────────────────
+// `kind` is how the metric behaves part way through a quarter (see
+// lib/quarterProgress.js). Unique users is a count of distinct people, so it
+// grows slower than the calendar and has no fair partial comparison.
 const KPI_DEFS = [
-  { key: "sessions", label: "Total Visits", fmt: fmtInt, note: "all sessions this quarter" },
-  { key: "users", label: "Unique Users", fmt: fmtInt, note: "distinct visitors" },
-  { key: "engagementRate", label: "Engagement Rate", fmt: fmtPct, note: "meaningful sessions" },
+  { key: "sessions", kind: TOTAL, label: "Total Visits", fmt: fmtInt, note: "all sessions this quarter" },
+  { key: "users", kind: UNIQUE, label: "Unique Users", fmt: fmtInt, note: "distinct visitors" },
+  {
+    key: "engagementRate",
+    kind: LEVEL,
+    label: "Engagement Rate",
+    fmt: fmtPct,
+    note: "meaningful sessions",
+  },
   {
     key: "avgEngagementTimeSec",
+    kind: LEVEL,
     label: "Avg Time on Site",
     fmt: fmtTime,
     note: "active engagement per visit",
   },
-  { key: "actions", label: "Campaign Clicks", fmt: fmtInt, note: "high-intent interactions" },
-  { key: "formSubmissions", label: "Form Submissions", fmt: fmtInt, note: "completed contact forms" },
+  { key: "actions", kind: TOTAL, label: "Campaign Clicks", fmt: fmtInt, note: "high-intent interactions" },
+  {
+    key: "formSubmissions",
+    kind: TOTAL,
+    label: "Form Submissions",
+    fmt: fmtInt,
+    note: "completed contact forms",
+  },
 ];
+
+// A table cell has no room to say "on pace", and a paced figure read as a raw
+// one is its own kind of misleading, so tables show only comparisons that are
+// fair as they stand.
+function cellDelta(kind, cur, prev, coverage) {
+  const c = compareMetric(kind, cur, prev, coverage);
+  return c.paced ? null : c.delta;
+}
 
 function Numbers({ data, prevData }) {
   const o = data.overall || {};
@@ -67,7 +96,14 @@ function Numbers({ data, prevData }) {
       <div className="kpi-grid">
         {KPI_DEFS.map((k, i) => {
           const v = o[k.key];
-          const d = calcAutoDelta(v, prev[k.key]);
+          const c = compareMetric(k.kind, v, prev[k.key], data.coverage);
+          const d = c.delta;
+          const partial = data.coverage && !data.coverage.complete;
+          const note = c.paced
+            ? `on pace for ${k.fmt(c.projected)}`
+            : partial && !d && v != null
+              ? "so far this quarter"
+              : k.note;
           return (
             <div className="kpi" key={k.key} style={{ "--i": i }}>
               <div className="kpi-label">{k.label}</div>
@@ -75,8 +111,8 @@ function Numbers({ data, prevData }) {
                 <CountUp value={v} format={k.fmt} />
               </div>
               <div className="kpi-foot">
-                <Delta d={d} />
-                <span className="delta-note">{k.note}</span>
+                <Delta d={d} paced={c.paced} />
+                <span className="delta-note">{note}</span>
               </div>
             </div>
           );
@@ -117,9 +153,9 @@ function Channels({ data, prevData }) {
         </div>
         {channels.map((c, i) => {
           const prev = prevMap[c.name?.toLowerCase()] || null;
-          const sd = calcAutoDelta(c.sessions, prev?.sessions);
-          const shd = calcAutoDelta(c.shareOfTraffic, prev?.shareOfTraffic);
-          const ed = calcAutoDelta(c.engagementRate, prev?.engagementRate);
+          const sd = cellDelta(TOTAL, c.sessions, prev?.sessions, data.coverage);
+          const shd = cellDelta(LEVEL, c.shareOfTraffic, prev?.shareOfTraffic, data.coverage);
+          const ed = cellDelta(LEVEL, c.engagementRate, prev?.engagementRate, data.coverage);
           return (
             <div className="channel-row-web" key={c.name} role="row">
               <div className="channel-idx serif ital" aria-hidden="true">
@@ -194,9 +230,9 @@ function TopPages({ data, prevData }) {
         </div>
         {pages.map((p, i) => {
           const prev = prevMap[(p.key || p.name || "").toLowerCase()] || null;
-          const vd = calcAutoDelta(p.pageViews, prev?.pageViews);
-          const bd = calcAutoDelta(p.bounceRate, prev?.bounceRate);
-          const td = calcAutoDelta(p.avgTimeOnPageSec, prev?.avgTimeOnPageSec);
+          const vd = cellDelta(TOTAL, p.pageViews, prev?.pageViews, data.coverage);
+          const bd = cellDelta(LEVEL, p.bounceRate, prev?.bounceRate, data.coverage);
+          const td = cellDelta(LEVEL, p.avgTimeOnPageSec, prev?.avgTimeOnPageSec, data.coverage);
           return (
             <div className="channel-row-web" key={p.key} role="row">
               <div className="channel-idx serif ital" aria-hidden="true">

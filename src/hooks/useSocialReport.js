@@ -1,12 +1,12 @@
 import { supabase } from "../lib/supabase.js";
 import { AGENCIES, resolveQuarter, previousQuarter } from "../config.js";
-import { calcAutoDelta } from "../utils.js";
 import { withRetry, useCachedResource, oneRow } from "../lib/fetching.js";
+import { quarterCoverage, compareMetric, TOTAL, LEVEL, UNIQUE } from "../lib/quarterProgress.js";
 
 // The previous quarter is only read for its deltas, so it skips the post log
 // and insights, which are most of a report's weight.
 const REPORT_SELECT =
-  "id, editors_note, social_kpis(*), social_platforms(*), social_posts(*), social_insights(*)";
+  "id, editors_note, updated_at, social_kpis(*), social_platforms(*), social_posts(*), social_insights(*)";
 const PREV_SELECT = "id, social_kpis(*), social_platforms(*)";
 
 async function fetchReport(agency, q, select = REPORT_SELECT) {
@@ -36,17 +36,45 @@ export function socialKpis(row) {
   };
 }
 
+// How each headline KPI behaves part way through a quarter (see
+// lib/quarterProgress.js): totals are compared at their pace, while followers
+// and the engagement rate mean the same on any day and are compared as they
+// stand.
+export const SOCIAL_KPI_KINDS = {
+  posts: TOTAL,
+  impressions: TOTAL,
+  shares: TOTAL,
+  reactions: TOTAL,
+  followers: LEVEL,
+  linkclicks: TOTAL,
+  comments: TOTAL,
+  avgengagementrate: LEVEL,
+};
+
+// A table cell has no room to say "on pace", and a paced figure read as a raw
+// one is its own kind of misleading, so tables show only comparisons that are
+// fair as they stand.
+function cellDelta(kind, cur, prev, coverage) {
+  const c = compareMetric(kind, cur, prev, coverage);
+  return c.paced ? null : c.delta;
+}
+
 function normalize(report, agency, q, prev) {
   if (!report) return null;
 
+  const coverage = quarterCoverage(q, report.updated_at);
   const overall = socialKpis(oneRow(report.social_kpis)) || {};
   const prevOverall = socialKpis(oneRow(prev?.social_kpis));
 
+  // deltas: the badge for each KPI. pace: the projected finish behind any
+  // badge that compares a pace, so the card can say what it was compared at.
   const deltas = {};
+  const pace = {};
   if (prevOverall) {
     for (const key of Object.keys(overall)) {
-      const d = calcAutoDelta(overall[key], prevOverall[key]);
-      if (d) deltas[key] = d;
+      const c = compareMetric(SOCIAL_KPI_KINDS[key] ?? LEVEL, overall[key], prevOverall[key], coverage);
+      if (c.delta) deltas[key] = c.delta;
+      if (c.paced) pace[key] = c.projected;
     }
   }
 
@@ -63,13 +91,13 @@ function normalize(report, agency, q, prev) {
         key: p.name.toLowerCase(),
         name: p.name,
         followers: p.followers,
-        followersDelta: calcAutoDelta(p.followers, pp?.followers),
+        followersDelta: cellDelta(LEVEL, p.followers, pp?.followers, coverage),
         engagementRate: p.engagement_rate,
-        engagementRateDelta: calcAutoDelta(p.engagement_rate, pp?.engagement_rate),
+        engagementRateDelta: cellDelta(LEVEL, p.engagement_rate, pp?.engagement_rate, coverage),
         pageReach: p.page_reach,
-        pageReachDelta: calcAutoDelta(p.page_reach, pp?.page_reach),
+        pageReachDelta: cellDelta(UNIQUE, p.page_reach, pp?.page_reach, coverage),
         pageClicks: p.page_clicks,
-        pageClicksDelta: calcAutoDelta(p.page_clicks, pp?.page_clicks),
+        pageClicksDelta: cellDelta(TOTAL, p.page_clicks, pp?.page_clicks, coverage),
         note: p.note || "",
       };
     });
@@ -99,8 +127,10 @@ function normalize(report, agency, q, prev) {
       agencyName: AGENCIES[agency]?.name || "Integrated Staffing",
     },
     editorsNote: report.editors_note || "",
+    coverage,
     overall,
     deltas,
+    pace,
     platforms,
     notes,
     allPosts,

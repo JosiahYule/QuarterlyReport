@@ -145,6 +145,18 @@ const Q_DEFS = [
 
 The rules are covered by `src/config.test.js`.
 
+### Quarters still in progress
+
+Figures can be entered part way through a quarter. Compared raw with all of the quarter before, two months against three read as a steep fall, so the Social and Website reports compare a partial quarter differently (`src/lib/quarterProgress.js`):
+
+- **How far through** comes from when the report was last saved, not today: figures saved on 23 October describe the quarter to 23 October. The header says so ("In progress · figures to Oct 23 · 58% of the quarter").
+- **Totals** (posts, impressions, visits, form submissions) are compared at their pace, the figure they would reach if the rest of the quarter went the same way, and the card says "on pace for …". Under 15% of the way through there is no comparison, since a pace that early is mostly noise.
+- **Rates and levels** (engagement rate, time on site, followers) mean the same on any day, so they are compared as they stand.
+- **Counts of distinct people** (unique users, page reach) grow slower than the calendar, so they get no comparison until the quarter is done.
+- **Tables** show only the comparisons that are fair as they stand, since a cell has no room to say "on pace".
+
+Any save moves the "figures to" date, including one that only edits the insights. Save fresh numbers when you save mid-quarter, or the pace will undershoot.
+
 ---
 
 ## URL structure

@@ -11,6 +11,7 @@ import { fmt, fmtExact } from "../utils.js";
 import { IconSort, IconArrowUp, IconArrowDown } from "../components/Icons.jsx";
 import { CountUp } from "../components/CountUp.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
+import { QuarterProgress } from "../components/QuarterProgress.jsx";
 import { useChartWidth, NARROW_CHART } from "../hooks/useChartWidth.js";
 
 // ─── Hero ─────────────────────────────────────────────────────────
@@ -26,7 +27,10 @@ function Hero({ data }) {
             <div className="hero-b-meta-range">{data.meta.rangeLabel}</div>
           </div>
         </div>
-        <div className="hero-b-type">Social Media</div>
+        <div className="hero-b-right">
+          <div className="hero-b-type">Social Media</div>
+          <QuarterProgress coverage={data.coverage} />
+        </div>
       </div>
       {data.editorsNote && <p className="hero-b-note">{data.editorsNote}</p>}
     </section>
@@ -65,6 +69,16 @@ function Numbers({ data }) {
           // nothing there, rather than a flat 0.0%, keeps "we can't tell"
           // from reading as "nothing changed".
           const d = data.deltas?.[k.key];
+          // A partial quarter's total is compared at its pace, and the note
+          // says so; one too early to pace says it is only part of the story.
+          const projected = data.pace?.[k.key];
+          const partial = data.coverage && !data.coverage.complete;
+          const note =
+            projected != null
+              ? `on pace for ${k.fmt(projected)}`
+              : partial && !d && v != null
+                ? "so far this quarter"
+                : k.note;
           return (
             <div className="kpi" key={k.key} style={{ "--i": i }}>
               <div className="kpi-label">{k.label}</div>
@@ -72,8 +86,8 @@ function Numbers({ data }) {
                 <CountUp value={v} format={k.fmt} />
               </div>
               <div className="kpi-foot">
-                <Delta d={d} />
-                <span className="delta-note">{k.note}</span>
+                <Delta d={d} paced={projected != null} />
+                <span className="delta-note">{note}</span>
               </div>
             </div>
           );
