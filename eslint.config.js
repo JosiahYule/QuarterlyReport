@@ -32,6 +32,7 @@ export default [
         Intl: "readonly",
         URLSearchParams: "readonly",
         URL: "readonly",
+        Blob: "readonly",
         history: "readonly",
         crypto: "readonly",
       },

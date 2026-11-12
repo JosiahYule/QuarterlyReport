@@ -1589,6 +1589,7 @@
 }
 .admin-save-msg  { font-size: 13px; color: var(--up); }
 .admin-save-msg.is-error { color: var(--down); }
+.admin-posts-table td a { color: var(--accent); text-decoration: none; }
 
 /* Responsive admin */
 @media (max-width: 960px) {
@@ -1906,42 +1907,84 @@
 }
 
 /* ═══ Admin — Submissions tab ════════════════════════════════════ */
-.admin-lead-block { margin: 24px 0 32px; }
-.admin-lead-grid  { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
-.admin-lead-card {
-  border: 1px solid var(--rule); border-top: 3px solid var(--chart-staff);
-  border-radius: var(--radius-m); padding: 14px 16px;
-  display: grid; gap: 8px; align-content: start;
+/* A quiet list, not a spreadsheet: one line of who and why per submission,
+   everything else one click away. Colour is reserved for the two things
+   worth noticing at a glance: employer leads and rows that are new. */
+.sub-head { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.sub-summary { margin: 0; font-size: 13px; color: var(--ink-3); }
+.sub-summary-new { color: var(--ink-2); }
+.sub-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sub-head-actions .admin-btn-ghost:disabled { opacity: .45; cursor: default; background: transparent; }
+
+.sub-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.sub-views { display: flex; gap: 2px; margin-right: auto; }
+.sub-view {
+  height: 32px; padding: 0 10px; border: none; border-radius: var(--radius-s);
+  background: transparent; font-family: var(--sans); font-size: 13px; color: var(--ink-3);
+  cursor: pointer; transition: background .12s, color .12s; white-space: nowrap;
 }
-.admin-lead-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.admin-lead-name  { font-weight: 600; font-size: 14px; color: var(--ink); }
-.admin-lead-date  { font-size: 11px; color: var(--ink-4); white-space: nowrap; }
-.admin-lead-contact { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--ink-3); }
-.admin-lead-contact a { color: var(--accent); text-decoration: none; }
-.admin-lead-contact a:hover { text-decoration: underline; }
-.admin-lead-comment {
-  font-size: 12px; color: var(--ink-2); line-height: 1.5;
-  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+.sub-view:hover { color: var(--ink); background: var(--paper-2); }
+.sub-view.is-active { color: var(--ink); background: var(--paper-2); font-weight: 500; }
+.sub-view:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.sub-view-count { color: var(--ink-4); font-weight: 400; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.sub-controls .admin-input { height: 32px; font-size: 13px; width: auto; }
+.sub-search { width: 140px !important; }
+.sub-select { width: 128px !important; text-overflow: ellipsis; }
+
+.sub-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule-soft); }
+.sub-item { border-bottom: 1px solid var(--rule-soft); }
+.sub-row {
+  display: grid; grid-template-columns: 12px minmax(0, 1fr) 110px 120px; align-items: center; gap: 12px;
+  width: 100%; padding: 12px 8px 12px 4px; border: none; background: transparent; text-align: left;
+  font-family: var(--sans); color: var(--ink); cursor: pointer; transition: background .12s;
 }
-.admin-sub-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; scroll-margin-top: 80px; }
-.admin-sub-filters .admin-input { width: auto; }
-.admin-sub-search  { flex: 1; min-width: 220px; }
-.admin-sub-nowrap  { white-space: nowrap; }
-.admin-sub-contact { display: grid; font-size: 12px; }
-.admin-sub-contact a { color: var(--accent); text-decoration: none; }
-.admin-sub-intent  { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
-.admin-sub-intent::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--chart-work); flex-shrink: 0; }
-.admin-sub-intent.is-staff { color: var(--ink); font-weight: 500; }
-.admin-sub-intent.is-staff::before { background: var(--chart-staff); }
-.admin-sub-row--expandable { cursor: pointer; }
-.admin-sub-caret   { color: var(--ink-4); width: 24px; text-align: center; }
-.admin-sub-detail td { background: var(--paper-2); font-size: 12px; padding: 12px 14px; }
-.admin-sub-detail p  { margin: 0 0 8px; }
-.admin-sub-comment-text { white-space: pre-wrap; color: var(--ink-2); line-height: 1.55; }
-.admin-sub-empty   { text-align: center; color: var(--ink-4); padding: 28px 10px; }
-.admin-posts-table td a { color: var(--accent); text-decoration: none; }
-@media (max-width: 900px) { .admin-lead-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 620px) { .admin-lead-grid { grid-template-columns: 1fr; } }
+.sub-row:hover, .sub-item.is-open .sub-row { background: var(--paper-2); }
+.sub-row:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); border-radius: var(--radius-s); }
+.sub-mark { display: flex; justify-content: center; }
+.sub-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-right: 6px; vertical-align: 1px; }
+.sub-mark .sub-dot { margin: 0; }
+.sub-main { display: grid; gap: 2px; min-width: 0; }
+.sub-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.sub-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub-tag { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--chart-staff); flex-shrink: 0; }
+.sub-repeat { font-size: 12px; color: var(--ink-4); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.sub-item.is-open .sub-preview { display: none; }
+.sub-preview { font-size: 13px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub-where { font-size: 13px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub-when { font-size: 13px; color: var(--ink-3); white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+
+.sub-detail {
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 32px;
+  padding: 4px 8px 22px 28px; background: var(--paper-2);
+}
+.sub-detail-comment { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink-2); white-space: pre-wrap; max-width: 68ch; overflow-wrap: anywhere; }
+.sub-detail-empty { margin: 0; font-size: 13px; color: var(--ink-4); }
+.sub-detail-meta { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: 13px; align-content: start; }
+.sub-detail-meta dt { color: var(--ink-4); }
+.sub-detail-meta dd { margin: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.sub-detail-meta a { color: var(--accent); text-decoration: none; }
+.sub-detail-meta a:hover { text-decoration: underline; }
+
+.sub-copy, .sub-link {
+  padding: 0; border: none; background: none; font-family: var(--sans); font-size: 12px;
+  color: var(--ink-4); cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+.sub-link { font-size: inherit; color: var(--accent); }
+.sub-copy:hover { color: var(--ink); }
+.sub-copy:focus-visible, .sub-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.sub-muted { color: var(--ink-4); }
+
+.sub-empty { padding: 40px 0; text-align: center; font-size: 13px; color: var(--ink-4); }
+.sub-more { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 13px; }
+
+@media (max-width: 760px) {
+  .sub-views { width: 100%; margin-right: 0; overflow-x: auto; }
+  .sub-search { flex: 1 1 100%; width: auto !important; min-width: 0; }
+  .sub-select { flex: 1 1 0; min-width: 0; width: auto !important; }
+  .sub-row { grid-template-columns: 12px minmax(0, 1fr) auto; }
+  .sub-where { display: none; }
+  .sub-detail { grid-template-columns: 1fr; gap: 16px; padding-left: 20px; }
+}
 
 /* Glass fallback — solidify the translucent chrome where the browser
    can't blur what's behind it, so text never sits on see-through noise. */
