@@ -14,7 +14,7 @@ Each quarter, this dashboard is the single source of truth for how each agency i
 - **Website:** traffic KPIs, channel breakdown, top pages with deltas against the prior quarter, and a contact-forms section (submission KPIs, weekly trend by intent, branch and source breakdowns, a day-by-hour heatmap) fed by aggregate-only stats, so no submitter's personal details reach the public page.
 - **Paid Media:** campaigns and ads with spend, reach and conversion metrics, LinkedIn audience demographics, and post-click journeys through the site.
 - **Trends:** quarter-over-quarter trajectory for key metrics, with a pace-based projection of where the current quarter will finish.
-- **Admin** (`/admin`): magic-link sign-in for listed admins, tabbed forms for every section of each report, CSV import for the post log, unsaved-changes guards, and a Submissions tab (admin-only, since its rows hold personal details) with a dedup-safe contact-form CSV import.
+- **Admin** (`/admin`): magic-link sign-in for listed admins, tabbed forms for every section of each report, CSV import for the post log, unsaved-changes guards, and a Submissions tab (admin-only, since its rows hold personal details): a dedup-safe contact-form CSV import, a filterable list split into employer leads and job seekers, repeat-submitter and new-since-last-visit marks, and a CSV export of whatever is on screen.
 
 Every combination of agency, quarter and view is a URL, and switching between them needs no page reload.
 
@@ -239,7 +239,7 @@ Hosts, query strings and hashes are dropped (`/jobs?loc=halifax` → `/jobs`), r
 │   │   ├── fetching.js           # Retry, friendly errors, cached stale-while-revalidate hook
 │   │   ├── projection.js         # Trends pace model, calibration, anomalies
 │   │   ├── clickPaths.js         # Post-click journey parsing and analysis
-│   │   ├── linkedinDemographics.js / formSubmissions.js / sourceTrends.js
+│   │   ├── linkedinDemographics.js / formSubmissions.js / submissionsView.js / sourceTrends.js
 │   │   └── monitor.js / favicon.js
 │   ├── components/               # Nav, section rail, charts, loaders, empty and error states
 │   ├── hooks/                    # URL state, one data hook per report, auth
