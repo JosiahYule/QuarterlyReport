@@ -69,7 +69,9 @@ python3 ingestion/run.py --start 2026-09-01 --end 2026-11-30 \
 ```
 
 - `--quarter` / `--year` default to the fiscal quarter containing
-  `--start` (fiscal Q1 is Sep-Nov, labelled by its start year).
+  `--start`, with the year the app keys reports by: the calendar year
+  of the quarter's last day (fiscal Q1 is Sep-Nov of that year;
+  Dec-Feb is q2 of the year the February falls in).
 - `--data-dir` keeps the normalized pulls so a run can be re-mapped or
   audited without re-pulling; `--skip-pull` reuses them.
 - `--account-figures figures.json` supplies the figures no post pull

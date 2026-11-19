@@ -7,9 +7,10 @@
 The window is the publish window: posts published between --start and
 --end, lifetime metrics (see socialstats/mapper.py for the counting
 rules). --quarter and --year name the report the window belongs to; they
-default to the fiscal quarter containing --start (the fiscal year starts
-Sep 1 and is labelled by the year it starts in: Sep-Nov 2026 is q1 of
-2026). --agency defaults to isl; phase 1 is ISL only.
+default to the fiscal quarter containing --start (fiscal Q1 is Sep-Nov)
+with the year the app keys reports by: the calendar year of the
+quarter's last day, so Dec 2026-Feb 2027 is q2 of 2027. --agency
+defaults to isl; phase 1 is ISL only.
 
 Facebook and Instagram are pulled live through their connectors and the
 raw normalized pulls are kept in --data-dir (default ingestion/data/) so
@@ -34,6 +35,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import date, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -43,12 +45,29 @@ from socialstats import mapper, pull_facebook, pull_instagram, writer
 
 def fiscal_quarter(start):
     """(quarter, year) of the fiscal quarter containing an ISO date.
-    Fiscal Q1 is Sep-Nov; the fiscal year is labelled by its start year."""
-    year, month = int(start[:4]), int(start[5:7])
+
+    The quarter is fiscal (Q1 is Sep-Nov), but the year is the CALENDAR
+    year of the quarter's last day, because that is the year the app
+    keys reports by: src/config.js buildQuarter sets year to
+    String(last.getFullYear()), so the database key for Dec 2026-Feb
+    2027 is q2 + 2027. Labelling by the fiscal start year instead would
+    file Q2, Q3 and Q4 runs under the previous year's report and
+    overwrite it; Q1 (Sep-Nov) coincides under both rules, which is why
+    the Nov 3 sandbox run did not catch it.
+    """
+    d = date.fromisoformat(start)
     quarter = {9: 'q1', 10: 'q1', 11: 'q1', 12: 'q2', 1: 'q2', 2: 'q2',
-               3: 'q3', 4: 'q3', 5: 'q3', 6: 'q4', 7: 'q4', 8: 'q4'}[month]
-    fiscal_year = year if month >= 9 else year - 1
-    return quarter, str(fiscal_year)
+               3: 'q3', 4: 'q3', 5: 'q3', 6: 'q4', 7: 'q4', 8: 'q4'}[d.month]
+    # First calendar month of the quarter, and the year it falls in.
+    # Q2 starts in December, so for a Jan/Feb date the quarter began
+    # the previous calendar year.
+    first_month = {'q1': 9, 'q2': 12, 'q3': 3, 'q4': 6}[quarter]
+    first_year = d.year - 1 if (quarter == 'q2' and d.month in (1, 2)) else d.year
+    # The quarter's last day is the day before the first day of the
+    # month three months after the quarter starts.
+    total = first_year * 12 + (first_month - 1) + 3
+    last = date(total // 12, total % 12 + 1, 1) - timedelta(days=1)
+    return quarter, str(last.year)
 
 
 def load_env_file(path):
