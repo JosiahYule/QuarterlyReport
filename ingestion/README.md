@@ -93,7 +93,12 @@ The write is read-modify-write: sections the automation owns are
 replaced; the editor's note, insights, paid campaigns/ads/demographics/
 click paths and `followers_start` are read from the stored report and
 carried through unchanged. A second run changes nothing but `updated_at`
-and new `ingestion_runs` rows.
+and new `ingestion_runs` rows. If an editor saves in the dashboard
+between the run's read and its write, the run detects the moved
+`updated_at` on a re-read immediately before the write and aborts
+rather than overwriting the newer save; that narrows the race to the
+final instant (the app's save function has no compare-and-swap, so it
+cannot be closed entirely), and the next run writes fresh.
 
 ## Tests
 

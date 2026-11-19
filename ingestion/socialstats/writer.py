@@ -27,6 +27,15 @@ worth knowing before go-live:
   aborts. Creating a quarter is a human act in the dashboard today;
   silently creating one here with empty human sections would erase the
   distinction between "not started" and "wiped".
+- Read-modify-write has an inherent race: an editor who saves in the
+  dashboard between this run's read and its write would have their
+  newer human sections silently overwritten by the older snapshot the
+  payload was built from. write_report therefore re-reads the report's
+  updated_at immediately before the RPC and aborts if it moved. That
+  narrows the race to the instant between the re-read and the RPC; it
+  cannot close it, because save_social_report offers no
+  compare-and-swap. Aborting is the safe side: the next run re-reads
+  and writes fresh.
 """
 import json
 import urllib.error
@@ -42,6 +51,13 @@ class PostgrestError(RuntimeError):
     body excerpt: this is a backend job, its errors go to logs and the
     ingestion_runs message column (which the schema's own comment reserves
     for exactly that), never to a dashboard user."""
+
+
+class StaleReportError(RuntimeError):
+    """The stored report changed between this run's read and its write
+    (an editor saved in the dashboard), so writing would overwrite the
+    newer human sections with the older snapshot. The run aborts and
+    logs 'failed'; the next run re-reads and writes fresh."""
 
 
 class PostgrestClient:
@@ -214,7 +230,8 @@ def log_run(client, source, agency, quarter, year, status, rows_written, message
     }])
 
 
-def write_report(client, payload, summary, agency, quarter, year, message):
+def write_report(client, payload, summary, agency, quarter, year, message,
+                 expected_updated_at=None):
     """Call save_social_report, then log one ingestion_runs row per
     platform. Returns the report id the function returns.
 
@@ -225,7 +242,30 @@ def write_report(client, payload, summary, agency, quarter, year, message):
     data landed. That ordering is deliberate: a saved-but-unlogged run is
     visible in the dashboard data, while a logged-but-unsaved success
     would be a lie in the one table whose job is noticing silence.
+
+    When expected_updated_at is given (the stored report's updated_at as
+    read_stored saw it), the report row is re-read immediately before
+    the RPC and the write aborts with StaleReportError if updated_at has
+    moved: an editor saved between our read and our write, and
+    proceeding would silently overwrite their newer human sections with
+    our older snapshot. This narrows the race to the instant between
+    the re-read and the RPC; it cannot close it, because
+    save_social_report has no compare-and-swap.
     """
+    if expected_updated_at is not None:
+        rows = client.get('social_reports', select='id,updated_at',
+                          agency=f'eq.{agency}', quarter=f'eq.{quarter}',
+                          year=f'eq.{year}')
+        if not rows:
+            raise StaleReportError(
+                f'report for {agency}/{quarter}/{year} disappeared between '
+                'read and write; aborting')
+        current = rows[0].get('updated_at')
+        if current != expected_updated_at:
+            raise StaleReportError(
+                f'report for {agency}/{quarter}/{year} changed since it was '
+                f'read (updated_at {expected_updated_at} -> {current}); an '
+                'editor save would be overwritten, aborting')
     rid = client.rpc('save_social_report', {'payload': payload})
     counts = summary['per_platform_posts']
     for source in ('facebook', 'instagram', 'linkedin'):

@@ -227,6 +227,36 @@ class HttpBehaviourTest(unittest.TestCase):
             self.assertEqual(row[0]['status'], 'success')
             self.assertEqual(row[0]['rows_written'], 1)
 
+    def test_write_aborts_when_report_changed_since_read(self):
+        # An editor saves in the dashboard between the run's read and its
+        # write: updated_at moves, and the write must abort rather than
+        # overwrite the newer human sections with the older snapshot.
+        stored = writer.read_stored(self.client, 'isl', 'q1', '2026')
+        expected = stored['report']['updated_at']
+        row = STORED_TABLES['social_reports'][0]
+        original = row['updated_at']
+        row['updated_at'] = '2026-11-19T12:00:00+00:00'
+        try:
+            StubPostgrest.requests = []
+            with self.assertRaises(writer.StaleReportError):
+                writer.write_report(self.client, {'any': 'payload'},
+                                    machine_sections()['_summary'],
+                                    'isl', 'q1', '2026', 'Automated pull.',
+                                    expected_updated_at=expected)
+        finally:
+            row['updated_at'] = original
+        # The RPC was never called: nothing was overwritten.
+        self.assertFalse(any(r[0] == 'POST' and 'save_social_report' in r[1]
+                             for r in StubPostgrest.requests))
+
+    def test_write_proceeds_when_updated_at_unchanged(self):
+        stored = writer.read_stored(self.client, 'isl', 'q1', '2026')
+        payload = writer.build_payload(machine_sections(), stored, 'isl', 'q1', '2026')
+        rid = writer.write_report(self.client, payload, machine_sections()['_summary'],
+                                  'isl', 'q1', '2026', 'Automated pull.',
+                                  expected_updated_at=stored['report']['updated_at'])
+        self.assertEqual(rid, REPORT_ID)
+
     def test_client_refuses_missing_credentials(self):
         with self.assertRaises(ValueError):
             writer.PostgrestClient('', '')

@@ -285,8 +285,10 @@ def main(argv=None):
         print(f'payload build failed: {e}', file=sys.stderr)
         return 1
     try:
-        rid = writer.write_report(client, payload, summary, args.agency, quarter, year, message)
-    except writer.PostgrestError as e:
+        rid = writer.write_report(
+            client, payload, summary, args.agency, quarter, year, message,
+            expected_updated_at=stored['report'].get('updated_at'))
+    except (writer.PostgrestError, writer.StaleReportError) as e:
         log_failures(client, ['facebook', 'instagram', 'linkedin'],
                      args.agency, quarter, year, str(e))
         print(f'write failed: {e}', file=sys.stderr)
