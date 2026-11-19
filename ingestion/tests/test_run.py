@@ -2,10 +2,24 @@
 logic that can silently file a run under the wrong quarter, so it is
 pinned here. Fiscal Q1 is Sep-Nov; the year is the calendar year of the
 quarter's last day, matching how the app keys reports (src/config.js
-buildQuarter), so Dec-Feb is q2 of the year the February falls in."""
+buildQuarter), so Dec-Feb is q2 of the year the February falls in.
+
+Also pinned here: the window filter, the Facebook archive merge, and
+the failure logging (a run that dies before writing still records its
+ingestion_runs rows), exercised against a local PostgREST stub with
+the pulls patched out."""
+import contextlib
+import io
+import json
 import os
+import shutil
 import sys
+import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from unittest import mock
+from urllib.parse import urlparse
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -100,6 +114,106 @@ class FacebookReachTest(unittest.TestCase):
         merged = run.merge_archive(fresh, archived)
         self.assertEqual(len(merged), 1)
         self.assertEqual(merged[0]['impressions'], 15)
+
+
+class FailureLoggingTest(unittest.TestCase):
+    """A run that dies before writing records 'failed' ingestion_runs
+    rows when credentials are available (the table's whole purpose is
+    that a dead run is visible); a dry run records nothing."""
+
+    class Stub(BaseHTTPRequestHandler):
+        """Minimal PostgREST stand-in: records requests, answers
+        inserts with 201 and reads with an empty list."""
+        requests = []
+
+        def log_message(self, *a):
+            pass
+
+        def _reply(self, obj, code=200):
+            body = json.dumps(obj).encode()
+            self.send_response(code)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            FailureLoggingTest.Stub.requests.append(('GET', urlparse(self.path).path))
+            self._reply([])
+
+        def do_POST(self):
+            length = int(self.headers.get('Content-Length') or 0)
+            body = json.loads(self.rfile.read(length) or b'null')
+            FailureLoggingTest.Stub.requests.append(
+                ('POST', urlparse(self.path).path, body))
+            self._reply(None, 201)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.server = ThreadingHTTPServer(('127.0.0.1', 0), cls.Stub)
+        cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
+        cls.thread.start()
+        cls.url = f'http://127.0.0.1:{cls.server.server_address[1]}'
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+
+    def setUp(self):
+        FailureLoggingTest.Stub.requests = []
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        env = mock.patch.dict(os.environ, {
+            'SUPABASE_URL': self.url, 'SUPABASE_SERVICE_ROLE_KEY': 'test-key'})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def argv(self, *extra):
+        return ['--start', '2026-09-01', '--end', '2026-11-30',
+                '--linkedin', os.path.join(FIXTURES, 'linkedin-window.csv'),
+                '--data-dir', self.tmp,
+                '--env-file', os.path.join(self.tmp, 'absent.env'), *extra]
+
+    def run_quietly(self, argv):
+        with contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()):
+            return run.main(argv)
+
+    def failed_rows(self):
+        return [r[2][0] for r in FailureLoggingTest.Stub.requests
+                if r[0] == 'POST' and r[1].endswith('/ingestion_runs')]
+
+    def test_pull_failure_logs_one_failed_row_for_that_platform(self):
+        with mock.patch.object(run.pull_facebook, 'pull',
+                               side_effect=RuntimeError('connector down')):
+            rc = self.run_quietly(self.argv())
+        self.assertEqual(rc, 1)
+        rows = self.failed_rows()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['source'], 'facebook')
+        self.assertEqual(rows[0]['status'], 'failed')
+        self.assertEqual(rows[0]['rows_written'], 0)
+        self.assertIn('connector down', rows[0]['message'])
+
+    def test_mapping_failure_logs_failed_rows_for_all_platforms(self):
+        with mock.patch.object(run.pull_facebook, 'pull', return_value=[]), \
+                mock.patch.object(run.pull_instagram, 'pull', return_value=[]), \
+                mock.patch.object(run.mapper, 'build_sections',
+                                  side_effect=RuntimeError('bad map')):
+            rc = self.run_quietly(self.argv())
+        self.assertEqual(rc, 1)
+        rows = self.failed_rows()
+        self.assertEqual(sorted(r['source'] for r in rows),
+                         ['facebook', 'instagram', 'linkedin'])
+        for row in rows:
+            self.assertEqual(row['status'], 'failed')
+
+    def test_dry_run_failure_writes_nothing(self):
+        with mock.patch.object(run.pull_facebook, 'pull',
+                               side_effect=RuntimeError('connector down')):
+            rc = self.run_quietly(self.argv('--dry-run'))
+        self.assertEqual(rc, 1)
+        self.assertEqual(FailureLoggingTest.Stub.requests, [])
 
 
 if __name__ == '__main__':

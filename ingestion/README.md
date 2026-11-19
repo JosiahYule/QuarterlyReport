@@ -84,7 +84,10 @@ python3 ingestion/run.py --start 2026-09-01 --end 2026-11-30 \
   overwriting it.
 - Exit codes: 0 written (or dry-run printed), 1 failed, 2 skipped
   because no stored report exists for the agency/quarter/year yet. A
-  failed or skipped run still logs its `ingestion_runs` rows.
+  failed or skipped run still logs its `ingestion_runs` rows,
+  including a run that fails before writing (a pull, the LinkedIn
+  import, the mapper), whenever credentials are available; a dry run
+  logs nothing.
 
 The write is read-modify-write: sections the automation owns are
 replaced; the editor's note, insights, paid campaigns/ads/demographics/

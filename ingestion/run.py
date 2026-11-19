@@ -32,7 +32,10 @@ and touches nothing: no pulls are skipped (the point is to see real
 numbers), but no write is attempted and no credentials are needed.
 
 Exit codes: 0 written (or dry-run printed), 1 failed, 2 skipped because
-no stored report exists for the agency/quarter/year yet.
+no stored report exists for the agency/quarter/year yet. A failed run
+records 'failed' ingestion_runs rows for the stage that died (the one
+platform where the stage belongs to a platform, all three for shared
+stages) whenever credentials are available; a dry run records nothing.
 """
 import argparse
 import json
@@ -107,6 +110,29 @@ def merge_archive(fresh, archived):
     return sorted(merged.values(), key=lambda p: (p['date'], p.get('time') or ''))
 
 
+def log_failures(client, sources, agency, quarter, year, message):
+    """Best-effort 'failed' ingestion_runs rows for a run that died
+    before (or while) writing.
+
+    The table exists so a dead run is visible: its migration's premise
+    is that a row appears whether the run succeeded, failed, or wrote
+    nothing. Before this helper, a failure in a pull, the LinkedIn
+    import, or the mapper raised out of main() and left no row at all,
+    so the run log showed no attempt. `sources` is the one platform a
+    stage belongs to, or all three for a shared stage. Logging is
+    best-effort (a logging failure never masks the original error),
+    and a dry run passes client=None and records nothing.
+    """
+    if client is None:
+        return
+    for source in sources:
+        try:
+            writer.log_run(client, source, agency, quarter, year,
+                           'failed', 0, message[:500])
+        except writer.PostgrestError:
+            pass  # the original error is the one to report
+
+
 def load_env_file(path):
     """Load KEY=VALUE lines from a .env file into os.environ, without
     overriding variables already set. The service-role key lives in this
@@ -146,56 +172,86 @@ def main(argv=None):
         else fiscal_quarter(args.start)
     os.makedirs(args.data_dir, exist_ok=True)
 
+    # The writer client is built up front, not at write time, so a
+    # failure anywhere below can still record its ingestion_runs rows
+    # (log_failures). Dry runs build no client and write nothing.
+    client = None
+    if not args.dry_run:
+        load_env_file(args.env_file)
+        try:
+            client = writer.PostgrestClient(os.environ.get('SUPABASE_URL'),
+                                            os.environ.get('SUPABASE_SERVICE_ROLE_KEY'))
+        except ValueError as e:
+            print(f'cannot write: {e}', file=sys.stderr)
+            return 1
+
     # ── pull / load the three sources ──────────────────────────────────
-    fb_path = os.path.join(args.data_dir, 'facebook.json')
-    if args.skip_pull:
-        with open(fb_path) as f:
-            fb = json.load(f)
-        with open(os.path.join(args.data_dir, 'instagram.json')) as f:
-            ig = json.load(f)
-    else:
-        fresh_fb = pull_facebook.pull(args.start, args.end)
-        # The connector cannot reach the head of a quarter (LAST_90D
-        # cap; see pull_facebook.py), so the fresh pull is merged with
-        # every post earlier pulls saved in this data dir, and the
-        # merged set is what gets saved back: the archive is the only
-        # place the head of the quarter survives.
-        archived_fb = []
-        if os.path.exists(fb_path):
+    # `stage` names the platform a failure belongs to, for its
+    # ingestion_runs row; shared stages log all three.
+    stage = 'facebook'
+    try:
+        fb_path = os.path.join(args.data_dir, 'facebook.json')
+        if args.skip_pull:
             with open(fb_path) as f:
-                archived_fb = json.load(f)
-        fb = merge_archive(fresh_fb, archived_fb)
-        if len(fb) > len(fresh_fb):
-            print(f'facebook: {len(fb) - len(fresh_fb)} posts came from the '
-                  "saved-pull archive (beyond the connector's 90-day reach)")
-        with open(fb_path, 'w') as f:
-            json.dump(fb, f, indent=1)
-        ig = pull_instagram.pull(args.start, args.end)
-        with open(os.path.join(args.data_dir, 'instagram.json'), 'w') as f:
-            json.dump(ig, f, indent=1)
-    # The archive can hold posts from other windows; filtering here is
-    # what makes this run's Facebook set mean the same as the others.
-    fb = in_window(fb, args.start, args.end)
-    li, li_account = linkedin_source.load(args.linkedin)
+                fb = json.load(f)
+            stage = 'instagram'
+            with open(os.path.join(args.data_dir, 'instagram.json')) as f:
+                ig = json.load(f)
+        else:
+            fresh_fb = pull_facebook.pull(args.start, args.end)
+            # The connector cannot reach the head of a quarter (LAST_90D
+            # cap; see pull_facebook.py), so the fresh pull is merged with
+            # every post earlier pulls saved in this data dir, and the
+            # merged set is what gets saved back: the archive is the only
+            # place the head of the quarter survives.
+            archived_fb = []
+            if os.path.exists(fb_path):
+                with open(fb_path) as f:
+                    archived_fb = json.load(f)
+            fb = merge_archive(fresh_fb, archived_fb)
+            if len(fb) > len(fresh_fb):
+                print(f'facebook: {len(fb) - len(fresh_fb)} posts came from the '
+                      "saved-pull archive (beyond the connector's 90-day reach)")
+            with open(fb_path, 'w') as f:
+                json.dump(fb, f, indent=1)
+            stage = 'instagram'
+            ig = pull_instagram.pull(args.start, args.end)
+            with open(os.path.join(args.data_dir, 'instagram.json'), 'w') as f:
+                json.dump(ig, f, indent=1)
+        # The archive can hold posts from other windows; filtering here is
+        # what makes this run's Facebook set mean the same as the others.
+        fb = in_window(fb, args.start, args.end)
+        stage = 'linkedin'
+        li, li_account = linkedin_source.load(args.linkedin)
+    except Exception as e:
+        log_failures(client, [stage], args.agency, quarter, year,
+                     f'{stage} pull/import failed: {e}')
+        print(f'{stage} pull/import failed: {e}', file=sys.stderr)
+        return 1
     li_in_window = in_window(li, args.start, args.end)
     if len(li_in_window) < len(li):
         print(f'linkedin: {len(li) - len(li_in_window)} dataset posts fell outside '
               f'{args.start} to {args.end} and were dropped')
     li = li_in_window
 
-    followers = {'facebook': None, 'instagram': None, 'linkedin': li_account['followers']}
-    li_reach = li_account['members_reached_organic']
-    if args.account_figures:
-        with open(args.account_figures) as f:
-            figures = json.load(f)
-        for plat, value in (figures.get('followers') or {}).items():
-            followers[plat] = value
-        if figures.get('linkedin_members_reached_organic') is not None:
-            li_reach = figures['linkedin_members_reached_organic']
-
     # ── map ────────────────────────────────────────────────────────────
-    sections = mapper.build_sections(
-        {'facebook': fb, 'instagram': ig, 'linkedin': li}, followers, li_reach)
+    try:
+        followers = {'facebook': None, 'instagram': None, 'linkedin': li_account['followers']}
+        li_reach = li_account['members_reached_organic']
+        if args.account_figures:
+            with open(args.account_figures) as f:
+                figures = json.load(f)
+            for plat, value in (figures.get('followers') or {}).items():
+                followers[plat] = value
+            if figures.get('linkedin_members_reached_organic') is not None:
+                li_reach = figures['linkedin_members_reached_organic']
+        sections = mapper.build_sections(
+            {'facebook': fb, 'instagram': ig, 'linkedin': li}, followers, li_reach)
+    except Exception as e:
+        log_failures(client, ['facebook', 'instagram', 'linkedin'],
+                     args.agency, quarter, year, f'mapping failed: {e}')
+        print(f'mapping failed: {e}', file=sys.stderr)
+        return 1
     summary = sections['_summary']
     print('summary:', json.dumps(summary))
     print('kpis:', json.dumps(sections['kpis']))
@@ -206,16 +262,14 @@ def main(argv=None):
         return 0
 
     # ── write ──────────────────────────────────────────────────────────
-    load_env_file(args.env_file)
-    try:
-        client = writer.PostgrestClient(os.environ.get('SUPABASE_URL'),
-                                        os.environ.get('SUPABASE_SERVICE_ROLE_KEY'))
-    except ValueError as e:
-        print(f'cannot write: {e}', file=sys.stderr)
-        return 1
-
     message = f'Automated pull, {args.start} to {args.end}.'
-    stored = writer.read_stored(client, args.agency, quarter, year)
+    try:
+        stored = writer.read_stored(client, args.agency, quarter, year)
+    except writer.PostgrestError as e:
+        log_failures(client, ['facebook', 'instagram', 'linkedin'],
+                     args.agency, quarter, year, str(e))
+        print(f'read of the stored report failed: {e}', file=sys.stderr)
+        return 1
     if stored is None:
         for source in ('facebook', 'instagram', 'linkedin'):
             writer.log_run(client, source, args.agency, quarter, year, 'skipped', 0,
@@ -223,16 +277,18 @@ def main(argv=None):
         print(f'no stored report for {args.agency}/{quarter}/{year}; skipped')
         return 2
 
-    payload = writer.build_payload(sections, stored, args.agency, quarter, year)
+    try:
+        payload = writer.build_payload(sections, stored, args.agency, quarter, year)
+    except Exception as e:
+        log_failures(client, ['facebook', 'instagram', 'linkedin'],
+                     args.agency, quarter, year, f'payload build failed: {e}')
+        print(f'payload build failed: {e}', file=sys.stderr)
+        return 1
     try:
         rid = writer.write_report(client, payload, summary, args.agency, quarter, year, message)
     except writer.PostgrestError as e:
-        for source in ('facebook', 'instagram', 'linkedin'):
-            try:
-                writer.log_run(client, source, args.agency, quarter, year,
-                               'failed', 0, str(e)[:500])
-            except writer.PostgrestError:
-                pass  # the original error is the one to report
+        log_failures(client, ['facebook', 'instagram', 'linkedin'],
+                     args.agency, quarter, year, str(e))
         print(f'write failed: {e}', file=sys.stderr)
         return 1
     print('saved report:', rid)
