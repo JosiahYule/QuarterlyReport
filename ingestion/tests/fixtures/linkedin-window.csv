@@ -1,0 +1,5 @@
+date,impressions,reactions,comments,reposts,post
+2026-08-31,100,5,1,2,Posted the day before the window
+2026-09-01,200,9,2,3,First day of the window
+2026-11-30,300,12,0,1,Last day of the window
+2026-12-01,400,20,4,5,Posted the day after the window

@@ -70,6 +70,20 @@ def fiscal_quarter(start):
     return quarter, str(last.year)
 
 
+def in_window(posts, start, end):
+    """Keep only posts published between start and end (inclusive ISO
+    dates; ISO strings compare correctly as text).
+
+    The FB/IG pullers filter their own output, but the LinkedIn dataset
+    is a file and arrives whole: without this filter, every post in the
+    file lands in the quarter, including ones from outside the window.
+    Anything else that arrives unfiltered (the saved-pull archive, see
+    merge_archive) passes through here too, so the window means the
+    same thing for every source before mapping.
+    """
+    return [p for p in posts if start <= p['date'] <= end]
+
+
 def load_env_file(path):
     """Load KEY=VALUE lines from a .env file into os.environ, without
     overriding variables already set. The service-role key lives in this
@@ -123,6 +137,11 @@ def main(argv=None):
         with open(os.path.join(args.data_dir, 'instagram.json'), 'w') as f:
             json.dump(ig, f, indent=1)
     li, li_account = linkedin_source.load(args.linkedin)
+    li_in_window = in_window(li, args.start, args.end)
+    if len(li_in_window) < len(li):
+        print(f'linkedin: {len(li) - len(li_in_window)} dataset posts fell outside '
+              f'{args.start} to {args.end} and were dropped')
+    li = li_in_window
 
     followers = {'facebook': None, 'instagram': None, 'linkedin': li_account['followers']}
     li_reach = li_account['members_reached_organic']

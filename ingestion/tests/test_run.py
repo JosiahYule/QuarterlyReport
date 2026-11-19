@@ -10,6 +10,9 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import run  # noqa: E402
+from socialstats import linkedin as linkedin_source  # noqa: E402
+
+FIXTURES = os.path.join(os.path.dirname(__file__), 'fixtures')
 
 
 class FiscalQuarterTest(unittest.TestCase):
@@ -34,6 +37,25 @@ class FiscalQuarterTest(unittest.TestCase):
         for date, expected in cases.items():
             with self.subTest(date=date):
                 self.assertEqual(run.fiscal_quarter(date), expected)
+
+
+class LinkedInWindowTest(unittest.TestCase):
+    """The LinkedIn dataset is a file and loads whole; the run filters
+    it to the window before mapping, or out-of-window posts inflate the
+    quarter. The fixture has one post the day before the window, two
+    inside it (first and last day), and one the day after."""
+
+    def test_out_of_window_linkedin_posts_are_dropped(self):
+        posts, _account = linkedin_source.load(
+            os.path.join(FIXTURES, 'linkedin-window.csv'))
+        self.assertEqual(len(posts), 4)  # the loader itself does not filter
+        kept = run.in_window(posts, '2026-09-01', '2026-11-30')
+        self.assertEqual([p['date'] for p in kept], ['2026-09-01', '2026-11-30'])
+
+    def test_in_window_keeps_boundary_days(self):
+        posts = [{'date': '2026-09-01'}, {'date': '2026-11-30'}]
+        self.assertEqual(run.in_window(posts, '2026-09-01', '2026-11-30'), posts)
+        self.assertEqual(run.in_window(posts, '2026-09-02', '2026-11-29'), [])
 
 
 if __name__ == '__main__':
