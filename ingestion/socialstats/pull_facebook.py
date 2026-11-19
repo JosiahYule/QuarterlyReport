@@ -6,6 +6,18 @@ the window, with lifetime metrics as returned by the connector. The window
 filter is applied here, on the parsed publish date, because the connector's
 own time-range options are relative presets (LAST_90D), not calendar ranges.
 
+The preset is also a hard cap: LAST_90D is the widest the CLI offers (the
+alternatives are LAST_7D/14D/28D; there is no custom range), and it trails
+from the moment of the pull, so it cannot be chunked or shifted to reach
+further back. A fiscal quarter runs 90-92 days, which means a pull made at
+quarter end cannot see the first day or two of the quarter at all. The
+mitigation lives in run.py, not here: pulls are merged with the saved-pull
+archive in --data-dir, so a post captured by any earlier pull (while it was
+still inside the trailing 90 days) stays in the run. head_gap_days below
+measures the exposure, and pull() warns loudly when it is nonzero; a
+first-ever pull for a quarter that is already more than 90 days old will
+miss its head, and no pull can recover it after the fact.
+
 Provenance: adapted unchanged in behaviour from the Nov 3, 2026 sandbox
 pipeline, whose Facebook numbers matched the hand counts exactly
 (110 reactions / 2 comments / 17 shares / 3 saves for the quarter to Nov 3).
@@ -16,11 +28,14 @@ import json
 import re
 import subprocess
 import sys
+from datetime import date, timedelta
 
 from .normalize import make_post
 
 CLI = '/opt/hatch/bin/facebook-cli'
 PAGE = '332201010256425'  # Integrated Staffing Facebook Page
+# The widest --time-range preset the connector offers; see the docstring.
+HEAD_DAYS = 90
 FIELDS = 'views,unique_viewers,engagements,engagements_including_clicks,clicks,link_clicks,saves'
 MONTHS = {m: i + 1 for i, m in enumerate(['January', 'February', 'March', 'April', 'May', 'June',
                                           'July', 'August', 'September', 'October', 'November', 'December'])}
@@ -34,9 +49,25 @@ def _num(s):
     return int(str(s).replace(',', '')) if s not in (None, '') else 0
 
 
+def head_gap_days(start, today=None):
+    """How many days at the head of a window starting `start` a pull made
+    today cannot reach, because LAST_90D only trails HEAD_DAYS back from
+    the pull itself. 0 when the whole window is reachable. A Sep-Nov
+    quarter pulled on its last day has a gap of 1; Mar-May, 2."""
+    today = today or date.today()
+    reachable_from = today - timedelta(days=HEAD_DAYS - 1)
+    return max(0, (reachable_from - date.fromisoformat(start)).days)
+
+
 def pull(start, end):
     """Return normalized Facebook posts published between start and end
     (inclusive, 'YYYY-MM-DD'). Raises RuntimeError if the connector fails."""
+    gap = head_gap_days(start)
+    if gap:
+        print(f'warning: the connector only reaches back {HEAD_DAYS} days, so the '
+              f'first {gap} day(s) of this window are beyond this pull. Posts from '
+              'that span reach the run only through the saved-pull archive '
+              '(see run.py).', file=sys.stderr)
     start_t = tuple(int(x) for x in start.split('-'))
     end_t = tuple(int(x) for x in end.split('-'))
 

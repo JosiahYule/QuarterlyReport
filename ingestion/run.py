@@ -15,8 +15,11 @@ defaults to isl; phase 1 is ISL only.
 Facebook and Instagram are pulled live through their connectors and the
 raw normalized pulls are kept in --data-dir (default ingestion/data/) so
 a run can be re-mapped or audited without re-pulling. --skip-pull reuses
-the files already there. LinkedIn has no API route: --linkedin names the
-CSV (or legacy JSON) dataset a browser pull produced.
+the files already there. The saved Facebook pull doubles as an archive:
+each run merges it into the fresh pull, which is how the head of a
+quarter survives the connector's 90-day reach (see
+socialstats/pull_facebook.py). LinkedIn has no API route: --linkedin
+names the CSV (or legacy JSON) dataset a browser pull produced.
 
 --account-figures names an optional JSON file with the figures no post
 pull reports: {"followers": {"facebook": n, "instagram": n, "linkedin":
@@ -84,6 +87,26 @@ def in_window(posts, start, end):
     return [p for p in posts if start <= p['date'] <= end]
 
 
+def merge_archive(fresh, archived):
+    """Merge a fresh pull with the posts earlier pulls saved, the fresh
+    copy winning per post (its lifetime metrics are the newer ones).
+
+    This is the mitigation for the Facebook connector's LAST_90D cap
+    (see socialstats/pull_facebook.py): the head of a 91/92-day quarter
+    falls out of the trailing 90 days before the quarter ends, but a
+    pull made while those posts were still reachable has them in the
+    archive. Posts are keyed by external_id, falling back to date +
+    title for a source that gives no id.
+    """
+    def key(post):
+        return post.get('external_id') or (post['date'], post['title'])
+
+    merged = {key(p): p for p in archived}
+    for post in fresh:
+        merged[key(post)] = post
+    return sorted(merged.values(), key=lambda p: (p['date'], p.get('time') or ''))
+
+
 def load_env_file(path):
     """Load KEY=VALUE lines from a .env file into os.environ, without
     overriding variables already set. The service-role key lives in this
@@ -124,18 +147,35 @@ def main(argv=None):
     os.makedirs(args.data_dir, exist_ok=True)
 
     # ── pull / load the three sources ──────────────────────────────────
+    fb_path = os.path.join(args.data_dir, 'facebook.json')
     if args.skip_pull:
-        with open(os.path.join(args.data_dir, 'facebook.json')) as f:
+        with open(fb_path) as f:
             fb = json.load(f)
         with open(os.path.join(args.data_dir, 'instagram.json')) as f:
             ig = json.load(f)
     else:
-        fb = pull_facebook.pull(args.start, args.end)
-        ig = pull_instagram.pull(args.start, args.end)
-        with open(os.path.join(args.data_dir, 'facebook.json'), 'w') as f:
+        fresh_fb = pull_facebook.pull(args.start, args.end)
+        # The connector cannot reach the head of a quarter (LAST_90D
+        # cap; see pull_facebook.py), so the fresh pull is merged with
+        # every post earlier pulls saved in this data dir, and the
+        # merged set is what gets saved back: the archive is the only
+        # place the head of the quarter survives.
+        archived_fb = []
+        if os.path.exists(fb_path):
+            with open(fb_path) as f:
+                archived_fb = json.load(f)
+        fb = merge_archive(fresh_fb, archived_fb)
+        if len(fb) > len(fresh_fb):
+            print(f'facebook: {len(fb) - len(fresh_fb)} posts came from the '
+                  "saved-pull archive (beyond the connector's 90-day reach)")
+        with open(fb_path, 'w') as f:
             json.dump(fb, f, indent=1)
+        ig = pull_instagram.pull(args.start, args.end)
         with open(os.path.join(args.data_dir, 'instagram.json'), 'w') as f:
             json.dump(ig, f, indent=1)
+    # The archive can hold posts from other windows; filtering here is
+    # what makes this run's Facebook set mean the same as the others.
+    fb = in_window(fb, args.start, args.end)
     li, li_account = linkedin_source.load(args.linkedin)
     li_in_window = in_window(li, args.start, args.end)
     if len(li_in_window) < len(li):

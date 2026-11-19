@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import run  # noqa: E402
 from socialstats import linkedin as linkedin_source  # noqa: E402
+from socialstats import pull_facebook  # noqa: E402
 
 FIXTURES = os.path.join(os.path.dirname(__file__), 'fixtures')
 
@@ -56,6 +57,49 @@ class LinkedInWindowTest(unittest.TestCase):
         posts = [{'date': '2026-09-01'}, {'date': '2026-11-30'}]
         self.assertEqual(run.in_window(posts, '2026-09-01', '2026-11-30'), posts)
         self.assertEqual(run.in_window(posts, '2026-09-02', '2026-11-29'), [])
+
+
+class FacebookReachTest(unittest.TestCase):
+    """The Facebook connector's widest preset trails 90 days from the
+    pull, so a quarter-end pull cannot see the quarter's first day or
+    two. head_gap_days measures that exposure; merge_archive is the
+    mitigation, keeping posts earlier pulls captured in the archive."""
+
+    def test_head_gap_days(self):
+        from datetime import date
+        cases = [
+            # (window start, pull date, expected gap)
+            ('2026-11-19', date(2026, 11, 19), 0),   # pulled today
+            ('2026-09-01', date(2026, 11, 29), 0),   # exactly reachable
+            ('2026-09-01', date(2026, 11, 30), 1),   # Sep-Nov pulled on its last day
+            ('2026-03-01', date(2026, 5, 31), 2),    # Mar-May is 92 days
+            ('2026-12-01', date(2027, 2, 28), 0),    # Dec-Feb is 90: fully reachable
+        ]
+        for start, today, expected in cases:
+            with self.subTest(start=start, today=today):
+                self.assertEqual(pull_facebook.head_gap_days(start, today), expected)
+
+    def test_merge_archive_keeps_head_posts_and_fresh_wins(self):
+        def post(pid, day, title, impressions):
+            return {'external_id': pid, 'date': day, 'time': None,
+                    'title': title, 'impressions': impressions}
+        archived = [post('a', '2026-09-01', 'Head post', 100),
+                    post('b', '2026-10-05', 'Shared post', 200)]
+        fresh = [post('b', '2026-10-05', 'Shared post', 260),
+                 post('c', '2026-11-20', 'New post', 50)]
+        merged = run.merge_archive(fresh, archived)
+        self.assertEqual([p['external_id'] for p in merged], ['a', 'b', 'c'])
+        # The fresh copy of a shared post wins: its metrics are newer.
+        self.assertEqual(merged[1]['impressions'], 260)
+
+    def test_merge_archive_falls_back_to_date_and_title(self):
+        archived = [{'external_id': None, 'date': '2026-09-01', 'time': None,
+                     'title': 'No id post', 'impressions': 10}]
+        fresh = [{'external_id': None, 'date': '2026-09-01', 'time': None,
+                  'title': 'No id post', 'impressions': 15}]
+        merged = run.merge_archive(fresh, archived)
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0]['impressions'], 15)
 
 
 if __name__ == '__main__':

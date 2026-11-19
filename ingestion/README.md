@@ -73,7 +73,10 @@ python3 ingestion/run.py --start 2026-09-01 --end 2026-11-30 \
   of the quarter's last day (fiscal Q1 is Sep-Nov of that year;
   Dec-Feb is q2 of the year the February falls in).
 - `--data-dir` keeps the normalized pulls so a run can be re-mapped or
-  audited without re-pulling; `--skip-pull` reuses them.
+  audited without re-pulling; `--skip-pull` reuses them. For Facebook
+  the saved pull is also the archive that covers the connector's
+  90-day cap (Known imperfections, item 5): do not delete
+  `facebook.json` between runs of the same quarter.
 - `--account-figures figures.json` supplies the figures no post pull
   reports: `{"followers": {"facebook": n, "instagram": n, "linkedin": n},
   "linkedin_members_reached_organic": n}`. Anything nobody reports stays
@@ -123,6 +126,21 @@ bug to discover later.
 4. Facebook and Instagram follower totals do not come out of the post
    pulls either; they arrive via `--account-figures` or are carried
    through like LinkedIn's.
+5. **The Facebook connector cannot reach the head of a quarter.** Its
+   widest time-range preset is LAST_90D, trailing from the moment of
+   the pull (there is no custom or wider range, and a trailing preset
+   cannot be chunked to reach further back), while a fiscal quarter
+   runs 90-92 days. A pull made at quarter end therefore misses the
+   first day or two of Facebook posts. The mitigation is the
+   saved-pull archive: every run merges the fresh pull with the
+   `facebook.json` earlier runs saved in `--data-dir` and saves the
+   merged set back, so posts captured while they were still inside
+   the 90 days stay in the quarter. Pulls warn on stderr when a
+   window's head is beyond reach, and the run prints how many posts
+   the archive contributed. The residual risk is real: the first-ever
+   pull for a quarter already more than 90 days old cannot recover
+   its head, so a quarter's first pull should happen early, and the
+   weekly cadence suggested below keeps the archive fed.
 
 ## Go-live: decisions and inputs still needed from Josiah
 
