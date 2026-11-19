@@ -1,0 +1,4 @@
+# Local credentials and pulled data stay on the machine that runs the job.
+.env
+data/
+__pycache__/
