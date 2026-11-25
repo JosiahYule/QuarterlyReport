@@ -38,11 +38,12 @@ describe("computeAdvancedPace", () => {
     expect(pace.projected).toBeGreaterThanOrEqual(5000);
   });
 
-  it("applies the calibration factor, clamped to sane bounds", () => {
+  it("applies the calibration factor to the remaining portion only, ignoring bogus factors", () => {
     const asOf = new Date(qStart.getTime() + 46 * DAY);
     const base = computeAdvancedPace(460, qStart, qEnd, null, [], 0, asOf, 1);
     const up = computeAdvancedPace(460, qStart, qEnd, null, [], 0, asOf, 1.2);
-    expect(up.projected).toBeCloseTo(base.projected * 1.2, 5);
+    // The 460 already banked is untouched; only the projected remainder scales.
+    expect(up.projected - 460).toBeCloseTo((base.projected - 460) * 1.2, 5);
     const bogus = computeAdvancedPace(460, qStart, qEnd, null, [], 0, asOf, -5);
     expect(bogus.projected).toBeCloseTo(base.projected, 5);
   });

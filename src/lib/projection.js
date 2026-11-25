@@ -128,7 +128,10 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 // weight now decays as the quarter matures rather than climbing to a majority,
 // and the trailing-window rate — which tracks the current regime — takes the
 // difference. Early-quarter weights are unchanged: that is where the rolling
-// window is thinnest and the regression genuinely earns its keep.
+// window is thinnest and the regression genuinely earns its keep. (That
+// back-test predates anchoring the regression at the banked total in
+// computeAdvancedPace, which removed the endpoint bias behind much of that
+// error; the decay is kept as the conservative choice until it is re-run.)
 function blendWeights(elapsedFraction, hasReg, hasRolling) {
   const f = clamp(elapsedFraction, 0, 1);
   if (hasReg && hasRolling) {
@@ -145,6 +148,16 @@ function blendWeights(elapsedFraction, hasReg, hasRolling) {
     return { simple: wSimple, rolling: 1 - wSimple, reg: 0 };
   }
   return { simple: 1, rolling: 0, reg: 0 };
+}
+
+// Calibration corrects the model's guess about the rest of the quarter, so it
+// scales only that guess: the part already banked is a measured fact, not a
+// projection, and discounting it is how a 2.6% haircut late in a quarter used
+// to wipe out more than the whole remaining increment and pin the headline to
+// the to-date total. Floored at `current` (a cumulative metric can't end below
+// what's already banked).
+function calibrateRemaining(total, current, factor) {
+  return Math.max(current, current + (total - current) * factor);
 }
 
 // Least-squares slope of y over x; null if undefined (need ≥2 distinct x).
@@ -202,6 +215,15 @@ export function computeAdvancedPace(
     }
   }
 
+  // The regression contributes a *rate* (its least-squares slope across the
+  // whole quarter), carried forward from what is actually banked. It used to
+  // read the fitted line's own height at quarter end instead, which is biased
+  // whenever growth isn't a straight line: a quarter that ran hot late (a
+  // convex cumulative curve) puts the line's endpoint *below* the real total,
+  // so it projected a final smaller than the to-date figure (ISL Q1 2026
+  // impressions: 88.8K projected with 99.2K already banked), and a quarter that
+  // ran hot early put it above. The current total is known exactly, so there is
+  // nothing for the intercept to estimate.
   let regProj = null;
   if (metricHistory.length >= 3) {
     const pts = metricHistory
@@ -209,12 +231,8 @@ export function computeAdvancedPace(
       .filter((p) => p.x >= 0 && Number.isFinite(p.y) && p.y >= 0);
     if (pts.length >= 3) {
       const slope = lsSlope(pts);
-      if (slope !== null) {
-        const sx = pts.reduce((a, p) => a + p.x, 0),
-          sy = pts.reduce((a, p) => a + p.y, 0);
-        const intercept = (sy - slope * sx) / pts.length;
-        const r = intercept + slope * dTotal;
-        if (r > 0) regProj = r;
+      if (slope !== null && Number.isFinite(slope) && slope >= 0) {
+        regProj = current + slope * Math.max(0, dRemaining);
       }
     }
   }
@@ -231,15 +249,15 @@ export function computeAdvancedPace(
       : blended;
 
   const safeCalibration = Number.isFinite(calibrationFactor) && calibrationFactor > 0 ? calibrationFactor : 1;
-  const projected = Math.max(rawProjected * safeCalibration, current);
+  const projected = calibrateRemaining(rawProjected, current, safeCalibration);
 
-  // Component sub-projections (each scaled by the same calibration the blend
-  // got) are exposed so projectionBand can read how far the three methods
+  // Component sub-projections (each calibrated the same way the blend was)
+  // are exposed so projectionBand can read how far the three methods
   // disagree right now — a direct, data-driven measure of model uncertainty.
   const components = {
-    simple: simpleProj * safeCalibration,
-    rolling: rollingProj !== null ? rollingProj * safeCalibration : null,
-    reg: regProj !== null ? regProj * safeCalibration : null,
+    simple: calibrateRemaining(simpleProj, current, safeCalibration),
+    rolling: rollingProj !== null ? calibrateRemaining(rollingProj, current, safeCalibration) : null,
+    reg: regProj !== null ? calibrateRemaining(regProj, current, safeCalibration) : null,
   };
 
   return {
@@ -312,7 +330,7 @@ export function computeSporadicPace(
     // Not enough deltas yet to separate background from spikes — fall back
     // to the plain average rate, same floor as the general model.
     const simpleProj = simpleRate * dTotal;
-    const projected = Math.max(simpleProj * safeCalibration, current);
+    const projected = calibrateRemaining(simpleProj, current, safeCalibration);
     return {
       projected,
       rawProjected: simpleProj,
@@ -321,7 +339,7 @@ export function computeSporadicPace(
       dTotal,
       calibrationFactor: safeCalibration,
       elapsedFraction,
-      components: { simple: simpleProj * safeCalibration, rolling: null, reg: null },
+      components: { simple: projected, rolling: null, reg: null },
       background: simpleRate,
       spikeFrequency: 0,
       avgSpikeSize: 0,
@@ -342,7 +360,7 @@ export function computeSporadicPace(
   const withSpikesProj = backgroundProj + spikeFrequency * avgSpikeSize * dRemaining;
 
   const rawProjected = withSpikesProj;
-  const projected = Math.max(rawProjected * safeCalibration, current);
+  const projected = calibrateRemaining(rawProjected, current, safeCalibration);
 
   return {
     projected,
@@ -356,9 +374,9 @@ export function computeSporadicPace(
     // gap between the two IS the real uncertainty for a sporadic metric, so
     // projectionBand's method-disagreement term picks it up for free.
     components: {
-      simple: Math.max(backgroundProj, 0) * safeCalibration,
+      simple: calibrateRemaining(backgroundProj, current, safeCalibration),
       rolling: null,
-      reg: Math.max(withSpikesProj, 0) * safeCalibration,
+      reg: calibrateRemaining(withSpikesProj, current, safeCalibration),
     },
     background: backgroundRate,
     spikeFrequency,
@@ -693,6 +711,7 @@ export function buildProjectionAudit({
       const band = projectionBand(pace, { elapsedFraction: fraction });
       samples.push({
         t: sample.t,
+        current: sampleInput,
         projected: pace.projected,
         day: Math.round(pace.dElapsed),
         fraction,
@@ -707,7 +726,27 @@ export function buildProjectionAudit({
   const avgProjected = samples.reduce((sum, s) => sum + s.projected * s.weight, 0) / totalWeight;
   const error = avgProjected - actualInput;
   const percentError = actualInput !== 0 ? (error / actualInput) * 100 : null;
+  // Whole-total ratio: how far off the headline was. Persisted and shown as
+  // the track record, but not what calibrates the model (see remainingRatio).
   const accuracyRatio = avgProjected > 0 ? actualInput / avgProjected : 1;
+
+  // Remaining-portion ratio: how far off the model's guess about the *rest of
+  // the quarter* was, which is the only part calibration now scales
+  // (calibrateRemaining). Measuring on totals instead would under-correct:
+  // a projection made halfway through that overshot the final total by 3%
+  // overshot the half it was actually guessing by about 6%, because the banked
+  // half was never in doubt. A ratio of stage-weighted sums rather than a mean
+  // of per-sample ratios, so a late sample with almost nothing left to guess
+  // (where a one-unit miss is a huge ratio) can't swing the factor on its own.
+  let remSumActual = 0,
+    remSumProjected = 0;
+  for (const s of samples) {
+    const projectedRemaining = s.projected - s.current;
+    if (!(projectedRemaining > 0)) continue;
+    remSumActual += s.weight * Math.max(0, actualInput - s.current);
+    remSumProjected += s.weight * projectedRemaining;
+  }
+  const remainingRatio = remSumProjected > 0 ? remSumActual / remSumProjected : 1;
 
   // Band coverage: did the actual final land inside the range this stage's
   // average band would have shown? Built the same way avgProjected is —
@@ -724,7 +763,7 @@ export function buildProjectionAudit({
   // fit was reliable. A poor fit (scattered, or built from thin near-stage
   // data) pulls the factor back toward 1.0 — leave the uncorrected blend be.
   const confidence = calibrationConfidence(samples, totalWeight, actualInput);
-  const dampedRatio = 1 + confidence * (accuracyRatio - 1);
+  const dampedRatio = 1 + confidence * (remainingRatio - 1);
   const calibrationFactor = clampCalibrationFactor(dampedRatio);
 
   return {
@@ -733,6 +772,7 @@ export function buildProjectionAudit({
     error,
     percentError,
     accuracyRatio,
+    remainingRatio,
     calibrationConfidence: confidence,
     calibrationFactor,
     bandLow,

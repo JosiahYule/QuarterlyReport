@@ -334,9 +334,12 @@ describe("buildProjectionAudit — self-dampening on poor fit", () => {
     const snapshotHistory = decelSnapshots();
     const audit = buildProjectionAudit({ ...base, actualValue: lastVal(snapshotHistory), snapshotHistory });
     expect(audit.calibrationConfidence).toBeGreaterThan(0.8);
-    // A real correction survives — it is not shrunk away to ≈1.
-    expect(audit.calibrationFactor).toBeGreaterThan(0.8);
-    expect(audit.calibrationFactor).toBeLessThan(0.95);
+    // A real correction survives — it is not shrunk away to ≈1. On this
+    // decelerating quarter the model over-guesses the *remaining* stretch by
+    // more than 2×, so the remaining-portion factor sits at the 0.5 floor.
+    expect(audit.remainingRatio).toBeLessThan(0.6);
+    expect(audit.calibrationFactor).toBeGreaterThanOrEqual(0.5);
+    expect(audit.calibrationFactor).toBeLessThan(0.7);
   });
 
   it("shrinks the factor toward 1 when the fit was scattered", () => {
@@ -353,7 +356,7 @@ describe("buildProjectionAudit — self-dampening on poor fit", () => {
     const noisy = buildProjectionAudit({ ...base, actualValue: lastVal(snapshotHistory), snapshotHistory });
     expect(noisy.calibrationConfidence).toBeLessThan(clean.calibrationConfidence);
     // The damped factor is at least as close to 1 as the raw clamped ratio.
-    const rawClamped = Math.min(1.5, Math.max(0.5, noisy.accuracyRatio));
+    const rawClamped = Math.min(1.5, Math.max(0.5, noisy.remainingRatio));
     expect(Math.abs(noisy.calibrationFactor - 1)).toBeLessThanOrEqual(Math.abs(rawClamped - 1) + 1e-9);
   });
 
