@@ -126,6 +126,12 @@ export function previousQuarter(q) {
   return quarterForMonthYear(monthBefore.getMonth(), monthBefore.getFullYear());
 }
 
+// The same quarter one year earlier (Q1 2026–27 → Q1 2025–26), the comparison
+// that holds hiring seasons constant, which quarter-over-quarter cannot.
+export function sameQuarterLastYear(q) {
+  return quarterForMonthYear(q.start.getMonth(), q.start.getFullYear() - 1);
+}
+
 // Auto-detected from today's date (in REPORT_TZ), so nothing changes by hand
 // when a quarter rolls over.
 const today = nowInReportTZ();
@@ -148,6 +154,10 @@ export const TRENDS_QUARTERS = [
   previousQuarter(CURRENT_QUARTER),
   CURRENT_QUARTER,
 ];
+
+// The year-over-year comparison for the current quarter. May predate
+// FIRST_QUARTER (no report exists then); readers treat its data as optional.
+export const TRENDS_YOY_QUARTER = sameQuarterLastYear(CURRENT_QUARTER);
 
 // The quarter a database row describes, from its (quarter, year) key.
 export function quarterFromKey(suffix, year) {

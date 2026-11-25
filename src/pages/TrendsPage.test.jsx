@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { TrendsPage } from "./TrendsPage.jsx";
 import { useTrendsData } from "../hooks/useTrendsData.js";
+import { TRENDS_QUARTERS, TRENDS_YOY_QUARTER } from "../config.js";
 
 // Chart.js needs a real 2d canvas context, which jsdom does not provide.
 // The charts are not what these tests are about, so stand in a no-op.
@@ -58,6 +59,8 @@ function mockTrends(state) {
     qdata: null,
     snapsByQuarter: {},
     calibrationHistory: {},
+    yoyData: null,
+    paidByQuarter: {},
     drivers: null,
     platforms: [],
     status: "loading",
@@ -172,5 +175,98 @@ describe("TrendsPage with data", () => {
   it("passes the agency straight through to the hook", () => {
     render(<TrendsPage agency="ads" />);
     expect(useTrendsData).toHaveBeenCalledWith("ads");
+  });
+});
+
+describe("TrendsPage year over year and paid campaigns", () => {
+  const [, tq2, tq3] = TRENDS_QUARTERS;
+  const yoyTitle = TRENDS_YOY_QUARTER.title;
+  const key = (q) => `${q.suffix}-${q.year}`;
+  const dated = {
+    name: "Summer Brand Awareness",
+    platform: "LinkedIn",
+    budget: 500,
+    start: new Date(tq2.start.getFullYear(), tq2.start.getMonth(), 2),
+    end: new Date(tq2.start.getFullYear(), tq2.start.getMonth(), 24),
+    undated: false,
+  };
+  const undated = {
+    name: "Perm Lead Gen",
+    platform: "LinkedIn",
+    budget: 500,
+    start: null,
+    end: null,
+    undated: true,
+  };
+  // Two snapshots so the trajectory section (which carries the paid note) renders.
+  const snaps = [
+    { t: tq3.start.getTime() + 10 * 86400000, vals: { impressions: 20000 } },
+    { t: tq3.start.getTime() + 11 * 86400000, vals: { impressions: 21000 } },
+  ];
+
+  it("adds a row comparing each card with the same quarter last year", () => {
+    mockTrends({ status: "ready", qdata: QDATA, yoyData: quarter({ impressions: 50000 }) });
+    page();
+    const card = [...document.querySelectorAll(".proj-card")].find(
+      (c) => c.querySelector(".proj-card-label")?.textContent === "Impressions"
+    );
+    const stat = [...card.querySelectorAll(".proj-stat")].find(
+      (s) => s.querySelector(".proj-stat-label").textContent === `vs ${yoyTitle}`
+    );
+    const value = stat.querySelector(".proj-stat-value");
+    // Compared on the headline's basis, the projected final, which can't be
+    // below the 61,000 banked: so at least +22% on last year's 50,000.
+    expect(value.textContent).toMatch(/^\+\d+\.\d%$/);
+    expect(parseFloat(value.textContent.slice(1))).toBeGreaterThanOrEqual(22);
+    expect(value.className).toContain("pos");
+  });
+
+  it("compares followers on total audience and says so", () => {
+    mockTrends({ status: "ready", qdata: QDATA, yoyData: quarter({ followers: 5000 }) });
+    page();
+    expect(screen.getByText(`Total vs ${yoyTitle}`)).toBeTruthy();
+    expect(screen.getAllByText("+6.0%").length).toBeGreaterThan(0); // 5,300 vs 5,000
+  });
+
+  it("leaves the row out when there is no report for last year", () => {
+    mockTrends({ status: "ready", qdata: QDATA, yoyData: null });
+    page();
+    expect(screen.queryByText(`vs ${yoyTitle}`)).toBeNull();
+  });
+
+  it("puts last year's bar on the quarterly chart and tags quarters with paid campaigns", () => {
+    mockTrends({
+      status: "ready",
+      qdata: QDATA,
+      yoyData: quarter({ impressions: 50000 }),
+      paidByQuarter: { [key(tq2)]: [dated] },
+    });
+    page();
+    const chart = screen.getByRole("img", { name: /^Impressions:/ });
+    const label = chart.getAttribute("aria-label");
+    expect(label).toContain(yoyTitle);
+    expect(label).toContain(`${tq2.label} · ${tq2.months} · paid campaign`);
+    expect(label).not.toContain(`${tq3.label} · ${tq3.months} · paid campaign`);
+  });
+
+  it("names this quarter's paid campaigns under the trajectory, saying when dates are missing", () => {
+    mockTrends({
+      status: "ready",
+      qdata: QDATA,
+      snapsByQuarter: { [tq3.suffix]: snaps },
+      paidByQuarter: { [key(tq3)]: [undated] },
+    });
+    page();
+    expect(screen.getByText("Paid this quarter")).toBeTruthy();
+    expect(screen.getByText("Perm Lead Gen")).toBeTruthy();
+    expect(document.querySelector(".trajectory-paid-note").textContent).toContain(
+      "dates not recorded, so not shaded"
+    );
+  });
+
+  it("shows no paid note in a quarter without paid campaigns", () => {
+    mockTrends({ status: "ready", qdata: QDATA, snapsByQuarter: { [tq3.suffix]: snaps } });
+    page();
+    expect(screen.queryByText("Paid this quarter")).toBeNull();
   });
 });
