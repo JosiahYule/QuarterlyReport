@@ -6,6 +6,7 @@ import {
   fmtTime,
   toNumber,
   calcAutoDelta,
+  pctChange,
   adSpend,
   sumPaidMediaAds,
 } from "./utils.js";
@@ -136,5 +137,18 @@ describe("sumPaidMediaAds", () => {
     expect(t.conversions).toBeNull();
     expect(t.conversionRate).toBeNull();
     expect(t.cpa).toBeNull();
+  });
+});
+
+describe("pctChange", () => {
+  it("keeps the sign", () => {
+    expect(pctChange(105000, 62690)).toBeCloseTo(67.49, 2);
+    expect(pctChange(90, 100)).toBe(-10);
+  });
+
+  it("returns null without two numbers or with a zero base", () => {
+    expect(pctChange(100, 0)).toBeNull();
+    expect(pctChange(null, 100)).toBeNull();
+    expect(pctChange(100, undefined)).toBeNull();
   });
 });

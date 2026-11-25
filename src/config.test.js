@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   quarterForMonthYear,
   previousQuarter,
+  sameQuarterLastYear,
+  TRENDS_YOY_QUARTER,
   quarterFromId,
   quarterFromKey,
   resolveQuarter,
@@ -150,5 +152,25 @@ describe("quarterFromId", () => {
   it("resolveQuarter falls back to the current quarter", () => {
     expect(resolveQuarter("q9")).toBe(CURRENT_QUARTER);
     expect(resolveQuarter(undefined)).toBe(CURRENT_QUARTER);
+  });
+});
+
+describe("sameQuarterLastYear", () => {
+  it("steps back exactly one fiscal year, including quarters that wrap the calendar year", () => {
+    expect(sameQuarterLastYear(quarterForMonthYear(8, 2026)).title).toBe("Q1 2025–26");
+    expect(sameQuarterLastYear(quarterForMonthYear(11, 2026)).rangeLabel).toBe("Dec 2025–Feb 2026");
+    expect(sameQuarterLastYear(quarterForMonthYear(1, 2027)).rangeLabel).toBe("Dec 2025–Feb 2026");
+  });
+
+  it("is four quarters back", () => {
+    const q = quarterForMonthYear(5, 2026);
+    expect(sameQuarterLastYear(q)).toBe(
+      previousQuarter(previousQuarter(previousQuarter(previousQuarter(q))))
+    );
+  });
+
+  it("gives the Trends page last year's version of the current quarter", () => {
+    expect(TRENDS_YOY_QUARTER).toBe(sameQuarterLastYear(CURRENT_QUARTER));
+    expect(TRENDS_YOY_QUARTER.suffix).toBe(CURRENT_QUARTER.suffix);
   });
 });

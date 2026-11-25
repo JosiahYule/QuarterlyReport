@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import Chart from "chart.js/auto";
-import { useTrendsData } from "../hooks/useTrendsData.js";
+import { useTrendsData, quarterKey } from "../hooks/useTrendsData.js";
 import {
   METRICS,
   extractMetric,
@@ -15,29 +15,34 @@ import {
   annotateTimelineSpikes,
   projectionBand,
 } from "../lib/projection.js";
-import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
-import { fmt, fmtApprox } from "../utils.js";
+import { TRENDS_QUARTERS, TRENDS_YOY_QUARTER, AGENCIES } from "../config.js";
+import { fmt, fmtApprox, pctChange } from "../utils.js";
+import { campaignSpans, campaignDateRange } from "../lib/paidCampaigns.js";
 import { reportState } from "../components/ReportState.jsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.jsx";
 import { SectionRail } from "../components/SectionRail.jsx";
 import { useChartWidth, NARROW_CHART } from "../hooks/useChartWidth.js";
 
 // Chart colours — q2/q3 follow the agency accent; proj stays visually
-// distinct from q3 for every palette.
+// distinct from q3 for every palette. yoy (same quarter last year) is a pale
+// slate, so it reads as context rather than as part of the sequence.
 const CHART_PALETTES = {
   isl: {
+    yoy: "rgba(100,116,139,.32)",
     q1: "rgba(100,116,139,.7)",
     q2: "rgba(0,61,114,.8)",
     q3: "rgba(0,84,154,.85)",
     proj: "rgba(180,130,0,.85)",
   },
   as: {
+    yoy: "rgba(100,116,139,.32)",
     q1: "rgba(100,116,139,.7)",
     q2: "rgba(92,69,0,.8)",
     q3: "rgba(122,92,0,.85)",
     proj: "rgba(10,77,140,.85)",
   },
   ads: {
+    yoy: "rgba(100,116,139,.32)",
     q1: "rgba(100,116,139,.7)",
     q2: "rgba(10,67,89,.8)",
     q3: "rgba(15,91,120,.85)",
@@ -45,6 +50,12 @@ const CHART_PALETTES = {
   },
 };
 const paletteFor = (agency) => CHART_PALETTES[agency] || CHART_PALETTES.isl;
+
+const signedPct = (d) => `${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(1)}%`;
+
+// Chart.js takes a multi-line category label as an array of lines; the
+// canvas caption and tooltip want one string.
+const labelText = (l) => (Array.isArray(l) ? l.filter(Boolean).join(" · ") : l);
 
 // ─── Custom tooltip handler (editorial style) ──────────────────────
 function makeTooltipHandler(isPercent) {
@@ -61,7 +72,9 @@ function makeTooltipHandler(isPercent) {
       return;
     }
 
-    const title = tooltip.title?.[0] ?? "";
+    // Multi-line labels arrive as one title line each ("Q4 · Jun–Aug",
+    // "paid campaign"); show them on one line.
+    const title = (tooltip.title ?? []).filter(Boolean).join(" · ");
     const rawVal = tooltip.dataPoints?.[0]?.parsed?.y ?? null;
     const body = rawVal !== null ? fmtApprox(rawVal, isPercent) : "";
     const isProj = title.includes("Projected");
@@ -84,7 +97,15 @@ function makeTooltipHandler(isPercent) {
 }
 
 // ─── Chart card ───────────────────────────────────────────────────
-function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
+function ChartCard({
+  metric,
+  agency,
+  qdata,
+  snaps,
+  calibrationFactor = 1,
+  yoyData = null,
+  paidByQuarter = {},
+}) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
   const C = paletteFor(agency);
@@ -125,17 +146,43 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
     projected !== null ? (metric.baselineFromQ2 && q2v !== null ? q2v + projected : projected) : (q3v ?? 0);
 
   const isProjected = projected !== null;
-  const labels = [
-    `${tq1.label} · ${tq1.months}`,
-    `${tq2.label} · ${tq2.months}`,
-    isProjected ? `${tq3.label} · Projected` : `${tq3.label} · ${tq3.months}`,
+
+  // Same quarter last year, shown first (it is the oldest) and only when that
+  // quarter has a report. It is a year back, not the quarter before tq1, so
+  // its label carries the fiscal year to stop it reading as consecutive.
+  const yoyV = extractMetric(yoyData, metric);
+  const hasYoy = yoyV !== null;
+  const yoyQ = TRENDS_YOY_QUARTER;
+
+  // A second label line flags quarters that included a paid campaign, since
+  // paid flights inflate the organic totals these bars show.
+  const paidLine = (q) => ((paidByQuarter?.[quarterKey(q)] ?? []).length ? "paid campaign" : "");
+  const bars = [
+    ...(hasYoy ? [{ label: [yoyQ.title, paidLine(yoyQ)], color: C.yoy, value: yoyV }] : []),
+    { label: [`${tq1.label} · ${tq1.months}`, paidLine(tq1)], color: C.q1, value: q1v ?? 0 },
+    { label: [`${tq2.label} · ${tq2.months}`, paidLine(tq2)], color: C.q2, value: q2v ?? 0 },
+    {
+      label: [isProjected ? `${tq3.label} · Projected` : `${tq3.label} · ${tq3.months}`, paidLine(tq3)],
+      color: isProjected ? C.proj : C.q3,
+      value: chartQ3val,
+    },
   ];
-  const colors = [C.q1, C.q2, isProjected ? C.proj : C.q3];
-  const values = [q1v ?? 0, q2v ?? 0, chartQ3val];
+  const labels = bars.map((b) => b.label);
+  const colors = bars.map((b) => b.color);
+  const values = bars.map((b) => b.value);
+  const dataKey = JSON.stringify([labels, values, colors]);
 
   const sub = done
     ? "Quarter-over-quarter actuals"
     : `${tq1.label} & ${tq2.label} actuals · ${tq3.label} pace projection`;
+
+  // Year-over-year read on the bar that matters: this quarter (projected,
+  // final or to date) against the same quarter last year.
+  const yoyPct = hasYoy && (isProjected || q3v !== null) ? pctChange(chartQ3val, yoyV) : null;
+  const yoyNote =
+    yoyPct !== null
+      ? `${tq3.label} ${isProjected ? "projected" : done ? "final" : "to date"} ${signedPct(yoyPct)} vs ${yoyQ.title}`
+      : null;
 
   // Create the chart instance once per agency change; options (scales, tooltip) are stable.
   useEffect(() => {
@@ -200,6 +247,8 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
   }, [agency]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update data in-place when values change — avoids destroy/recreate on every data refresh.
+  // Keyed on the serialized bars, since the bar count changes when last year's
+  // report arrives and labels change when the projected status flips.
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
@@ -207,11 +256,11 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
     chart.data.datasets[0].data = values;
     chart.data.datasets[0].backgroundColor = colors;
     chart.update();
-    // labels[2] changes when projected status flips
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [values[0], values[1], values[2], labels[2]]);
+  }, [dataKey]);
 
   const legendItems = [
+    ...(hasYoy ? [{ color: C.yoy, label: `${yoyQ.title} (last year)` }] : []),
     { color: C.q1, label: `${tq1.label} Actual` },
     { color: C.q2, label: `${tq2.label} Actual` },
     isProjected
@@ -223,13 +272,14 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
     <div className="chart-card">
       <div className="chart-card-title serif">{metric.label}</div>
       <div className="chart-card-sub">{sub}</div>
+      {yoyNote && <div className={"chart-card-yoy " + (yoyPct >= 0 ? "pos" : "neg")}>{yoyNote}</div>}
       <div className="chart-wrap">
         {/* A canvas is a picture to assistive tech; this is its caption. */}
         <canvas
           ref={canvasRef}
           role="img"
           aria-label={`${metric.label}: ${labels
-            .map((l, i) => `${l} ${fmtApprox(values[i], metric.isPercent)}`)
+            .map((l, i) => `${labelText(l)} ${fmtApprox(values[i], metric.isPercent)}`)
             .join(", ")}`}
         />
       </div>
@@ -246,7 +296,7 @@ function ChartCard({ metric, agency, qdata, snaps, calibrationFactor = 1 }) {
 }
 
 // ─── Projection trajectory chart (how the projected final has moved) ──
-function ProjTrajectoryChart({ timeline, metric }) {
+function ProjTrajectoryChart({ timeline, metric, campaigns = [] }) {
   const [svgRef, W] = useChartWidth(880);
   const narrow = W < NARROW_CHART;
   const H = 260,
@@ -279,6 +329,14 @@ function ProjTrajectoryChart({ timeline, metric }) {
   const tRange = maxT - minT || 1;
   const X = (t) => pL + ((t - minT) / tRange) * (W - pL - pR);
   const Y = (v) => pT + (H - pT - pB) * (1 - (v - domMin) / domRange);
+
+  // Shade the stretch of the plotted window each dated paid campaign ran, so
+  // a jump in the projection can be read against paid activity. At least 3px
+  // wide so a one-day campaign still shows.
+  const paidSpans = campaignSpans(campaigns, minT, maxT).map((c) => {
+    const x0 = X(c.from);
+    return { ...c, x: x0, w: Math.max(3, X(c.to) - x0) };
+  });
 
   const pts = timeline.map((p) => ({
     x: X(p.t),
@@ -367,6 +425,16 @@ function ProjTrajectoryChart({ timeline, metric }) {
           >
             {fmt(t.v)}
           </text>
+        </g>
+      ))}
+      {paidSpans.map((c, i) => (
+        <g key={`paid-${i}`} aria-hidden="true">
+          <rect x={c.x} y={pT} width={c.w} height={H - pT - pB} fill="var(--ink)" opacity="0.06" />
+          {c.w >= 34 && (
+            <text x={c.x + 5} y={pT + 12} fontSize="10" fill="var(--ink-3)" fontFamily="var(--sans)">
+              Paid
+            </text>
+          )}
         </g>
       ))}
       <line x1={pL} x2={W - pR} y1={H - pB} y2={H - pB} stroke="var(--ink)" strokeWidth="1" />
@@ -479,8 +547,43 @@ function ProjTrajectoryChart({ timeline, metric }) {
   );
 }
 
+// ─── Paid campaigns this quarter (named, with or without dates) ───────
+// Every paid campaign gets named here, including one entered without dates:
+// it still ran this quarter and still lifted the totals, it just can't be
+// shaded on a timeline, and saying so beats guessing its dates.
+function PaidCampaignNote({ campaigns }) {
+  if (!campaigns?.length) return null;
+  return (
+    <div className="trajectory-paid-note">
+      <div className="trajectory-paid-head">Paid this quarter</div>
+      <ul>
+        {campaigns.map((c, i) => {
+          const range = campaignDateRange(c);
+          const meta = [
+            c.platform,
+            c.budget !== null ? `$${c.budget.toLocaleString("en-CA")}` : null,
+            range ? `${range} (shaded)` : "dates not recorded, so not shaded",
+          ].filter(Boolean);
+          return (
+            <li key={i}>
+              <span className="trajectory-paid-name">{c.name}</span> · {meta.join(" · ")}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 // ─── Projection trajectory section (click through metrics) ────────────
-function ProjectionTrajectory({ qdata, snaps, calibrationFactors, calibrationHistory, posts }) {
+function ProjectionTrajectory({
+  qdata,
+  snaps,
+  calibrationFactors,
+  calibrationHistory,
+  posts,
+  campaigns = [],
+}) {
   const [d1, d2] = qdata;
   const [, tq2, tq3] = TRENDS_QUARTERS;
   const [activeKey, setActiveKey] = useState(METRICS[0].id);
@@ -528,7 +631,8 @@ function ProjectionTrajectory({ qdata, snaps, calibrationFactors, calibrationHis
           ))}
         </nav>
         <div className="kpi-history-chart-wrap">
-          <ProjTrajectoryChart timeline={timeline} metric={metric} />
+          <ProjTrajectoryChart timeline={timeline} metric={metric} campaigns={campaigns} />
+          <PaidCampaignNote campaigns={campaigns} />
         </div>
       </div>
     </section>
@@ -591,7 +695,7 @@ function CalibrationAccuracy({ calibrationHistory }) {
 }
 
 // ─── Projection card ──────────────────────────────────────────────
-function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history }) {
+function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history, yoyData = null }) {
   const [d1, d2, d3] = qdata;
   const [, tq2, tq3] = TRENDS_QUARTERS;
 
@@ -683,6 +787,18 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
     wowCls = delta >= 0 ? "pos" : "neg";
   }
 
+  // Year over year: this quarter against the same quarter last year, on the
+  // same basis as the headline (projected final, or the actual once done).
+  // Followers' headline is net new, and last year's net new would need the
+  // quarter before it too, so followers compare total audience instead and
+  // say so in the label.
+  const yoyLast = extractMetric(yoyData, metric);
+  const yoyCur = metric.baselineFromQ2 ? q3v : headlineVal;
+  const yoyPct = pctChange(yoyCur, yoyLast);
+  const yoyLabel = `${metric.baselineFromQ2 ? "Total vs" : "vs"} ${TRENDS_YOY_QUARTER.title}`;
+  const yoyVal = yoyPct !== null ? signedPct(yoyPct) : "—";
+  const yoyCls = yoyPct === null ? "na" : yoyPct >= 0 ? "pos" : "neg";
+
   // Track record: average absolute miss across persisted past-quarter audits.
   // Stays absent (rather than showing a "—") until at least one prior quarter
   // has been audited, so a fresh dashboard doesn't read as unfinished.
@@ -701,6 +817,7 @@ function ProjCard({ metric, qdata, snaps, q3done, calibrationFactor = 1, history
   // there; the card fills in as data accrues instead of showing empty dashes.
   const stats = [
     { label: stat1Label, value: stat1Val },
+    { label: yoyLabel, value: yoyVal, cls: yoyCls },
     { label: "Daily Rate", value: stat2Val, cls: "rate" },
     { label: `Rate vs ${tq2.label}`, value: stat3Val, cls: stat3Cls },
     { label: "vs Last Week", value: wowVal, cls: wowCls },
@@ -976,8 +1093,17 @@ const TRENDS_SECTIONS = [
 
 // ─── Page ─────────────────────────────────────────────────────────
 export function TrendsPage({ agency, onReady }) {
-  const { qdata, snapsByQuarter, calibrationHistory, drivers, platforms, status, error } =
-    useTrendsData(agency);
+  const {
+    qdata,
+    snapsByQuarter,
+    calibrationHistory,
+    yoyData,
+    paidByQuarter,
+    drivers,
+    platforms,
+    status,
+    error,
+  } = useTrendsData(agency);
 
   useEffect(() => {
     if (status === "ready" || status === "error") onReady?.();
@@ -1071,6 +1197,7 @@ export function TrendsPage({ agency, onReady }) {
                 q3done={q3done}
                 calibrationFactor={calibrationFactors[m.id]}
                 history={calibrationHistory?.[m.id]}
+                yoyData={yoyData}
               />
             ))}
           </div>
@@ -1084,6 +1211,7 @@ export function TrendsPage({ agency, onReady }) {
           calibrationFactors={calibrationFactors}
           calibrationHistory={calibrationHistory}
           posts={drivers?.posts ?? []}
+          campaigns={paidByQuarter?.[quarterKey(TRENDS_QUARTERS[2])] ?? []}
         />
       </ErrorBoundary>
 
@@ -1111,6 +1239,8 @@ export function TrendsPage({ agency, onReady }) {
                 qdata={qdata}
                 snaps={snapsByQuarter[TRENDS_QUARTERS[2].suffix] ?? []}
                 calibrationFactor={calibrationFactors[m.id]}
+                yoyData={yoyData}
+                paidByQuarter={paidByQuarter}
               />
             ))}
           </div>

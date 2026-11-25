@@ -8,6 +8,14 @@ export function calcAutoDelta(cur, prev) {
   return { dir: pct > 0 ? "up" : pct < 0 ? "down" : "flat", pct: Math.abs(pct) };
 }
 
+// Signed percent change, or null when either side is missing or the base is
+// zero (a percentage of nothing says nothing). Unlike calcAutoDelta, keeps the
+// sign, for stats that print "+68.0%" / "−12.4%" directly.
+export function pctChange(cur, base) {
+  if (!Number.isFinite(cur) || !Number.isFinite(base) || base === 0) return null;
+  return ((cur - base) / Math.abs(base)) * 100;
+}
+
 export const fmt = (n) => {
   if (n === null || n === undefined) return "—";
   if (typeof n !== "number") return String(n);

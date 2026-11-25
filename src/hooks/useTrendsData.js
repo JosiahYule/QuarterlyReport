@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
-import { TRENDS_QUARTERS, AGENCIES } from "../config.js";
+import { TRENDS_QUARTERS, TRENDS_YOY_QUARTER, AGENCIES } from "../config.js";
 import { METRICS, buildProjectionAudits } from "../lib/projection.js";
 import { withRetry, friendlyError, oneRow } from "../lib/fetching.js";
+import { normalizeCampaigns } from "../lib/paidCampaigns.js";
 
 // ─── History: Supabase persistence ───────────────────────────────
 // Writing snapshots is the capture-projection-snapshots cron job's business
@@ -195,6 +196,27 @@ async function fetchPlatformBreakdown(agency, current, prev) {
   }
 }
 
+// Paid campaigns for each quarter the page shows, keyed `${suffix}-${year}`,
+// so the charts can mark where paid activity ran alongside the organic
+// totals. Optional context: a failure leaves the markers off rather than
+// failing the page.
+export const quarterKey = (q) => `${q.suffix}-${q.year}`;
+async function fetchPaidCampaigns(agency, quarters) {
+  try {
+    const { data, error } = await supabase
+      .from("social_reports")
+      .select("quarter, year, paid_media_campaigns(name, platform, budget, start_date, end_date)")
+      .eq("agency", agency)
+      .or(quarters.map((q) => `and(quarter.eq.${q.suffix},year.eq.${q.year})`).join(","));
+    if (error || !data) return {};
+    return Object.fromEntries(
+      data.map((r) => [`${r.quarter}-${r.year}`, normalizeCampaigns(r.paid_media_campaigns)])
+    );
+  } catch (_) {
+    return {};
+  }
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────
 async function fetchQuarter(agency, quarter) {
   try {
@@ -231,6 +253,8 @@ export function useTrendsData(agency) {
     qdata: null,
     snapsByQuarter: {},
     calibrationHistory: {},
+    yoyData: null,
+    paidByQuarter: {},
     drivers: null,
     platforms: [],
     status: "loading",
@@ -242,10 +266,14 @@ export function useTrendsData(agency) {
 
     const run = async () => {
       try {
-        const [qdata, drivers, platforms, ...rest] = await Promise.all([
+        const [qdata, drivers, platforms, yoyData, paidByQuarter, ...rest] = await Promise.all([
           Promise.all(TRENDS_QUARTERS.map((q) => fetchQuarter(agency, q))),
           fetchDrivers(agency, TRENDS_QUARTERS[2]),
           fetchPlatformBreakdown(agency, TRENDS_QUARTERS[2], TRENDS_QUARTERS[1]),
+          // Same quarter last year: optional context, null when no report
+          // exists (fetchQuarter already returns null rather than throwing).
+          fetchQuarter(agency, TRENDS_YOY_QUARTER),
+          fetchPaidCampaigns(agency, [TRENDS_YOY_QUARTER, ...TRENDS_QUARTERS]),
           ...TRENDS_QUARTERS.map((q) => loadSnapshots(agency, q)),
           ...METRICS.map((m) => loadCalibrationHistory(agency, m.id)),
         ]);
@@ -266,6 +294,8 @@ export function useTrendsData(agency) {
             qdata,
             snapsByQuarter,
             calibrationHistory,
+            yoyData,
+            paidByQuarter,
             drivers,
             platforms,
             status: "ready",
@@ -280,6 +310,8 @@ export function useTrendsData(agency) {
                   qdata: null,
                   snapsByQuarter: {},
                   calibrationHistory: {},
+                  yoyData: null,
+                  paidByQuarter: {},
                   drivers: null,
                   platforms: [],
                   status: "error",
@@ -295,6 +327,8 @@ export function useTrendsData(agency) {
       qdata: null,
       snapsByQuarter: {},
       calibrationHistory: {},
+      yoyData: null,
+      paidByQuarter: {},
       drivers: null,
       platforms: [],
       status: "loading",
